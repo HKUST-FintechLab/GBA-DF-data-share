@@ -17,6 +17,7 @@ import numpy as np
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+import dp
 import fed_common as fc
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -25,10 +26,15 @@ _test = np.load(os.path.join(HERE, "data", "test.npz"))
 X_TEST, Y_TEST = _test["X"], _test["y"].astype(str)
 with open(os.path.join(HERE, "data", "meta.json")) as f:
     META = json.load(f)
-CENTRAL = META["centralized"]
+CENTRAL = META["centralized"]                 # matched DP reference
+CEILING = META.get("centralized_nonprivate", {})
 CLASSES = [str(c) for c in META["classes"]]
 PRIMARY = META["primary_metric"]
 DATASET = META["dataset"]
+FEATURE_BOUNDS = META.get("feature_bounds", [])
+DP = META.get("dp", {"epsilon_per_round": 1.0, "depth": 9, "trees_per_round": 20, "budget": 10.0})
+BUDGET = float(DP.get("budget", 10.0))         # per-node cumulative epsilon cap
+EPS_ROUND = float(DP.get("epsilon_per_round", 1.0))  # epsilon the CURATOR spends per round (enforced)
 
 COORD_KEY = fc.gen_key()                      # signs every audit entry
 COORD_PUB = COORD_KEY.public_key()
@@ -61,6 +67,13 @@ async def pubkey():
     return PlainTextResponse(fc.pub_pem(COORD_KEY).decode())
 
 
+@app.get("/schema")
+async def schema():
+    # PUBLIC federation schema a node needs to build DP-compatible updates
+    return {"classes": CLASSES, "feature_bounds": FEATURE_BOUNDS, "n_features": int(X_TEST.shape[1]),
+            "primary_metric": PRIMARY, "dp": DP, "epsilon_budget": BUDGET}
+
+
 @app.post("/register")
 async def register(req: Request):
     try:
@@ -79,7 +92,7 @@ async def register(req: Request):
                                 status_code=409)
         if not cur:
             STATE["nodes"][node_id] = {"pubkey": pub, "name": name, "samples": samples,
-                                       "last_round": 0, "model_bytes": 0}
+                                       "last_round": 0, "model_bytes": 0, "eps_spent": 0.0}
             STATE["audit"].append("register", node_id, {"name": name, "samples": samples},
                                   ts=time.time())
     return {"ok": True, "node_id": node_id}
@@ -93,6 +106,7 @@ async def submit(req: Request):
         update = b["update"]; sig = bytes.fromhex(b["sig_hex"])
     except Exception:
         return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
+    eps = EPS_ROUND      # epsilon is set + spent by the curator, NOT declared by the node
 
     with LOCK:
         node = STATE["nodes"].get(node_id)
@@ -104,22 +118,31 @@ async def submit(req: Request):
                                   ts=time.time())
             return JSONResponse({"ok": False, "error": "stale or replayed round"}, status_code=409)
 
-        payload_hash = fc.sha256_hex(fc._canon(update))     # signature must bind the exact payload
-        message = f"{node_id}|{rnd}|{n_samples}|{payload_hash}".encode()  # ...and n_samples
+        payload_hash = fc.sha256_hex(fc._canon(update))     # signature binds payload + round + n_samples
+        message = f"{node_id}|{rnd}|{n_samples}|{payload_hash}".encode()
         if not fc.verify_sig(fc.load_pub(node["pubkey"].encode()), sig, message):
             STATE["rejected_payloads"] += 1
             STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad signature"},
                                   ts=time.time())
             return JSONResponse({"ok": False, "error": "signature verification failed"}, status_code=401)
 
-        # only tree arrays with in-range indices can pass — never raw data, never a crashing forest
-        reason = fc.validate_forest(update, CLASSES, X_TEST.shape[1])
+        if node["eps_spent"] + eps > BUDGET + 1e-9:         # per-node DP budget ledger
+            STATE["rejected_payloads"] += 1
+            STATE["audit"].append("rejected", node_id,
+                                  {"round": rnd, "reason": "epsilon budget exceeded",
+                                   "eps_spent": round(node["eps_spent"], 4), "eps_req": eps}, ts=time.time())
+            return JSONResponse({"ok": False, "error": f"epsilon budget exceeded "
+                                 f"({node['eps_spent']:.2f}+{eps:.2f} > {BUDGET})"}, status_code=429)
+
+        # integer-count tree schema with in-range indices — never raw data, never a crashing forest
+        reason = fc.validate_count_forest(update, CLASSES, X_TEST.shape[1])
         if reason:
             STATE["rejected_payloads"] += 1
             STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": reason}, ts=time.time())
             return JSONResponse({"ok": False, "error": f"invalid model payload: {reason}"}, status_code=400)
 
-        jf = fc.JsonForest(update)
+        noised = dp.add_dp_noise(update, eps)                 # CURATOR adds the calibrated DP noise
+        jf = fc.JsonForest(noised)
         weight = float(node["samples"])                       # authoritative: enrolled count, NOT the wire
         STATE["model"].add(jf, weight, node_id, rnd)
         try:
@@ -135,8 +158,10 @@ async def submit(req: Request):
         STATE["model_bytes_received"] += nbytes
         node["model_bytes"] += nbytes
         node["last_round"] = rnd
+        node["eps_spent"] += eps                            # charge the DP budget ledger
         STATE["audit"].append("submit", node_id,
-                              {"round": rnd, "trees": jf.n_trees, "model_bytes": nbytes},
+                              {"round": rnd, "trees": jf.n_trees, "model_bytes": nbytes,
+                               "epsilon": round(eps, 4), "eps_cum": round(node["eps_spent"], 4)},
                               payload_sha256=payload_hash, ts=time.time())
         point = {"seq": len(STATE["metrics"]), "ts": time.time(), "node": node_id,
                  "round": rnd, **m, "central": CENTRAL[PRIMARY]}
@@ -146,19 +171,22 @@ async def submit(req: Request):
                                f"fed_{PRIMARY}": round(m[PRIMARY], 4),
                                f"central_{PRIMARY}": round(CENTRAL[PRIMARY], 4)}, ts=time.time())
     return {"ok": True, "fed_primary": m[PRIMARY], "primary_metric": PRIMARY,
-            "global_trees": m["n_trees"]}
+            "global_trees": m["n_trees"], "eps_cum": node["eps_spent"], "eps_budget": BUDGET}
 
 
 @app.get("/status")
 async def status():
     with LOCK:
         nodes = [{"node_id": nid, "name": v["name"], "samples": v["samples"],
-                  "rounds_submitted": v["last_round"], "model_kb": round(v["model_bytes"] / 1024, 1)}
+                  "rounds_submitted": v["last_round"], "model_kb": round(v["model_bytes"] / 1024, 1),
+                  "eps_spent": round(v["eps_spent"], 3)}
                  for nid, v in STATE["nodes"].items()]
         last = STATE["metrics"][-1] if STATE["metrics"] else None
         return {
             "dataset": DATASET, "classes": CLASSES, "primary_metric": PRIMARY,
-            "nodes": nodes, "metrics": STATE["metrics"], "centralized": CENTRAL,
+            "nodes": nodes, "metrics": STATE["metrics"],
+            "centralized": CENTRAL, "centralized_nonprivate": CEILING,
+            "dp": DP, "epsilon_budget": BUDGET,
             "test_windows": int(len(Y_TEST)),
             "payload_schema_enforced": True,         # raw feature/label arrays cannot pass /submit
             "rejected_payloads": STATE["rejected_payloads"],

@@ -49,3 +49,13 @@ def load(name: str):
     if name == "pose":
         return load_pose()
     raise ValueError(f"unknown dataset {name!r} (use 'har' or 'pose')")
+
+
+def public_bounds(name: str, n_features: int):
+    """PUBLIC per-feature [lo, hi] used for data-independent DP splits — declared a-priori
+    from the dataset's documented range, NEVER computed from participant data."""
+    if name == "har":
+        # UCI HAR feature set is documented-normalised to [-1, 1] -> genuinely public.
+        return np.tile([-1.0, 1.0], (n_features, 1)).astype(float)
+    # pose / other: conservative declared range for pose-normalised features (public choice).
+    return np.tile([-5.0, 5.0], (n_features, 1)).astype(float)

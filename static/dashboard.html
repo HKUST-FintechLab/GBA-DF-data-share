@@ -47,6 +47,8 @@
   .node .row b{color:var(--ink);font-weight:600}
   .pill-local{display:inline-block;font-size:10.5px;color:var(--ok);background:#eef5f1;border:1px solid #bcdccd;
     border-radius:6px;padding:1px 7px;margin-left:6px}
+  .epsbar{height:5px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
+  .epsfill{height:100%;background:linear-gradient(90deg,var(--ok),var(--accent));border-radius:3px}
   .chart-wrap{position:relative}
   svg{width:100%;height:300px;display:block}
   .legend{display:flex;gap:18px;font-size:12.5px;color:var(--mut);margin-top:6px}
@@ -80,14 +82,14 @@
   <section class="card full">
     <h2>Federated vs centralized — the headline claim</h2>
     <div class="stat-row">
-      <div class="stat hero"><div class="label">Federated <span id="m1">accuracy</span></div>
-        <div class="val" id="fedVal">—</div><div class="sub" id="fedSub">across all nodes, data-local</div></div>
-      <div class="stat"><div class="label">Centralized baseline</div>
-        <div class="val" id="cenVal">—</div><div class="sub">trained on pooled data</div></div>
-      <div class="stat"><div class="label">Gap</div>
-        <div class="val small" id="gapVal">—</div><div class="sub" id="gapSub">federated ≈ centralized</div></div>
-      <div class="stat zero"><div class="label">Raw feature/label arrays</div>
-        <div class="val" id="rawVal">none</div><div class="sub" id="rawSub">schema-enforced</div></div>
+      <div class="stat hero"><div class="label">Federated-DP <span id="m1">accuracy</span></div>
+        <div class="val" id="fedVal">—</div><div class="sub" id="fedSub">across nodes · data-local</div></div>
+      <div class="stat"><div class="label">Centralized-DP (ε=1 ref)</div>
+        <div class="val" id="cenVal">—</div><div class="sub">same mechanism, pooled</div></div>
+      <div class="stat"><div class="label">Non-private ceiling</div>
+        <div class="val small" id="ceilVal">—</div><div class="sub">ExtraTrees — DP utility cost</div></div>
+      <div class="stat zero"><div class="label">DP guarantee</div>
+        <div class="val small" id="epsVal">—</div><div class="sub" id="rawSub">Laplace leaf histograms · raw arrays: none</div></div>
     </div>
     <div class="note" id="caveat"></div>
   </section>
@@ -112,7 +114,7 @@
     <div class="audit" id="audit"></div>
   </section>
 </main>
-<div class="foot">Models travel to the data · raw feature/label arrays never transmitted (the model is not privacy-protected; DP is future work) · every node update Ed25519-signed · every event hash-chained &amp; signed against the coordinator's published key (<a href="/pubkey" style="color:var(--mut)">/pubkey</a>)</div>
+<div class="foot">Models travel to the data · each node release is (ε)-differentially private (Laplace on leaf histograms, data-independent splits) with a per-node ε-budget ledger · every node update Ed25519-signed · every event hash-chained &amp; signed against the coordinator's published key (<a href="/pubkey" style="color:var(--mut)">/pubkey</a>)</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -127,19 +129,19 @@ async function poll(){
   $('datasetBadge').textContent=`${s.dataset.toUpperCase()} · ${s.global_trees} trees`;
   $('m1').textContent=ML;
 
-  const cen=s.centralized[pm], fed=s.fed_primary;
+  const cen=s.centralized[pm], fed=s.fed_primary, ceil=(s.centralized_nonprivate||{})[pm];
+  const eR=s.dp?s.dp.epsilon_per_round:'?';
   $('cenVal').textContent=cen!=null?cen.toFixed(3):'—';
   $('fedVal').textContent=fed!=null?fed.toFixed(3):'—';
-  if(fed!=null){
+  $('ceilVal').textContent=ceil!=null?ceil.toFixed(3):'—';
+  $('epsVal').textContent='ε='+eR+'/rnd';
+  if(fed!=null&&cen!=null){
     const gap=Math.abs(cen-fed);
-    $('gapVal').textContent='−'+gap.toFixed(3);
-    $('gapSub').textContent=gap<0.02?'federated ≈ centralized ✓':'gap > 0.02 (add trees / seeds)';
-    $('gapSub').style.color=gap<0.02?'var(--ok)':'var(--mut)';
+    $('fedSub').textContent=`tracks centralized-DP (gap −${gap.toFixed(3)}) · cumulative ε up to budget ${s.epsilon_budget}`;
+    $('fedSub').style.color=gap<0.06?'var(--ok)':'var(--mut)';
   }
-  const mb = s.model_kb_received>=1024?(s.model_kb_received/1024).toFixed(1)+' MB':s.model_kb_received+' KB';
-  $('rawVal').textContent = s.payload_schema_enforced ? 'none' : '?';
-  $('rawSub').textContent = `schema-enforced · model params: ${mb} · rejected: ${s.rejected_payloads}`;
-  $('caveat').textContent = `Benchmark: ${s.dataset.toUpperCase()}, IID partition, single seed, window-level split — absolute numbers are optimistic; the federated-vs-centralized gap is the honest result. "Raw arrays not sent" ≠ privacy: the model still encodes dataset statistics (DP is future work).`;
+  $('rawSub').textContent=`curator-added Laplace · raw arrays: none · rejected: ${s.rejected_payloads}`;
+  $('caveat').textContent = `Central-DP: nodes ship integer leaf counts of data-independent trees; the COORDINATOR (trusted curator) adds Laplace noise at ε=${eR}/round and enforces it (no secure aggregation yet — the curator sees un-noised aggregates, never raw records). Basic composition; per-node budget ${s.epsilon_budget} (so cumulative ε reaches ${eR}×rounds). Utility cost ≈${ceil?ceil.toFixed(2):'?'} non-private → ${fed?fed.toFixed(2):'?'} DP is the price of data-independent splits. ${s.dataset.toUpperCase()}, IID, single-seed, window-level — absolute numbers optimistic; the federated-vs-centralized-DP gap is the honest result.`;
 
   // chain badge
   $('chainBadge').textContent = a.verified ? `chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
@@ -151,6 +153,8 @@ async function poll(){
     <div class="node"><div class="nm">${n.name}<span class="pill-local">raw arrays not sent</span></div>
       <div class="row"><span>local samples (kept local)</span><b>${n.samples}</b></div>
       <div class="row"><span>model updates sent</span><b>${n.model_kb} KB · round ${n.rounds_submitted}</b></div>
+      <div class="row"><span>DP ε spent</span><b>${n.eps_spent ?? 0} / ${s.epsilon_budget}</b></div>
+      <div class="epsbar"><div class="epsfill" style="width:${Math.min(100,100*(n.eps_spent||0)/s.epsilon_budget)}%"></div></div>
     </div>`).join('');
 
   drawChart(s.metrics, cen, pm);

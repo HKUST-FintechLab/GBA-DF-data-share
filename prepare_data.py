@@ -38,11 +38,30 @@ def baseline_metrics(clf, Xte, yte, classes):
             auc = float(roc_auc_score((np.asarray(yte) == classes[1]).astype(int), P[:, 1]))
         else:
             auc = float(roc_auc_score(yte, P, multi_class="ovr", average="macro", labels=classes))
+        if auc is not None and not np.isfinite(auc):
+            auc = None
     except Exception:
-        auc = float("nan")
+        auc = None
     return {"acc": float(accuracy_score(yte, pred)),
             "bacc": float(balanced_accuracy_score(yte, pred)),
             "auc": auc}
+
+
+def dp_metrics(fd, Xte, yte, classes):
+    from fed_common import JsonForest
+    proba = JsonForest(fd).predict_proba(Xte)
+    pred = np.array([classes[i] for i in proba.argmax(1)])
+    try:
+        if len(classes) == 2:
+            auc = float(roc_auc_score((np.asarray(yte) == classes[1]).astype(int), proba[:, 1]))
+        else:
+            auc = float(roc_auc_score(yte, proba, multi_class="ovr", average="macro", labels=classes))
+        if auc is not None and not np.isfinite(auc):
+            auc = None
+    except Exception:
+        auc = None
+    return {"acc": float(accuracy_score(yte, pred)),
+            "bacc": float(balanced_accuracy_score(yte, pred)), "auc": auc}
 
 
 def main():
@@ -52,6 +71,10 @@ def main():
     ap.add_argument("--test-frac", type=float, default=0.25)
     ap.add_argument("--total-trees", type=int, default=600)
     ap.add_argument("--min-leaf", type=int, default=5, help="match nodes; blunts leakage")
+    ap.add_argument("--epsilon", type=float, default=1.0, help="DP epsilon per node per round")
+    ap.add_argument("--dp-depth", type=int, default=9)
+    ap.add_argument("--dp-trees", type=int, default=20, help="DP trees per node per round")
+    ap.add_argument("--budget", type=float, default=10.0, help="per-node cumulative epsilon cap")
     ap.add_argument("--noniid", action="store_true", help="skew label mix across nodes")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
@@ -119,13 +142,25 @@ def main():
         meta_nodes.append({"node_id": f"node_{n+1}", "name": name, "samples": int(Xn.shape[0])})
         print(f"  node_{n+1} [{name}]: {Xn.shape[0]} samples  {dist}")
 
-    print(f"Training centralized baseline (ExtraTrees, {args.total_trees} trees)…")
+    print(f"Training NON-PRIVATE ceiling (ExtraTrees, {args.total_trees} trees)…")
     clf = ExtraTreesClassifier(n_estimators=args.total_trees, min_samples_leaf=args.min_leaf,
                                class_weight="balanced", random_state=args.seed, n_jobs=-1)
     clf.fit(Xtr, ytr)
-    central = {**baseline_metrics(clf, Xte, yte, classes), "n_trees": args.total_trees}
-    print(f"  centralized  acc {central['acc']:.3f} | auc {central['auc']:.3f} | "
-          f"bacc {central['bacc']:.3f}")
+    central_np = {**baseline_metrics(clf, Xte, yte, classes), "n_trees": args.total_trees}
+    print(f"  non-private ceiling   acc {central_np['acc']:.3f} | auc {central_np['auc']:.3f}")
+
+    # PUBLIC per-feature bounds (declared a-priori from the dataset's documented range) — DP splits
+    # draw from these; they are NOT computed from participant data.
+    bounds = data_loaders.public_bounds(args.dataset, X.shape[1])
+
+    print(f"Training centralized-DP reference (eps={args.epsilon}, depth {args.dp_depth})…")
+    import dp as dpmod
+    total_dp = args.nodes * args.dp_trees
+    cf = dpmod.build_dp_counts(Xtr, ytr, classes, bounds, total_dp, args.dp_depth, seed=args.seed)
+    fd = dpmod.add_dp_noise(cf, args.epsilon, np.random.default_rng(args.seed))
+    central_dp = {**dp_metrics(fd, Xte, yte, classes), "n_trees": total_dp, "epsilon": args.epsilon}
+    _au = central_dp["auc"]
+    print(f"  centralized-DP        acc {central_dp['acc']:.3f} | auc {(f'{_au:.3f}' if _au is not None else 'n/a')}")
 
     meta = {
         "dataset": args.dataset,
@@ -136,7 +171,12 @@ def main():
         "nodes": meta_nodes,
         "test_windows": int(Xte.shape[0]),
         "n_features": int(X.shape[1]),
-        "centralized": central,
+        "feature_bounds": bounds.tolist(),
+        "bounds_public": True,                 # declared a-priori, not derived from participant data
+        "centralized": central_dp,             # centralized-DP reference (ε per the schema)
+        "centralized_nonprivate": central_np,  # non-private ceiling, for context
+        "dp": {"epsilon_per_round": args.epsilon, "depth": args.dp_depth,
+               "trees_per_round": args.dp_trees, "budget": args.budget},
         "seed": args.seed,
     }
     with open(os.path.join(HERE, "data", "meta.json"), "w") as f:

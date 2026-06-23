@@ -1,13 +1,14 @@
 """Shared federated primitives: Ed25519 signing, a SIGNATURE-VERIFIED hash-chained
 audit log, and a pickle-free forest exchange format.
 
-Security notes (post-audit hardening):
-  * Model updates are a constrained JSON tree schema (no pickle -> no RCE).
-  * Leaves ship NORMALISED class proportions only (no sample counts) and nodes
-    train with min_samples_leaf >= K, which blunts (does NOT eliminate)
-    per-record leakage. This POC does not implement differential privacy.
-  * Audit.verify() checks BOTH the SHA-256 hash chain AND each entry's Ed25519
-    signature against the coordinator's pinned public key.
+  * Model updates are a constrained JSON tree schema (no pickle -> no RCE), bounds-checked.
+  * Default privacy is CENTRAL differential privacy (see dp.py): a node ships INTEGER leaf
+    histograms of data-INDEPENDENT random trees (validate_count_forest); the COORDINATOR adds
+    the Laplace noise and meters epsilon, so epsilon is enforced, not self-declared. The
+    resulting probability forest is consumed by JsonForest below. (serialize_forest /
+    validate_forest support a non-private probability-forest path used only for baselines.)
+  * Audit.verify() checks BOTH the SHA-256 hash chain AND each entry's Ed25519 signature
+    against the coordinator's pinned public key.
 """
 import base64
 import hashlib
@@ -138,6 +139,52 @@ def validate_forest(d, global_classes, n_features, max_trees=2000, max_nodes=400
         return f"schema: malformed ({type(e).__name__})"
 
 
+def validate_count_forest(d, global_classes, n_features, max_trees=2000, max_nodes=400000) -> str:
+    """Validate a NODE 'count forest' {classes, trees:[{cl,cr,f,t,n}]}: n are NON-NEGATIVE
+    INTEGER leaf histograms (curator adds the DP noise). Never raises; bounds-checks indices."""
+    try:
+        if not isinstance(d, dict) or set(d.keys()) != {"classes", "trees"}:
+            return "schema: unexpected keys"
+        classes = d["classes"]
+        if not isinstance(classes, list) or not classes or not all(isinstance(c, str) for c in classes):
+            return "schema: bad classes"
+        if any(c not in global_classes for c in classes):
+            return "schema: unknown class label"
+        C = len(classes)
+        trees = d["trees"]
+        if not isinstance(trees, list) or not (0 < len(trees) <= max_trees):
+            return "schema: tree count"
+        total = 0
+        for t in trees:
+            if not isinstance(t, dict) or set(t.keys()) != {"cl", "cr", "f", "t", "n"}:
+                return "schema: tree keys"
+            cl, cr, f, th, n = t["cl"], t["cr"], t["f"], t["t"], t["n"]
+            if not all(isinstance(a, list) for a in (cl, cr, f, th, n)):
+                return "schema: tree arrays"
+            m = len(cl)
+            if m == 0:
+                return "schema: empty tree"
+            total += m
+            if total > max_nodes:
+                return "schema: too many nodes"
+            if not (len(cr) == len(f) == len(th) == len(n) == m):
+                return "schema: array length mismatch"
+            if not all(_is_int(x) for x in cl) or not all(_is_int(x) for x in cr) or not all(_is_int(x) for x in f):
+                return "schema: non-int index"
+            if any(x < -1 or x >= m for x in cl) or any(x < -1 or x >= m for x in cr):
+                return "schema: child index out of range"
+            if any(x < -2 or x >= n_features for x in f):
+                return "schema: feature index out of range"
+            if not all(_is_num(x) for x in th):
+                return "schema: non-numeric threshold"
+            for row in n:
+                if not isinstance(row, list) or len(row) != C or not all(_is_int(x) and x >= 0 for x in row):
+                    return "schema: bad count vector"
+        return ""
+    except Exception as e:
+        return f"schema: malformed ({type(e).__name__})"
+
+
 class JsonForest:
     """Pure-numpy predictor rebuilt from the JSON schema (no sklearn, no pickle)."""
 
@@ -250,8 +297,10 @@ class GlobalModel:
             else:
                 auc = float(roc_auc_score(y, proba, multi_class="ovr",
                                           average="macro", labels=self.classes))
+            if not np.isfinite(auc):
+                auc = None
         except Exception:
-            auc = float("nan")
+            auc = None                       # None is JSON-safe; NaN is not
         return {"acc": float(accuracy_score(y, pred)),
                 "bacc": float(balanced_accuracy_score(y, pred)),
                 "auc": auc, "n_trees": self.n_trees(), "n_updates": self.n_updates()}

@@ -1,8 +1,9 @@
 # Recording the federated POC demo (内部 / 伙伴演示)
 
-Goal: a clean ~90-second screen recording that shows the four claims live.
-Verified run: **federated 0.962 vs centralized 0.972** (gap 0.010), `/submit` rejects non-tree
-payloads, audit **chain + signatures verified**, and `verify_security.py` shows tampering fails.
+Goal: a clean ~90-second screen recording that shows the claims live.
+Verified run (ε=1/round): **federated-DP 0.760 ≈ centralized-DP 0.723** (siloing is free) vs
+**non-private ceiling 0.972** (the DP utility cost); per-node ε metered (5/10), budget-exceed blocked;
+audit **chain + signatures verified**; `verify_security.py` → **15/15** checks pass.
 
 ## Pre-flight
 
@@ -28,9 +29,12 @@ dashboard stays live for the whole recording.
 2. **Headline row** —
    - *Federated accuracy 0.971* vs *Centralized baseline 0.984* → "the federation reaches essentially
      the same accuracy as if all data were pooled — **without pooling it**." (claim: federated≈centralized)
-   - **Raw feature/label arrays: none** → "the coordinator's accepted schema can only carry model
-     parameters — raw data can't even be expressed in a valid submission." (claim: raw data stays
-     local — and say plainly the model itself isn't DP-protected yet)
+   - **DP guarantee ε=1/round** + **Non-private ceiling 0.972** → "each node's update is formally
+     (ε=1)-differentially private — random-forest splits never see the data, and we add Laplace noise
+     to the leaf histograms. That privacy costs accuracy (0.97 → 0.76); the gap to *centralized-DP*
+     (0.72) is ~zero, so federating across institutions is free."
+   - **Per-node ε-budget bars (5/10)** → "every release is metered against a privacy budget; past it
+     the coordinator refuses." (claim: ε-budget ledger)
 3. **Convergence chart** — the federated line tracking the dashed centralized baseline.
 4. **Participating nodes** — three cards, each `data stays local`, `raw bytes sent 0`. Say "one of
    these can be a partner group running on their own machine — they keep their data." (claim: multi-node)

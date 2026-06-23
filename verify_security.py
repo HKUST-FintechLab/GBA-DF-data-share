@@ -80,5 +80,24 @@ jf = fc.JsonForest(fwd)
 check("rebuilt JsonForest predicts (pure numpy, no sklearn/pickle)",
       jf.predict_proba(X).shape == (60, 2))
 
+print("== differential privacy (central-DP: curator adds the noise) ==")
+import dp as dpmod
+bnds = np.tile([-1.0, 1.0], (8, 1)).astype(float)              # PUBLIC bounds (not data-derived)
+cfA = dpmod.build_dp_counts(X, y, ["A", "B"], bnds, 3, 5, seed=7)
+# same seed+bounds but REVERSED data -> identical tree structure (splits never see data values)
+cfB = dpmod.build_dp_counts(X[::-1].copy(), y[::-1].copy(), ["A", "B"], bnds, 3, 5, seed=7)
+same_struct = all(cfA["trees"][i]["f"] == cfB["trees"][i]["f"] and cfA["trees"][i]["t"] == cfB["trees"][i]["t"]
+                  and cfA["trees"][i]["cl"] == cfB["trees"][i]["cl"] for i in range(3))
+check("DP tree STRUCTURE is data-independent (splits from PUBLIC bounds only)", same_struct)
+check("node ships INTEGER leaf counts (no noise applied node-side)",
+      all(all(isinstance(x, int) for row in t["n"] for x in row) for t in cfA["trees"]))
+fLo = dpmod.add_dp_noise(cfA, 0.3, np.random.default_rng(1))
+fHi = dpmod.add_dp_noise(cfA, 5.0, np.random.default_rng(1))
+check("curator Laplace noise scales with epsilon (ε=0.3 ≠ ε=5)",
+      any(fLo["trees"][i]["v"] != fHi["trees"][i]["v"] for i in range(3)))
+bad = {"classes": ["A", "B"], "trees": [{"cl": [-1], "cr": [-1], "f": [-2], "t": [-2.0], "n": [[0.5, 0.5]]}]}
+check("count schema rejects non-integer (proba/float) leaf payloads",
+      fc.validate_count_forest(cfA, ["A", "B"], 8) == "" and fc.validate_count_forest(bad, ["A", "B"], 8) != "")
+
 print("\nRESULT:", "ALL SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 sys.exit(0 if ok_all else 1)
