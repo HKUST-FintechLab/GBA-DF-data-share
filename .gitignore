@@ -1,0 +1,13 @@
+# uv / python
+.venv/
+__pycache__/
+*.py[cod]
+
+# generated data, partitions, node private keys (node_key.pem MUST never be committed)
+data/
+nodes/
+
+# runtime
+*.log
+nohup.out
+.DS_Store

@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>GBA-DF · Federated Learning POC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf9f5; --panel:#fff; --panel2:#fbf7f0; --line:#e8e2d4; --line2:#e6ebf1;
+    --ink:#3a3733; --head:#2f2d29; --mut:#867f74; --accent:#d97757; --accent-h:#c2683f;
+    --blue:#6a9ccd; --ok:#2e7d6b; --warn:#b06a2e;
+    --ui:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; --serif:Cambria,Georgia,serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{font-family:var(--ui);background:radial-gradient(1100px 520px at 88% -12%,#f4ece0,var(--bg) 58%);
+    color:var(--ink);min-height:100vh}
+  header{padding:16px 26px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;
+    background:linear-gradient(90deg,rgba(217,119,87,.06),transparent)}
+  .logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--accent),#e0a07f);
+    display:grid;place-items:center;font-weight:700;color:#fffdf9;font-size:14px;box-shadow:0 2px 6px rgba(194,104,63,.25)}
+  h1{margin:0;font-size:17px;color:var(--head);font-family:var(--serif)}
+  .sub{font-size:12.5px;color:var(--mut);margin-top:2px}
+  .spacer{flex:1}
+  .badge{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:#fff}
+  .badge.ok{color:var(--ok);border-color:#bcdccd;background:#eef5f1;font-weight:600}
+  main{padding:22px 26px;max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
+  .full{grid-column:1 / -1}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;
+    box-shadow:0 1px 3px rgba(74,58,42,.05)}
+  .card h2{margin:0 0 12px;font-size:12px;letter-spacing:.7px;text-transform:uppercase;color:var(--accent-h);font-weight:700}
+  .stat-row{display:flex;gap:14px;flex-wrap:wrap}
+  .stat{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .label{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+  .stat .val{font-size:30px;font-weight:700;color:var(--head);margin-top:4px;font-variant-numeric:tabular-nums}
+  .stat .val.small{font-size:20px}
+  .stat .sub{font-size:12px;color:var(--mut);margin-top:2px}
+  .stat.hero{background:linear-gradient(135deg,#fef3ec,#fdece1);border-color:#f0cdb8}
+  .stat.hero .val{color:var(--accent-h)}
+  .stat.zero .val{color:var(--ok)}
+  .nodes{display:flex;flex-direction:column;gap:10px}
+  .node{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
+  .node .nm{font-weight:600;color:var(--head);font-family:var(--serif);font-size:14px}
+  .node .row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut);margin-top:6px}
+  .node .row b{color:var(--ink);font-weight:600}
+  .pill-local{display:inline-block;font-size:10.5px;color:var(--ok);background:#eef5f1;border:1px solid #bcdccd;
+    border-radius:6px;padding:1px 7px;margin-left:6px}
+  .chart-wrap{position:relative}
+  svg{width:100%;height:300px;display:block}
+  .legend{display:flex;gap:18px;font-size:12.5px;color:var(--mut);margin-top:6px}
+  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .audit{max-height:340px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
+  .a-entry{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)}
+  .a-ev{font-weight:700;padding:1px 7px;border-radius:5px;font-size:10.5px;white-space:nowrap}
+  .ev-submit{color:var(--blue);background:#eef3fa}
+  .ev-aggregate{color:var(--accent-h);background:#fdeee6}
+  .ev-register{color:var(--ok);background:#eef5f1}
+  .ev-genesis{color:var(--mut);background:#f1efe9}
+  .ev-rejected{color:var(--warn);background:#fbf0e2}
+  .a-hash{color:var(--mut);margin-left:auto}
+  .note{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.5;border-left:2px solid var(--line);padding-left:10px}
+  .foot{text-align:center;color:var(--mut);font-size:11.5px;padding:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DF</div>
+  <div>
+    <h1>Federated Learning POC <span style="color:var(--mut);font-weight:400;font-family:var(--ui)">· GBA-DF</span></h1>
+    <div class="sub" id="sub">Greater Bay Area Data Federation · HKUST</div>
+  </div>
+  <div class="spacer"></div>
+  <span class="badge" id="datasetBadge">—</span>
+  <span class="badge ok" id="chainBadge">audit chain ✓</span>
+</header>
+
+<main>
+  <section class="card full">
+    <h2>Federated vs centralized — the headline claim</h2>
+    <div class="stat-row">
+      <div class="stat hero"><div class="label">Federated <span id="m1">accuracy</span></div>
+        <div class="val" id="fedVal">—</div><div class="sub" id="fedSub">across all nodes, data-local</div></div>
+      <div class="stat"><div class="label">Centralized baseline</div>
+        <div class="val" id="cenVal">—</div><div class="sub">trained on pooled data</div></div>
+      <div class="stat"><div class="label">Gap</div>
+        <div class="val small" id="gapVal">—</div><div class="sub" id="gapSub">federated ≈ centralized</div></div>
+      <div class="stat zero"><div class="label">Raw feature/label arrays</div>
+        <div class="val" id="rawVal">none</div><div class="sub" id="rawSub">schema-enforced</div></div>
+    </div>
+    <div class="note" id="caveat"></div>
+  </section>
+
+  <section class="card">
+    <h2>Global model accuracy vs cumulative ensemble size</h2>
+    <div class="chart-wrap"><svg id="chart" viewBox="0 0 700 300" preserveAspectRatio="none"></svg></div>
+    <div class="legend">
+      <span><i style="background:var(--accent)"></i>Federated global ensemble</span>
+      <span><i style="background:var(--blue);height:0;border-top:2px dashed var(--blue)"></i>Centralized baseline</span>
+    </div>
+    <div class="note">Tree-merge federation has no round-over-round learning; the curve reflects ensemble-size variance reduction, not iterative training.</div>
+  </section>
+
+  <section class="card">
+    <h2>Participating nodes — each trains on its OWN local data</h2>
+    <div class="nodes" id="nodes"></div>
+  </section>
+
+  <section class="card full">
+    <h2>Signed, hash-chained audit log <span id="auditCount" style="color:var(--mut);font-weight:400"></span></h2>
+    <div class="audit" id="audit"></div>
+  </section>
+</main>
+<div class="foot">Models travel to the data · raw feature/label arrays never transmitted (the model is not privacy-protected; DP is future work) · every node update Ed25519-signed · every event hash-chained &amp; signed against the coordinator's published key (<a href="/pubkey" style="color:var(--mut)">/pubkey</a>)</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const fmtBytes=b=>b===0?"0 B":(b<1024?b+" B":b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(1)+" MB");
+
+async function poll(){
+  let s,a;
+  try{ s=await (await fetch('/status')).json(); a=await (await fetch('/audit')).json(); }
+  catch(e){ return; }
+  const pm=s.primary_metric, ML={acc:'accuracy',auc:'AUC'}[pm]||pm;
+  $('sub').textContent=`Greater Bay Area Data Federation · dataset: ${s.dataset} · ${s.classes.length} classes · ${s.test_windows} held-out test samples`;
+  $('datasetBadge').textContent=`${s.dataset.toUpperCase()} · ${s.global_trees} trees`;
+  $('m1').textContent=ML;
+
+  const cen=s.centralized[pm], fed=s.fed_primary;
+  $('cenVal').textContent=cen!=null?cen.toFixed(3):'—';
+  $('fedVal').textContent=fed!=null?fed.toFixed(3):'—';
+  if(fed!=null){
+    const gap=Math.abs(cen-fed);
+    $('gapVal').textContent='−'+gap.toFixed(3);
+    $('gapSub').textContent=gap<0.02?'federated ≈ centralized ✓':'gap > 0.02 (add trees / seeds)';
+    $('gapSub').style.color=gap<0.02?'var(--ok)':'var(--mut)';
+  }
+  const mb = s.model_kb_received>=1024?(s.model_kb_received/1024).toFixed(1)+' MB':s.model_kb_received+' KB';
+  $('rawVal').textContent = s.payload_schema_enforced ? 'none' : '?';
+  $('rawSub').textContent = `schema-enforced · model params: ${mb} · rejected: ${s.rejected_payloads}`;
+  $('caveat').textContent = `Benchmark: ${s.dataset.toUpperCase()}, IID partition, single seed, window-level split — absolute numbers are optimistic; the federated-vs-centralized gap is the honest result. "Raw arrays not sent" ≠ privacy: the model still encodes dataset statistics (DP is future work).`;
+
+  // chain badge
+  $('chainBadge').textContent = a.verified ? `chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
+  $('chainBadge').className = 'badge '+(a.verified?'ok':'');
+  if(!a.verified){ $('chainBadge').style.color='var(--warn)'; $('chainBadge').style.borderColor='#e8c39a'; }
+
+  // nodes
+  $('nodes').innerHTML = s.nodes.map(n=>`
+    <div class="node"><div class="nm">${n.name}<span class="pill-local">raw arrays not sent</span></div>
+      <div class="row"><span>local samples (kept local)</span><b>${n.samples}</b></div>
+      <div class="row"><span>model updates sent</span><b>${n.model_kb} KB · round ${n.rounds_submitted}</b></div>
+    </div>`).join('');
+
+  drawChart(s.metrics, cen, pm);
+
+  // audit (newest first)
+  const ev=a.entries.slice(-14).reverse();
+  $('auditCount').textContent=`— ${a.entries.length} entries`;
+  $('audit').innerHTML=ev.map(e=>{
+    const d=Object.entries(e.detail||{}).map(([k,v])=>`${k}=${v}`).join(' ');
+    return `<div class="a-entry"><span class="a-ev ev-${e.event}">${e.event}</span>
+      <span>#${e.seq}</span><span style="color:var(--ink)">${e.node}</span>
+      <span style="color:var(--mut)">${d.slice(0,60)}</span>
+      <span class="a-hash">${e.hash.slice(0,12)}…</span></div>`;
+  }).join('');
+}
+
+function drawChart(metrics, central, pm){
+  const svg=$('chart'); const W=700,H=300, pad={l:46,r:14,t:14,b:28};
+  const pts=metrics.map((m,i)=>({x:i,y:m[pm]}));
+  const ymin=Math.max(0, Math.min(central, ...pts.map(p=>p.y), 1)-0.04), ymax=1.0;
+  const X=i=>pad.l+(pts.length<=1?0:i/(pts.length-1))*(W-pad.l-pad.r);
+  const Y=v=>pad.t+(1-(v-ymin)/(ymax-ymin))*(H-pad.t-pad.b);
+  let g='';
+  // y gridlines
+  for(let k=0;k<=4;k++){ const v=ymin+(ymax-ymin)*k/4, y=Y(v);
+    g+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#efe9dd"/>`;
+    g+=`<text x="${pad.l-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#a9a193">${v.toFixed(2)}</text>`;}
+  // centralized baseline
+  const cy=Y(central);
+  g+=`<line x1="${pad.l}" y1="${cy}" x2="${W-pad.r}" y2="${cy}" stroke="#6a9ccd" stroke-width="2" stroke-dasharray="6 5"/>`;
+  g+=`<text x="${W-pad.r}" y="${cy-6}" text-anchor="end" font-size="11" fill="#6a9ccd">centralized ${central.toFixed(3)}</text>`;
+  // federated polyline
+  if(pts.length){
+    const dpath=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(' ');
+    g+=`<path d="${dpath}" fill="none" stroke="#d97757" stroke-width="2.5"/>`;
+    pts.forEach((p,i)=>{ g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3" fill="#d97757"/>`; });
+    const last=pts[pts.length-1];
+    g+=`<text x="${X(pts.length-1)-4}" y="${Y(last.y)-9}" text-anchor="end" font-size="12" font-weight="700" fill="#c2683f">${last.y.toFixed(3)}</text>`;
+  }
+  g+=`<text x="${(W)/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="#a9a193">cumulative trees in global ensemble (each point = one node submission)</text>`;
+  svg.innerHTML=g;
+}
+
+poll(); setInterval(poll, 1000);
+</script>
+</body>
+</html>

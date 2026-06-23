@@ -1,0 +1,17 @@
+[project]
+name = "gba-df-federated-poc"
+version = "0.1.0"
+description = "GBA-DF federated-learning POC — action/pose modality, data-stays-local, signed hash-chained audit"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "scikit-learn>=1.4",
+    "cryptography>=42",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.27",
+    "httpx[socks]>=0.27",
+]
+
+[tool.uv]
+package = false
