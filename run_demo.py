@@ -1,7 +1,8 @@
 """One-command recordable demo: prepare data -> start coordinator -> run all nodes.
 
-  uv run python run_demo.py                 # 3 nodes, 5 rounds
-  uv run python run_demo.py --nodes 3 --rounds 6 --prepare
+  uv run python run_demo.py                          # HAR benchmark, 3 nodes, 5 rounds
+  uv run python run_demo.py --modality eyegaze       # eye-tracking federation
+  uv run python run_demo.py --modality neuro --noniid --prepare
 Open the dashboard URL it prints, then start your screen recorder.
 """
 import argparse
@@ -33,6 +34,9 @@ def main():
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--trees", type=int, default=40)
     ap.add_argument("--port", type=int, default=8055)
+    ap.add_argument("--modality", default=None,
+                    help="eyegaze | action | neuro (default: HAR benchmark)")
+    ap.add_argument("--noniid", action="store_true", help="skew label mix across nodes")
     ap.add_argument("--prepare", action="store_true", help="force re-prepare the dataset")
     args = ap.parse_args()
     url = f"http://localhost:{args.port}"
@@ -40,8 +44,12 @@ def main():
     if args.prepare or not os.path.exists(os.path.join(HERE, "data", "meta.json")):
         total = args.nodes * args.rounds * args.trees
         print("== Preparing dataset + centralized baseline ==")
-        subprocess.run([PY, "prepare_data.py", "--nodes", str(args.nodes),
-                        "--total-trees", str(total)], cwd=HERE, check=True)
+        cmd = [PY, "prepare_data.py", "--nodes", str(args.nodes), "--total-trees", str(total)]
+        if args.modality:
+            cmd += ["--modality", args.modality]
+        if args.noniid:
+            cmd += ["--noniid"]
+        subprocess.run(cmd, cwd=HERE, check=True)
 
     print("== Starting coordinator ==")
     coord = subprocess.Popen(
@@ -57,7 +65,7 @@ def main():
         p = subprocess.Popen(
             [PY, "node.py", "--node-id", f"node_{n}", "--coord", url,
              "--data", f"nodes/node_{n}/data.npz", "--rounds", str(args.rounds),
-             "--trees", str(args.trees), "--seed", str(n)], cwd=HERE)
+             "--seed", str(n)], cwd=HERE)
         procs.append(p)
         time.sleep(0.4)
     for p in procs:

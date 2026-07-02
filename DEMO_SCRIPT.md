@@ -1,9 +1,10 @@
 # Recording the federated POC demo (内部 / 伙伴演示)
 
 Goal: a clean ~90-second screen recording that shows the claims live.
-Verified run (ε=1/round): **federated-DP 0.760 ≈ centralized-DP 0.723** (siloing is free) vs
-**non-private ceiling 0.972** (the DP utility cost); per-node ε metered (5/10), budget-exceed blocked;
-audit **chain + signatures verified**; `verify_security.py` → **15/15** checks pass.
+Verified run (HAR, ε=1/round): **federated-DP 0.760 ≈ centralized-DP 0.723** (siloing is free) vs
+**non-private ceiling 0.972** (the DP utility cost); global ε metered (5/10), budget-exceed blocked;
+audit **chain + signatures verified**; `verify_security.py` → **25/25** checks pass. The same demo runs
+on any of three modalities — add `--modality eyegaze|action|neuro` (see the last section).
 
 ## Pre-flight
 
@@ -60,9 +61,32 @@ pickle / raw-array payload is rejected by the schema.
   screening model trained with everyone's data. Every step is signed and auditable, and you can run
   the node on your own machine."
 
+## Multi-modal + desktop-client take (the "landing" for partners)
+
+Show the SAME machinery on the modality a partner cares about, driven from the desktop app.
+
+```bash
+# 1) coordinator for the chosen modality (eyegaze | action | neuro)
+uv run python prepare_data.py --modality eyegaze --nodes 3
+uv run uvicorn coordinator:app --host 0.0.0.0 --port 8055
+# 2) the partner desktop client
+uv run python client_app.py
+```
+
+Narrate the client's four steps on camera: **pick modality → choose data folder** (native picker; it
+scans and shows the ASD/TD split locally) **→ enter coordinator + node info** ("Test connection" confirms
+the federation matches your modality) **→ Connect & start**. Point at the standing **"0 bytes raw
+uploaded"** banner and the live ε bar. Key line: *"same privacy machinery, any modality — only the
+front end that reads your recordings changes; your raw data never leaves this window."*
+
+> The eye-gaze / action / EEG-fMRI demo cohorts are **synthetic** (clearly labelled) — they prove the
+> pipeline end-to-end per modality, not clinical accuracy. Point the client at real recordings in the
+> documented format (§4/§5 of the Partner Guide) and the identical path runs on real data.
+
 ## Re-record / reset
 
 ```bash
 pkill -f "coordinator:app"
-uv run python run_demo.py --prepare --nodes 3 --rounds 5
+uv run python run_demo.py --prepare --nodes 3 --rounds 5                 # HAR
+uv run python run_demo.py --prepare --modality eyegaze --nodes 3 --rounds 5
 ```

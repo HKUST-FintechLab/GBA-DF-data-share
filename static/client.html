@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>GBA-DF Federated Node</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#faf9f5; --panel:#fff; --panel2:#fbf7f0; --line:#e8e2d4; --line2:#e6ebf1;
+    --ink:#3a3733; --head:#2f2d29; --mut:#867f74; --accent:#d97757; --accent-h:#c2683f;
+    --blue:#6a9ccd; --ok:#2e7d6b; --warn:#b06a2e; --bad:#c0533b;
+    --ui:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; --serif:Cambria,Georgia,serif;
+  }
+  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  body{font-family:var(--ui);background:radial-gradient(1100px 520px at 88% -12%,#f4ece0,var(--bg) 58%);
+    color:var(--ink);min-height:100vh;font-size:14px}
+  header{padding:14px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:13px;
+    background:linear-gradient(90deg,rgba(217,119,87,.06),transparent)}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),#e0a07f);
+    display:grid;place-items:center;font-weight:700;color:#fffdf9;font-size:13px;box-shadow:0 2px 6px rgba(194,104,63,.25)}
+  h1{margin:0;font-size:16px;color:var(--head);font-family:var(--serif)}
+  .sub{font-size:12px;color:var(--mut);margin-top:2px}
+  .spacer{flex:1}
+  .lang{display:flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
+  .lang button{border:0;background:transparent;padding:6px 13px;font-size:12.5px;color:var(--mut);cursor:pointer;font-family:var(--ui)}
+  .lang button.on{background:var(--accent);color:#fff;font-weight:600}
+  main{padding:20px 24px;max-width:960px;margin:0 auto}
+  .steps{display:flex;gap:8px;margin-bottom:18px}
+  .stepdot{flex:1;display:flex;align-items:center;gap:9px;padding:9px 12px;border:1px solid var(--line);
+    border-radius:12px;background:#fff;font-size:12.5px;color:var(--mut)}
+  .stepdot .n{width:22px;height:22px;border-radius:50%;background:var(--line);color:#fff;display:grid;place-items:center;
+    font-size:12px;font-weight:700;flex:none}
+  .stepdot.active{border-color:#f0cdb8;background:linear-gradient(135deg,#fef3ec,#fdece1);color:var(--head);font-weight:600}
+  .stepdot.active .n{background:var(--accent)}
+  .stepdot.done .n{background:var(--ok)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px 22px;
+    box-shadow:0 1px 3px rgba(74,58,42,.05);margin-bottom:16px}
+  .card h2{margin:0 0 4px;font-size:15px;color:var(--head);font-family:var(--serif)}
+  .card .hint{font-size:12.5px;color:var(--mut);margin-bottom:14px;line-height:1.5}
+  .mods{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .mod{border:1px solid var(--line);border-radius:13px;padding:15px;cursor:pointer;background:var(--panel2);transition:.12s}
+  .mod:hover{border-color:#f0cdb8;transform:translateY(-1px)}
+  .mod.sel{border-color:var(--accent);background:linear-gradient(135deg,#fef3ec,#fdece1);box-shadow:0 2px 8px rgba(194,104,63,.14)}
+  .mod .ic{font-size:24px}
+  .mod .nm{font-weight:600;color:var(--head);font-family:var(--serif);margin-top:8px;font-size:14.5px}
+  .mod .tk{font-size:11.5px;color:var(--mut);margin-top:3px;line-height:1.4}
+  .mod .dim{font-size:11px;color:var(--accent-h);margin-top:7px;font-weight:600}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  label.fld{display:block;font-size:12px;color:var(--mut);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.4px}
+  input[type=text],input[type=number]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+    font-family:var(--ui);font-size:13.5px;color:var(--ink);background:#fff}
+  input:focus{outline:none;border-color:var(--accent)}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  button.btn{border:0;border-radius:10px;padding:10px 18px;font-size:13.5px;font-weight:600;cursor:pointer;font-family:var(--ui)}
+  .btn.primary{background:var(--accent);color:#fff}
+  .btn.primary:hover{background:var(--accent-h)}
+  .btn.primary:disabled{background:#e5c8b8;cursor:not-allowed}
+  .btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent-h)}
+  .btn.stop{background:#fff;border:1px solid #e6b8ab;color:var(--bad)}
+  .foldbox{border:1px dashed var(--line);border-radius:12px;padding:16px;background:var(--panel2);margin-top:6px}
+  .foldbox .path{font-family:ui-monospace,Menlo,monospace;font-size:12px;color:var(--head);word-break:break-all}
+  .kv{display:flex;gap:18px;flex-wrap:wrap;margin-top:10px;font-size:12.5px;color:var(--mut)}
+  .kv b{color:var(--ink)}
+  .tag{display:inline-block;font-size:11px;border-radius:6px;padding:2px 8px;margin-right:6px}
+  .tag.asd{color:var(--accent-h);background:#fdeee6}.tag.td{color:var(--ok);background:#eef5f1}
+  .msg{font-size:12.5px;padding:9px 12px;border-radius:9px;margin-top:10px;line-height:1.5}
+  .msg.ok{color:var(--ok);background:#eef5f1;border:1px solid #bcdccd}
+  .msg.bad{color:var(--bad);background:#fbeee9;border:1px solid #e6c3b7}
+  .msg.warn{color:var(--warn);background:#fbf3e6;border:1px solid #e8d3af}
+  .banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#eef5f1,#e9f2ec);
+    border:1px solid #bcdccd;border-radius:12px;padding:12px 16px;margin-bottom:14px}
+  .banner .big{font-size:24px;font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums}
+  .banner .tx{font-size:12.5px;color:var(--ink)}
+  .runstats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+  .rs{flex:1;min-width:130px;background:var(--panel2);border:1px solid var(--line);border-radius:11px;padding:12px 14px}
+  .rs .l{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px}
+  .rs .v{font-size:22px;font-weight:700;color:var(--head);margin-top:3px;font-variant-numeric:tabular-nums}
+  .rs.hero{background:linear-gradient(135deg,#fef3ec,#fdece1);border-color:#f0cdb8}.rs.hero .v{color:var(--accent-h)}
+  .epsbar{height:6px;background:var(--line);border-radius:3px;margin-top:8px;overflow:hidden}
+  .epsfill{height:100%;background:linear-gradient(90deg,var(--ok),var(--accent));border-radius:3px;width:0}
+  .log{background:#2f2d29;border-radius:12px;padding:14px 16px;font-family:ui-monospace,Menlo,monospace;
+    font-size:12px;color:#e8e2d4;max-height:230px;overflow:auto;line-height:1.6;white-space:pre-wrap}
+  .log .r{color:#8fc7b5}
+  .nav{display:flex;justify-content:space-between;margin-top:6px}
+  .hidden{display:none}
+  .note{font-size:11.5px;color:var(--mut);margin-top:12px;line-height:1.55;border-left:2px solid var(--line);padding-left:11px}
+  .spin{width:14px;height:14px;border:2px solid #cfe4db;border-top-color:var(--ok);border-radius:50%;
+    display:inline-block;animation:sp .8s linear infinite;vertical-align:-2px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">DF</div>
+  <div>
+    <h1 data-i="title">GBA-DF Federated Node</h1>
+    <div class="sub" data-i="subtitle">Join a data federation — your raw data never leaves this machine</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="lang">
+    <button id="zh">中文</button><button id="en" class="on">EN</button>
+  </div>
+</header>
+
+<main>
+  <div class="steps" id="steps"></div>
+
+  <!-- STEP 1 -->
+  <section class="card" data-step="1">
+    <h2 data-i="s1_h">1 · Choose your data type</h2>
+    <div class="hint" data-i="s1_hint">Which kind of recordings will this node contribute? Each modality is its own federation.</div>
+    <div class="mods" id="mods"></div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="card hidden" data-step="2">
+    <h2 data-i="s2_h">2 · Select your data folder</h2>
+    <div class="hint" id="s2hint"></div>
+    <div class="row">
+      <button class="btn primary" id="pick" data-i="pick">Choose folder…</button>
+      <button class="btn ghost" id="gendemo" data-i="gendemo">No data? Generate a demo folder</button>
+    </div>
+    <div class="foldbox hidden" id="foldbox">
+      <div class="path" id="foldpath">—</div>
+      <div class="kv" id="foldkv"></div>
+    </div>
+    <div id="s2msg"></div>
+    <div class="note" data-i="s2_note"></div>
+    <div class="nav">
+      <button class="btn ghost" data-back="1" data-i="back">Back</button>
+      <button class="btn primary" id="s2next" disabled data-i="next">Next</button>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="card hidden" data-step="3">
+    <h2 data-i="s3_h">3 · Node & coordinator</h2>
+    <div class="hint" data-i="s3_hint">Enter the coordinator address your group shared, and a name for this node.</div>
+    <div class="grid2">
+      <div>
+        <label class="fld" data-i="f_coord">Coordinator URL</label>
+        <input type="text" id="coord" placeholder="http://coordinator-host:8055"/>
+      </div>
+      <div>
+        <label class="fld" data-i="f_rounds">Rounds</label>
+        <input type="number" id="rounds" value="5" min="1" max="20"/>
+      </div>
+      <div>
+        <label class="fld" data-i="f_nodeid">Node ID</label>
+        <input type="text" id="nodeid" placeholder="node_1"/>
+      </div>
+      <div>
+        <label class="fld" data-i="f_name">Display name</label>
+        <input type="text" id="nodename" placeholder="e.g. Shenzhen Partner Clinic"/>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn ghost" id="testconn" data-i="testconn">Test connection</button>
+    </div>
+    <div id="s3msg"></div>
+    <div class="nav">
+      <button class="btn ghost" data-back="2" data-i="back">Back</button>
+      <button class="btn primary" id="s3next" disabled data-i="s3_start">Connect & start</button>
+    </div>
+  </section>
+
+  <!-- STEP 4 -->
+  <section class="card hidden" data-step="4">
+    <h2 data-i="s4_h">4 · Federated training — live</h2>
+    <div class="banner">
+      <div class="big">0 <span style="font-size:13px;font-weight:600" data-i="bytes">bytes</span></div>
+      <div class="tx" data-i="s4_banner">raw data uploaded. Only pairwise-masked integer counts leave this machine; the coordinator recovers just the pooled sum.</div>
+    </div>
+    <div class="runstats">
+      <div class="rs hero"><div class="l" data-i="rs_fed">Global model</div><div class="v" id="rsFed">—</div><div class="l" id="rsMetric">metric</div></div>
+      <div class="rs"><div class="l" data-i="rs_round">Round</div><div class="v" id="rsRound">0</div></div>
+      <div class="rs"><div class="l" data-i="rs_eps">Privacy ε used</div><div class="v" id="rsEps">0</div><div class="epsbar"><div class="epsfill" id="epsFill"></div></div></div>
+      <div class="rs"><div class="l" data-i="rs_samp">Local samples</div><div class="v" id="rsSamp">—</div></div>
+    </div>
+    <div class="log" id="log"></div>
+    <div id="s4msg"></div>
+    <div class="nav">
+      <button class="btn stop" id="stop" data-i="stop">Stop</button>
+      <button class="btn ghost hidden" id="restart" data-i="restart">Run again</button>
+    </div>
+    <div class="note" data-i="s4_note"></div>
+  </section>
+</main>
+
+<script>
+const I18N = {
+  en:{
+    title:"GBA-DF Federated Node", subtitle:"Join a data federation — your raw data never leaves this machine",
+    s1_h:"1 · Choose your data type", s1_hint:"Which kind of recordings will this node contribute? Each modality is its own federation.",
+    s2_h:"2 · Select your data folder",
+    s2_note:"Put recordings under class subfolders (e.g. asd/ and td/). Nothing here is uploaded — the folder is read locally to compute features only.",
+    pick:"Choose folder…", gendemo:"No data? Generate a demo folder", back:"Back", next:"Next",
+    s3_h:"3 · Node & coordinator", s3_hint:"Enter the coordinator address your group shared, and a name for this node.",
+    f_coord:"Coordinator URL", f_rounds:"Rounds", f_nodeid:"Node ID", f_name:"Display name",
+    testconn:"Test connection", s3_start:"Connect & start",
+    s4_h:"4 · Federated training — live", bytes:"bytes",
+    s4_banner:"raw data uploaded. Only pairwise-masked integer counts leave this machine; the coordinator recovers just the pooled sum.",
+    rs_fed:"Global model", rs_round:"Round", rs_eps:"Privacy ε used", rs_samp:"Local samples",
+    stop:"Stop", restart:"Run again",
+    s4_note:"The global accuracy is evaluated by the coordinator on its held-out test set. Secure aggregation gives a meaningful privacy guarantee with a non-colluding coordinator and a cohort of 3 or more nodes.",
+    scanning:"Reading folder locally…", found:"recordings found", files:"files", feats:"features",
+    genok:"Generated a synthetic demo folder (clearly not real patients). You can select it above.",
+    connecting:"Contacting coordinator…", compat_ok:"Compatible — federation matches your modality.",
+    compat_bad:"Modality mismatch: this coordinator runs a different data type.",
+    mismatch_feat:"Feature count differs from the federation; check you picked the right modality.",
+    waiting:"Waiting for the rest of the cohort to join…"
+  },
+  zh:{
+    title:"GBA-DF 联邦节点", subtitle:"加入数据联邦 —— 你的原始数据永不离开本机",
+    s1_h:"1 · 选择数据类型", s1_hint:"这个节点将贡献哪一类录制数据？每种模态各自组成一个联邦。",
+    s2_h:"2 · 选择数据文件夹",
+    s2_note:"请把录制文件放在按类别命名的子文件夹里（如 asd/ 和 td/）。这里不会上传任何东西 —— 文件夹仅在本地读取用于提取特征。",
+    pick:"选择文件夹…", gendemo:"没有数据？生成一个演示文件夹", back:"上一步", next:"下一步",
+    s3_h:"3 · 节点与协调器", s3_hint:"填入你们小组共享的协调器地址，并为本节点起个名字。",
+    f_coord:"协调器地址", f_rounds:"轮数", f_nodeid:"节点 ID", f_name:"显示名称",
+    testconn:"测试连接", s3_start:"连接并开始",
+    s4_h:"4 · 联邦训练 · 实时", bytes:"字节",
+    s4_banner:"原始数据被上传。离开本机的只有成对掩码后的整数计数；协调器只能还原汇总后的总和。",
+    rs_fed:"全局模型", rs_round:"轮次", rs_eps:"已用隐私预算 ε", rs_samp:"本地样本",
+    stop:"停止", restart:"再跑一次",
+    s4_note:"全局准确率由协调器在其保留测试集上评估。当协调器不合谋、且节点数≥3 时，安全聚合能提供有意义的隐私保证。",
+    scanning:"正在本地读取文件夹…", found:"条录制", files:"个文件", feats:"维特征",
+    genok:"已生成一个合成演示文件夹（明确非真实病患数据），可在上方选择它。",
+    connecting:"正在连接协调器…", compat_ok:"兼容 —— 联邦模态与你的选择一致。",
+    compat_bad:"模态不匹配：该协调器运行的是另一种数据类型。",
+    mismatch_feat:"特征维度与联邦不一致；请确认选对了模态。",
+    waiting:"等待其余节点加入本轮联邦…"
+  }
+};
+let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null};
+const api = () => window.pywebview.api;
+const t = k => (I18N[LANG][k] ?? k);
+const $ = s => document.querySelector(s);
+
+function applyLang(){
+  document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.getAttribute("data-i"); if(I18N[LANG][k]!=null) el.textContent=I18N[LANG][k]; });
+  $("#zh").classList.toggle("on",LANG==="zh"); $("#en").classList.toggle("on",LANG==="en");
+  document.documentElement.lang = LANG;
+  renderMods(); renderSteps(); updateS2Hint();
+}
+$("#zh").onclick=()=>{LANG="zh";applyLang();};
+$("#en").onclick=()=>{LANG="en";applyLang();};
+
+const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"]};
+let curStep=1;
+function renderSteps(){
+  const s=$("#steps"); s.innerHTML="";
+  STEP_LABELS[LANG].forEach((lb,i)=>{
+    const n=i+1, d=document.createElement("div");
+    d.className="stepdot"+(n===curStep?" active":"")+(n<curStep?" done":"");
+    d.innerHTML=`<span class="n">${n<curStep?"✓":n}</span><span>${lb}</span>`;
+    s.appendChild(d);
+  });
+}
+function goStep(n){
+  curStep=n;
+  document.querySelectorAll("[data-step]").forEach(el=>el.classList.toggle("hidden",+el.getAttribute("data-step")!==n));
+  renderSteps();
+}
+document.querySelectorAll("[data-back]").forEach(b=>b.onclick=()=>goStep(+b.getAttribute("data-back")));
+
+const ICONS={eyegaze:"👁️",action:"🏃",neuro:"🧠"};
+function renderMods(){
+  const box=$("#mods"); box.innerHTML="";
+  MODS.forEach(m=>{
+    const nm = LANG==="zh"?m.zh:m.en, tk = LANG==="zh"?m.task_zh:m.task_en;
+    const d=document.createElement("div");
+    d.className="mod"+(sel.modality===m.key?" sel":"");
+    d.innerHTML=`<div class="ic">${ICONS[m.key]||"📊"}</div><div class="nm">${nm}</div>
+      <div class="tk">${tk}</div><div class="dim">${m.n_features} ${t("feats")}</div>`;
+    d.onclick=()=>{ sel.modality=m.key; sel.mInfo=m; sel.folder=null; sel.scan=null;
+      $("#foldbox").classList.add("hidden"); $("#s2msg").innerHTML=""; $("#s2next").disabled=true;
+      renderMods(); updateS2Hint(); goStep(2); };
+    box.appendChild(d);
+  });
+}
+function updateS2Hint(){ if(sel.mInfo) $("#s2hint").textContent=(LANG==="zh"?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint); }
+
+function msg(sel_, kind, html){ $(sel_).innerHTML=`<div class="msg ${kind}">${html}</div>`; }
+
+$("#pick").onclick=async()=>{
+  const r=await api().pick_folder();
+  if(!r.ok) return;
+  await scan(r.path);
+};
+$("#gendemo").onclick=async()=>{
+  $("#gendemo").disabled=true;
+  const r=await api().generate_demo(sel.modality, 40);
+  $("#gendemo").disabled=false;
+  if(r.ok){ msg("#s2msg","warn",t("genok")); await scan(r.path); }
+  else msg("#s2msg","bad",r.error);
+};
+async function scan(path){
+  $("#foldbox").classList.remove("hidden");
+  $("#foldpath").textContent=path; $("#foldkv").innerHTML=`<span class="spin"></span> ${t("scanning")}`;
+  const r=await api().scan_folder(sel.modality, path);
+  if(!r.ok){ $("#foldkv").innerHTML=""; msg("#s2msg","bad",r.error); $("#s2next").disabled=true; return; }
+  sel.folder=path; sel.scan=r; $("#s2msg").innerHTML="";
+  const tags=Object.entries(r.labels).map(([k,v])=>`<span class="tag ${k.toLowerCase()==='asd'?'asd':'td'}">${k}: ${v}</span>`).join("");
+  $("#foldkv").innerHTML=`<span><b>${r.n_samples}</b> ${t("found")}</span><span><b>${r.n_files}</b> ${t("files")}</span>`+
+    `<span><b>${r.n_features}</b> ${t("feats")}</span><span>${tags}</span>`;
+  $("#s2next").disabled=false;
+}
+$("#s2next").onclick=()=>{ if(!$("#nodeid").value) $("#nodeid").value="node_1"; goStep(3); };
+
+$("#testconn").onclick=async()=>{
+  const coord=$("#coord").value.trim(); if(!coord){msg("#s3msg","bad","enter a coordinator URL");return;}
+  msg("#s3msg","warn",`<span class="spin"></span> ${t("connecting")}`);
+  const r=await api().test_connect(coord, sel.modality);
+  if(!r.ok){ msg("#s3msg","bad",r.error); $("#s3next").disabled=true; return; }
+  sel.sch=r;
+  const featOk = r.n_features===sel.scan.n_features;
+  const info=r.modality_info?(LANG==="zh"?r.modality_info.task_zh:r.modality_info.task_en):r.modality;
+  let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
+  if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; }
+  else if(!featOk){ msg("#s3msg","bad",`${t("mismatch_feat")}<br>${lines}`); $("#s3next").disabled=true; }
+  else { msg("#s3msg","ok",`${t("compat_ok")}<br>${lines}`); $("#s3next").disabled=false; }
+};
+
+let pollTimer=null;
+$("#s3next").onclick=async()=>{
+  const cfg={ coord:$("#coord").value.trim(), node_id:($("#nodeid").value.trim()||"node_1"),
+    name:$("#nodename").value.trim(), folder:sel.folder, modality:sel.modality,
+    rounds:+$("#rounds").value||5, seed:1 };
+  $("#rsSamp").textContent=sel.scan.n_samples;
+  $("#rsMetric").textContent=(sel.sch.primary_metric||"acc").toUpperCase();
+  $("#log").textContent=""; $("#s4msg").innerHTML=""; $("#restart").classList.add("hidden");
+  $("#stop").classList.remove("hidden"); $("#stop").disabled=false;
+  goStep(4);
+  const r=await api().start(cfg);
+  if(!r.ok){ msg("#s4msg","bad",r.error); return; }
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(poll, 500);
+};
+async function poll(){
+  const p=await api().poll(); const st=p.state, s=st.summary;
+  const el=$("#log"); el.innerHTML=p.log.map(l=>{
+    const cls=/round|masked/.test(l)?' class="r"':''; return `<span${cls}>${l.replace(/</g,"&lt;")}</span>`;
+  }).join("\n"); el.scrollTop=el.scrollHeight;
+  if(s){
+    $("#rsRound").textContent=s.rounds_done||0;
+    const v=s.fed_primary; $("#rsFed").textContent=(typeof v==="number")?v.toFixed(3):"…";
+    $("#rsEps").textContent=(s.global_eps??0);
+    const bud=sel.sch?.epsilon_budget||10; $("#epsFill").style.width=Math.min(100,100*(s.global_eps||0)/bud)+"%";
+  }
+  if(st.done){
+    clearInterval(pollTimer); pollTimer=null;
+    $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
+    if(st.error) msg("#s4msg","bad",st.error);
+    else msg("#s4msg","ok","✓ "+(LANG==="zh"?"完成 —— 全程只有掩码后的聚合离开了本机。":"Done — only masked aggregates ever left this machine."));
+  }
+}
+$("#stop").onclick=async()=>{ $("#stop").disabled=true; await api().stop(); };
+$("#restart").onclick=()=>goStep(3);
+
+async function init(){
+  try{ MODS=await api().list_modalities(); }catch(e){ MODS=[]; }
+  try{ const d=await api().defaults();
+    if(d){ $("#coord").value=d.coord||""; $("#nodeid").value=d.node_id||"node_1"; } }catch(e){}
+  applyLang();
+  goStep(1);
+}
+window.addEventListener("pywebviewready", init);
+// fallback if opened in a plain browser (no pywebview): still render UI
+setTimeout(()=>{ if(!MODS.length && window.pywebview) init(); }, 300);
+</script>
+</body>
+</html>

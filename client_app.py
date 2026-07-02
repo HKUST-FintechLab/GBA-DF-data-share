@@ -1,0 +1,183 @@
+"""GBA-DF desktop node client (pywebview).
+
+A partner runs this on their own machine. Flow: pick a data modality -> choose the folder of
+raw recordings (native folder picker) -> enter node + coordinator info -> connect. From then on
+it does exactly what node.py does — extracts features LOCALLY and uploads only masked count
+vectors — but with live, screen-recordable progress. Raw data never leaves this machine.
+
+  uv sync --extra client
+  uv run python client_app.py                 # opens the desktop window
+  uv run python client_app.py --selftest      # headless API smoke test (no GUI)
+"""
+import argparse
+import os
+import threading
+import time
+
+import numpy as np
+
+import modalities as mods
+import node_core as nc
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+class Api:
+    """Bridge exposed to the web UI as `window.pywebview.api`. Every method returns a
+    JSON-safe dict; the node loop runs in a background thread and the UI polls poll()."""
+
+    def __init__(self, default_coord="http://localhost:8055", default_node="node_1"):
+        self._lock = threading.Lock()
+        self._log = []
+        self._state = {"running": False, "done": False, "error": None, "summary": None}
+        self._stop = False
+        self._thread = None
+        self._demo_seed = 100
+        self._default_coord = default_coord
+        self._default_node = default_node
+
+    # ---- discovery ----
+    def list_modalities(self):
+        return [m.info() for m in mods.MODALITIES.values()]
+
+    def defaults(self):
+        return {"coord": self._default_coord, "node_id": self._default_node}
+
+    def default_node_names(self):
+        from node import NAMES
+        return NAMES
+
+    # ---- data selection ----
+    def pick_folder(self):
+        import webview
+        win = webview.windows[0]
+        res = win.create_file_dialog(webview.FOLDER_DIALOG)
+        if not res:
+            return {"ok": False, "cancelled": True}
+        return {"ok": True, "path": res[0]}
+
+    def scan_folder(self, modality, path):
+        try:
+            if not path or not os.path.isdir(path):
+                return {"ok": False, "error": "folder not found"}
+            m = mods.get(modality)
+            X, y, g = m.extract_folder(path)
+            if len(X) == 0:
+                return {"ok": False, "error": "no usable recordings found — check the file "
+                        "format and that recordings sit under asd/ and td/ subfolders"}
+            y = np.asarray(y).astype(str)
+            labels, counts = np.unique(y, return_counts=True)
+            return {"ok": True, "path": path, "n_files": len(set(g.tolist())),
+                    "n_samples": int(X.shape[0]), "n_features": int(X.shape[1]),
+                    "labels": dict(zip(labels.tolist(), counts.tolist()))}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    def generate_demo(self, modality, n_per_class=40):
+        """Make a folder of SYNTHETIC demo recordings for partners who want to try the flow
+        without real data. Clearly synthetic; same format a real partner's data would take."""
+        try:
+            m = mods.get(modality)
+            out = os.path.join(HERE, "data", "client_demo", modality)
+            with self._lock:
+                self._demo_seed += 1
+                seed = self._demo_seed
+            made = m.synth_folder(out, int(n_per_class), seed=seed)
+            return {"ok": True, "path": out, "files": made, "synthetic": True}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    # ---- connection ----
+    def test_connect(self, coord, modality=None):
+        try:
+            sch = nc.fetch_schema(coord)
+            fed_mod = sch.get("modality")
+            compatible = (fed_mod is None or modality is None or fed_mod == modality)
+            return {"ok": True, "modality": fed_mod, "modality_info": sch.get("modality_info"),
+                    "n_features": sch["n_features"], "classes": sch["classes"],
+                    "cohort": sch["cohort"], "dp": sch["dp"],
+                    "epsilon_budget": sch.get("epsilon_budget"), "compatible": compatible}
+        except Exception as e:
+            return {"ok": False, "error": f"cannot reach coordinator: {e}"}
+
+    # ---- run ----
+    def start(self, cfg):
+        with self._lock:
+            if self._state["running"]:
+                return {"ok": False, "error": "a run is already in progress"}
+            self._log = []
+            self._state = {"running": True, "done": False, "error": None, "summary": None}
+            self._stop = False
+        self._thread = threading.Thread(target=self._run, args=(cfg,), daemon=True)
+        self._thread.start()
+        return {"ok": True}
+
+    def _log_line(self, m):
+        with self._lock:
+            self._log.append(m)
+
+    def _run(self, cfg):
+        try:
+            sch = nc.fetch_schema(cfg["coord"])
+            X, y, key_dir = nc.load_local(sch, folder=cfg.get("folder"), data=cfg.get("data"),
+                                          modality=cfg.get("modality"), on_log=self._log_line)
+            summ = nc.run_node(
+                cfg["coord"], cfg["node_id"], cfg.get("name") or cfg["node_id"], X, y, sch,
+                rounds=int(cfg.get("rounds", 5)), seed=int(cfg.get("seed", 1)), key_dir=key_dir,
+                on_log=self._log_line, should_stop=lambda: self._stop,
+                on_round=lambda s: self._set_summary(s))
+            with self._lock:
+                self._state.update(running=False, done=True, summary=summ,
+                                   error=None if summ.get("ok") else summ.get("error"))
+        except ValueError as e:                          # validation failure -> friendly
+            self._log_line(str(e))
+            with self._lock:
+                self._state.update(running=False, done=True, error=str(e))
+        except Exception as e:
+            self._log_line(f"error: {e}")
+            with self._lock:
+                self._state.update(running=False, done=True, error=f"{type(e).__name__}: {e}")
+
+    def _set_summary(self, s):
+        with self._lock:
+            self._state["summary"] = s
+
+    def poll(self):
+        with self._lock:
+            return {"state": dict(self._state), "log": list(self._log)}
+
+    def stop(self):
+        self._stop = True
+        return {"ok": True}
+
+
+def _selftest():
+    """Headless check of every API method except the native folder dialog."""
+    api = Api()
+    print("modalities:", [m["key"] for m in api.list_modalities()])
+    d = api.generate_demo("eyegaze", n_per_class=8)
+    print("generate_demo:", d)
+    print("scan_folder:", api.scan_folder("eyegaze", d["path"]))
+    print("test_connect(bad):", api.test_connect("http://localhost:1")["ok"])
+    print("selftest OK")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--selftest", action="store_true", help="run headless API checks, no GUI")
+    ap.add_argument("--coord", default="http://localhost:8055", help="prefill coordinator URL")
+    ap.add_argument("--node-id", default="node_1", help="prefill node id")
+    args = ap.parse_args()
+    if args.selftest:
+        _selftest(); return
+
+    import webview
+    api = Api(default_coord=args.coord, default_node=args.node_id)
+    webview.create_window(
+        "GBA-DF Federated Node", url=os.path.join(HERE, "static", "client.html"),
+        js_api=api, width=1040, height=760, min_size=(880, 620))
+    webview.start()
+
+
+if __name__ == "__main__":
+    main()

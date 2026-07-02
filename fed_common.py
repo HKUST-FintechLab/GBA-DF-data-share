@@ -198,6 +198,15 @@ class JsonForest:
     def n_trees(self):
         return len(self.trees)
 
+    def to_dict(self):
+        """Rebuild the JSON schema {classes, trees:[{cl,cr,f,t,v}]} from the arrays."""
+        return {"classes": list(self.classes),
+                "trees": [{"cl": cl.astype(int).tolist(), "cr": cr.astype(int).tolist(),
+                           "f": f.astype(int).tolist(),
+                           "t": np.round(th, 6).tolist(),
+                           "v": np.round(v, 5).tolist()}
+                          for cl, cr, f, th, v in self.trees]}
+
     def predict_proba(self, X):
         X = np.asarray(X, float)
         n, C = X.shape[0], len(self.classes)
@@ -262,6 +271,21 @@ class GlobalModel:
 
     def add(self, jf: JsonForest, weight: float, node_id: str, rnd: int):
         self.parts.append((float(weight), jf, node_id, rnd))
+
+    def serialize(self) -> dict:
+        """The whole aggregated global model as pickle-free JSON — a weighted ensemble of the
+        per-round secure-aggregated DP forests. Consumers rebuild it with from_serialized()."""
+        return {"classes": list(self.classes),
+                "parts": [{"weight": w, "node_id": nid, "round": rnd, "forest": jf.to_dict()}
+                          for w, jf, nid, rnd in self.parts]}
+
+    @classmethod
+    def from_serialized(cls, d: dict) -> "GlobalModel":
+        m = cls(d["classes"])
+        for p in d.get("parts", []):
+            m.add(JsonForest(p["forest"]), float(p.get("weight", 1.0)),
+                  p.get("node_id", "?"), int(p.get("round", 0)))
+        return m
 
     def n_trees(self):
         return sum(jf.n_trees for _, jf, _, _ in self.parts)

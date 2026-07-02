@@ -98,6 +98,58 @@ def add_dp_noise(count_forest, epsilon, rng=None):
     return {"classes": count_forest["classes"], "trees": out}
 
 
+# ---------------- shared-forest path (for SECURE AGGREGATION) ----------------
+# Every node builds the SAME trees from a PUBLIC structure_seed, so their per-leaf count
+# vectors are aligned and can be securely summed; the coordinator adds the DP noise to the SUM.
+
+def build_shared_structure(structure_seed, n_features, bounds, depth, n_trees):
+    rng = np.random.default_rng(structure_seed)
+    return [build_random_structure(n_features, bounds, depth, rng) for _ in range(n_trees)]
+
+
+def count_on_shared(trees, X, y, classes, assign_seed):
+    """Assign each record to ONE tree (disjoint -> sensitivity 1), route, integer counts.
+    Returns a list of (n_nodes, C) int arrays, one per shared tree."""
+    rng = np.random.default_rng(assign_seed)
+    cidx = {c: i for i, c in enumerate(classes)}
+    C = len(classes)
+    y = np.asarray(y).astype(str)
+    tree_of = rng.integers(0, len(trees), size=X.shape[0])
+    out = []
+    for ti, (cl, cr, f, t) in enumerate(trees):
+        c = np.zeros((len(cl), C), dtype=np.int64)
+        sel = np.where(tree_of == ti)[0]
+        if len(sel):
+            for li, lab in zip(_route(cl, cr, f, t, X[sel]), y[sel]):
+                c[li, cidx[lab]] += 1
+        out.append(c)
+    return out
+
+
+def flatten_counts(per_tree):
+    return np.concatenate([c.reshape(-1) for c in per_tree]).astype(np.int64)
+
+
+def forest_from_summed_counts(trees, flat_counts, classes, eps, rng=None):
+    """CURATOR side: take the securely-summed integer leaf counts, add Laplace(1/eps),
+    normalise, and assemble a probability forest for JsonForest."""
+    rng = rng or np.random.default_rng()
+    C = len(classes)
+    out, off = [], 0
+    for (cl, cr, f, t) in trees:
+        m = len(cl)
+        block = np.asarray(flat_counts[off:off + m * C], dtype=float).reshape(m, C)
+        off += m * C
+        noisy = np.clip(block + rng.laplace(0.0, 1.0 / eps, size=block.shape), 0.0, None)
+        s = noisy.sum(axis=1, keepdims=True)
+        s[s == 0] = 1.0
+        v = noisy / s
+        out.append({"cl": list(cl), "cr": list(cr), "f": list(f),
+                    "t": [round(float(x), 6) for x in t],
+                    "v": [[round(float(p), 5) for p in row] for row in v]})
+    return {"classes": [str(c) for c in classes], "trees": out}
+
+
 # ---------------- calibration (run directly) ----------------
 if __name__ == "__main__":
     import argparse

@@ -75,7 +75,11 @@
   </div>
   <div class="spacer"></div>
   <span class="badge" id="datasetBadge">—</span>
+  <span class="badge ok" id="saBadge">secure-agg ✓</span>
   <span class="badge ok" id="chainBadge">audit chain ✓</span>
+  <a class="badge" id="modelLink" href="/model" target="_blank"
+     style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
+     title="Download the aggregated global model (JSON) — consume it with predict.py">⬇ model</a>
 </header>
 
 <main>
@@ -114,7 +118,7 @@
     <div class="audit" id="audit"></div>
   </section>
 </main>
-<div class="foot">Models travel to the data · each node release is (ε)-differentially private (Laplace on leaf histograms, data-independent splits) with a per-node ε-budget ledger · every node update Ed25519-signed · every event hash-chained &amp; signed against the coordinator's published key (<a href="/pubkey" style="color:var(--mut)">/pubkey</a>)</div>
+<div class="foot">Secure aggregation — under a non-colluding coordinator + full cohort (n≥3) it recovers only the pooled sum, never an individual node's data (hides inputs, does not verify them) · central (ε)-DP on the aggregate, global ε-budget · Ed25519-signed, hash-chained audit verifiable at <a href="/pubkey" style="color:var(--mut)">/pubkey</a></div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -127,6 +131,7 @@ async function poll(){
   const pm=s.primary_metric, ML={acc:'accuracy',auc:'AUC'}[pm]||pm;
   $('sub').textContent=`Greater Bay Area Data Federation · dataset: ${s.dataset} · ${s.classes.length} classes · ${s.test_windows} held-out test samples`;
   $('datasetBadge').textContent=`${s.dataset.toUpperCase()} · ${s.global_trees} trees`;
+  if($('saBadge')) $('saBadge').textContent = s.secure_aggregation ? 'secure-agg ✓' : 'no secure-agg';
   $('m1').textContent=ML;
 
   const cen=s.centralized[pm], fed=s.fed_primary, ceil=(s.centralized_nonprivate||{})[pm];
@@ -140,8 +145,10 @@ async function poll(){
     $('fedSub').textContent=`tracks centralized-DP (gap −${gap.toFixed(3)}) · cumulative ε up to budget ${s.epsilon_budget}`;
     $('fedSub').style.color=gap<0.06?'var(--ok)':'var(--mut)';
   }
-  $('rawSub').textContent=`curator-added Laplace · raw arrays: none · rejected: ${s.rejected_payloads}`;
-  $('caveat').textContent = `Central-DP: nodes ship integer leaf counts of data-independent trees; the COORDINATOR (trusted curator) adds Laplace noise at ε=${eR}/round and enforces it (no secure aggregation yet — the curator sees un-noised aggregates, never raw records). Basic composition; per-node budget ${s.epsilon_budget} (so cumulative ε reaches ${eR}×rounds). Utility cost ≈${ceil?ceil.toFixed(2):'?'} non-private → ${fed?fed.toFixed(2):'?'} DP is the price of data-independent splits. ${s.dataset.toUpperCase()}, IID, single-seed, window-level — absolute numbers optimistic; the federated-vs-centralized-DP gap is the honest result.`;
+  const ge = (s.global_eps!=null)?s.global_eps:0;
+  $('rawSub').textContent=`secure-agg · global ε ${ge}/${s.epsilon_budget} · raw arrays: none · rejected: ${s.rejected_payloads}`;
+  const warn = (s.secure_cohort===false) ? "⚠ cohort<3: masking gives weak/no privacy here. " : "";
+  $('caveat').textContent = `${warn}Secure aggregation: nodes upload PAIRWISE-MASKED leaf counts of a shared data-independent forest; under an honest-but-curious, non-colluding coordinator with the full cohort (n≥3) it recovers ONLY the pooled sum — not any node's data — then adds Laplace at ε=${eR}/round (central DP), global budget ${s.epsilon_budget}. It HIDES inputs but does NOT verify them — a malicious node could skew the model (input-robustness = future work). Utility cost ≈${ceil?ceil.toFixed(2):'?'}→${fed?fed.toFixed(2):'?'} is the price of data-independent splits; secure-agg matches centralized-DP even under non-IID. ${s.dataset.toUpperCase()}, single-seed, window-level.`;
 
   // chain badge
   $('chainBadge').textContent = a.verified ? `chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
@@ -150,11 +157,10 @@ async function poll(){
 
   // nodes
   $('nodes').innerHTML = s.nodes.map(n=>`
-    <div class="node"><div class="nm">${n.name}<span class="pill-local">raw arrays not sent</span></div>
+    <div class="node"><div class="nm">${n.name}<span class="pill-local">masked uploads only</span></div>
       <div class="row"><span>local samples (kept local)</span><b>${n.samples}</b></div>
-      <div class="row"><span>model updates sent</span><b>${n.model_kb} KB · round ${n.rounds_submitted}</b></div>
-      <div class="row"><span>DP ε spent</span><b>${n.eps_spent ?? 0} / ${s.epsilon_budget}</b></div>
-      <div class="epsbar"><div class="epsfill" style="width:${Math.min(100,100*(n.eps_spent||0)/s.epsilon_budget)}%"></div></div>
+      <div class="row"><span>rounds submitted</span><b>${n.rounds_submitted}</b></div>
+      <div class="row"><span>coordinator sees</span><b style="color:var(--ok)">masked sum only</b></div>
     </div>`).join('');
 
   drawChart(s.metrics, cen, pm);

@@ -99,5 +99,41 @@ bad = {"classes": ["A", "B"], "trees": [{"cl": [-1], "cr": [-1], "f": [-2], "t":
 check("count schema rejects non-integer (proba/float) leaf payloads",
       fc.validate_count_forest(cfA, ["A", "B"], 8) == "" and fc.validate_count_forest(bad, ["A", "B"], 8) != "")
 
+print("== secure aggregation ==")
+import secure_agg as sa
+ids = ["node_1", "node_2", "node_3"]
+privs = {i: sa.gen_x25519() for i in ids}
+pubs = {i: sa.load_x_pub(sa.x_pub_hex(privs[i])) for i in ids}
+rv = np.random.default_rng(0)
+vecs = {i: rv.integers(0, 5000, size=40).astype(np.int64) for i in ids}
+masked = [sa.mask_counts(i, privs[i], pubs, 2, vecs[i]) for i in ids]
+plain = sum(vecs[i] for i in ids) % sa.MOD
+check("secure sum recovers the true total (pairwise masks cancel)",
+      np.array_equal(sa.secure_sum(masked) % sa.MOD, plain))
+check("an individual masked vector reveals nothing (≠ true counts)",
+      not np.array_equal(masked[0] % sa.MOD, vecs["node_1"] % sa.MOD))
+check("a missing node corrupts the sum (full cohort required)",
+      not np.array_equal(sa.secure_sum(masked[:2]) % sa.MOD, (vecs["node_1"] + vecs["node_2"]) % sa.MOD))
+
+print("== multi-modal front end (public, participant-independent normalization) ==")
+import tempfile
+import modalities as mods
+for key in ("eyegaze", "action", "neuro"):
+    m = mods.get(key)
+    # extract two DIFFERENT synthetic partner folders through the SAME public scale
+    with tempfile.TemporaryDirectory() as da, tempfile.TemporaryDirectory() as db:
+        m.synth_folder(da, 8, seed=11); m.synth_folder(db, 8, seed=22)
+        Xa, _, _ = m.extract_folder(da)
+        Xb, _, _ = m.extract_folder(db)
+    in_bounds = (Xa.min() >= -1 - 1e-6 and Xa.max() <= 1 + 1e-6
+                 and Xb.min() >= -1 - 1e-6 and Xb.max() <= 1 + 1e-6)
+    check(f"{key}: features land in the PUBLIC [-1,1] DP bounds", in_bounds)
+    # the normalization scale is a fixed shipped constant -> same raw always maps the same way,
+    # regardless of what other participants' data looks like (data-independent public transform)
+    raw = np.array([m.scale * 0.5])           # a fixed raw point
+    map1 = m.normalize(raw); map2 = m.normalize(raw)
+    check(f"{key}: normalization is a fixed public function (scale is a shipped constant)",
+          np.allclose(map1, map2) and np.allclose(map1, np.tanh(0.5)))
+
 print("\nRESULT:", "ALL SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 sys.exit(0 if ok_all else 1)

@@ -13,32 +13,33 @@
 A joint experiment where several institutions train **one shared model together without sharing data**.
 Each institution runs a small "node" program on its own machine. The node:
 
-1. trains **data-independent random trees on your local data, on your hardware**;
-2. sends only **integer leaf-count summaries** of those trees to a coordinator we host;
-3. the coordinator (the **trusted curator**) adds calibrated **differential-privacy noise**, merges
-   everyone's contributions into a stronger global model, and sends back results.
+1. builds the federation's **shared, data-independent trees** and counts **your local data** into them, on your hardware;
+2. **masks** those integer leaf counts (pairwise keys with the other institutions) and uploads only the masked vector;
+3. the coordinator sums the masked vectors — the masks cancel, so it recovers **only the pooled total across all institutions**, never your individual counts — then adds **differential-privacy noise** and returns the stronger global model.
 
-**Your raw data (videos, signals, tables, identifiers) never leaves your machine** — the node uploads
-only aggregated leaf counts of trees whose structure never depended on your data. (We use a
-*central-DP / trusted-curator* model: the coordinator we host adds the privacy noise and sees the
-un-noised aggregates; *local-DP* and *secure aggregation*, so even we can't see un-noised aggregates,
-are planned next steps.)
+**Your raw data (videos, signals, tables, identifiers) never leaves your machine, and the coordinator
+never sees your institution's individual contribution** — only the masked sum. This is **secure
+aggregation + differential privacy**. (Trust model: an honest-but-curious, non-colluding coordinator;
+the round needs all enrolled institutions to take part — dropout recovery is a planned next step.)
 
 ## 2. What you are protected by
 
 | Guarantee | What it means for you |
 |---|---|
-| **Raw data stays local** | The node uploads only **integer leaf-count summaries** of data-independent trees — the accepted schema carries no raw feature/label arrays, and the coordinator validates/bounds-checks every payload. |
-| **Differential privacy (ε)** | The published model is **(ε)-differentially private**: tree splits come from a *public* feature range (never from your data), and the **coordinator adds calibrated Laplace noise** at the federation's ε. ε is **set and enforced by the coordinator** (not self-declared), and a **per-node ε-budget** caps cumulative privacy loss. |
+| **Raw data stays local** | The node uploads only **masked integer leaf-count vectors** of data-independent trees — no raw arrays, and every payload is validated/bounds-checked. |
+| **Secure aggregation** | Your counts are **pairwise-masked** so the coordinator can only recover the **pooled sum across all institutions** — it never sees your institution's own counts. |
+| **Differential privacy (ε)** | The published model is **(ε)-differentially private**: tree splits come from a *public* feature range (never from your data), and the coordinator adds calibrated **Laplace noise to the secure aggregate** at ε. ε is **coordinator-set and enforced**, with a **global ε-budget** capping cumulative privacy loss. |
 | **You sign everything** | Your node holds a private key (generated locally, never sent). Every upload is **digitally signed**; the coordinator rejects anything not signed by your enrolled key. |
 | **Tamper-evident audit** | Every operation is hash-chained and signed by the coordinator; the log is verifiable against the coordinator's published public key (`/pubkey`). |
-| **You can read the code** | The node is ~120 lines of Python (`node.py`, `dp.py`). You can inspect exactly what is computed and sent before running it. |
+| **You can read the code** | The node loop is short, dependency-light Python (`node_core.py` + `dp.py` + `modalities.py`). You can inspect exactly what is computed locally and what is sent before running it. |
 
-> Honest scope: this is a research POC using **central-DP** — the coordinator (us) is the trusted
-> curator that adds the noise, so it sees your **un-noised integer leaf aggregates** (not raw records)
-> before privatising. DP uses **basic composition**; a *fully compromised coordinator* is out of scope.
-> **Local-DP** (you add the noise) and **secure aggregation** (we never see un-noised aggregates) are
-> planned next steps. The trust assumption is exactly the one in §10 — you can read the node code.
+> Honest scope: research POC. **Secure aggregation** means the coordinator only ever sees masked
+> vectors and their pooled sum — not any institution's individual counts — then adds the DP noise
+> (**basic composition**). Assumptions: an **honest-but-curious, non-colluding** coordinator, a cohort
+> of **≥ 3** institutions, and a round needs the **full enrolled cohort** (no dropout recovery yet — the
+> Shamir part of Bonawitz, a planned next step). Secure aggregation protects **privacy, not input
+> integrity** — a malicious participant could submit garbage to skew the shared model (robustness to bad
+> inputs is future work). A *fully compromised* coordinator is out of scope. You can read the node code (§10).
 
 ## 3. Prerequisites (on your machine)
 
@@ -51,7 +52,8 @@ are planned next steps.)
 
 ```bash
 cd federated_poc
-uv sync          # installs the pinned dependencies into .venv (cross-platform)
+uv sync                 # installs the pinned dependencies into .venv (cross-platform)
+uv sync --extra client  # ALSO installs the desktop app (recommended — see §6, Option A)
 ```
 
 > **Windows is fine for running a node.** A node needs only CPU libraries (numpy, scikit-learn,
@@ -62,62 +64,99 @@ uv sync          # installs the pinned dependencies into .venv (cross-platform)
 > **Windows key note:** the private key's POSIX `0600` permission doesn't apply on Windows (the code
 > still runs). Protect `node_key.pem` with your normal account/disk controls or full-disk encryption.
 
-## 4. Agree the schema first (one-time, before any run)
+## 4. Agree the modality & schema first (one-time, before any run)
 
-Federated learning requires every node to use the **same feature representation**. Before the
-experiment we jointly fix, and the coordinator publishes at `GET /schema`:
+Each experiment runs on **one data modality**, and every node must use the **same feature
+representation**. We support three modalities out of the box (the coordinator publishes which one it is
+at `GET /schema` as `modality`):
 
-- **`classes`** — the exact label set (e.g. the activity / category names).
-- **`n_features`** and their **order/meaning** — the agreed feature vector.
-- **`feature_bounds`** — public per-feature min/max used for DP splits (public, not your data).
-- **`dp`** — `epsilon_per_round`, tree `depth`, `trees_per_round`, and the per-node `budget`.
+| Modality | Your raw recordings | Task |
+|---|---|---|
+| **`eyegaze`** — eye-tracking | one gaze **CSV** per recording (columns `x, y[, pupil]`) | ASD/TD social-attention screening |
+| **`action`** — body pose | one MediaPipe-pose **`.npz`** per clip (key `body`, shape `(T,33,4)`) | ASD/TD behavioural screening |
+| **`neuro`** — EEG / fMRI | one **`.npz`** (key `ts`, channels×time) or CSV per scan | ASD/TD neuroimaging screening |
 
-We provide the **feature-extraction code or spec** so you compute the same features locally. (For the
-HAR reference dataset this is already wired; for the real modality we agree it together.)
+The feature extraction for each modality is **built in** (`modalities.py`) — you don't write feature
+code; you just organise your raw files (§5). The coordinator publishes at `GET /schema`:
+
+- **`modality`** — which of the above this federation runs.
+- **`classes`** — the label set (e.g. `ASD`, `TD`).
+- **`n_features`** — the fixed feature width for that modality (32 / 174 / 48).
+- **`feature_bounds`** — public `[-1,1]` range used for DP splits (public, **not** your data).
+- **`dp`** — `epsilon_per_round`, tree `depth`, `trees_per_round`, and the `budget`.
+
+(A raw benchmark schema — HAR — is also supported for internal dry-runs.)
 
 ## 5. Prepare your data (stays local)
 
-Produce a single local file `data.npz` containing:
+**Just organise your raw recordings into class subfolders** — feature extraction happens locally, on
+your machine, at run time. Lay out a folder like:
 
-- `X` — `float32` array, shape `[n_samples, n_features]` (features in the agreed order).
-- `y` — string labels, each from the agreed `classes`.
-
-Easiest path — from a CSV (all columns numeric features except the label column):
-
-```bash
-uv run python make_node_data.py --csv your_data.csv --label-col activity \
-    --coord http://<coordinator-host>:8055 --out nodes/your_org/data.npz
+```
+your_data/
+  asd/   your_recording_001.csv   your_recording_002.csv   …   (or .npz, per the modality)
+  td/    control_001.csv          control_002.csv          …
 ```
 
-`make_node_data.py` **validates locally** that your feature count and labels match the federation
-schema and writes `data.npz`. It uploads nothing. (Prefer ≥ a few hundred samples per node, with all
-classes represented.)
+The class is taken from the subfolder name (`asd/` → ASD, `td/` → TD). Use the file type your modality
+expects (§4): CSV for eyegaze, `.npz` for action/neuro. That's it — point the desktop app or the CLI at
+`your_data/` and it extracts the agreed features locally, uploading nothing. (Prefer ≥ a few hundred
+recordings per node, with both classes represented.)
+
+*No data yet?* The desktop app's **"Generate a demo folder"** button (or `client_app.py`) writes a
+synthetic cohort in the right layout so you can rehearse the whole flow first.
+
+> **Advanced (pre-computed features):** if you already have an aligned feature matrix, you can instead
+> build a baked `data.npz` (`X` float32 `[n, n_features]`, `y` string labels) — e.g. from a CSV via
+> `uv run python make_node_data.py --csv your.csv --label-col label --coord http://<host>:8055 --out
+> nodes/your_org/data.npz` — and pass `--data` instead of `--folder` in §6.
 
 ## 6. Run your node
+
+### Option A — Desktop app (recommended)
+
+```bash
+uv run python client_app.py
+```
+
+A window opens and walks you through four steps: **① pick your data modality → ② choose your data
+folder** (a native folder picker; it scans and shows how many recordings and the ASD/TD split) **→
+③ enter the coordinator URL, a node id, and a display name** (a "Test connection" button confirms the
+federation matches your modality) **→ ④ Connect & start**, with a live view of the rounds, the running
+global accuracy, the ε budget, and a standing **"0 bytes raw uploaded"** banner. It is bilingual (中/EN,
+top-right). The app runs the exact same node loop as the CLI below.
+
+### Option B — Command line
 
 ```bash
 uv run python node.py \
     --node-id your_org \
     --name "Your Institution" \
     --coord http://<coordinator-host>:8055 \
-    --data nodes/your_org/data.npz \
+    --folder your_data \
     --rounds 5
 ```
 
-> **Windows (PowerShell/cmd):** the `\` line-continuations above are bash syntax — put the whole
-> command on **one line** instead (just delete the `\` and newlines). Same for the `make_node_data.py`
-> command in §5. `uv run …` itself works identically on Windows.
+`--folder your_data` ingests the raw recordings from §5 (the modality is taken from the coordinator's
+`/schema`; pass `--modality eyegaze|action|neuro` to be explicit). For a pre-baked feature file, use
+`--data nodes/your_org/data.npz` instead of `--folder`.
 
-What happens each round: the node trains data-independent trees on your local data, signs the upload
-(binding round, sample count, and a hash of the leaf counts), uploads it, and prints e.g.:
+> **Windows (PowerShell/cmd):** the `\` line-continuations above are bash syntax — put the whole
+> command on **one line** instead (just delete the `\` and newlines). `uv run …` itself works
+> identically on Windows, and the desktop app (Option A) uses the built-in Edge **WebView2** runtime.
+
+What happens each round: the node counts its local data into the shared trees, **masks** the counts,
+signs the upload (binding round, sample count, and a hash of the masked vector), uploads it, and waits
+for the cohort's secure aggregate. It prints e.g.:
 
 ```
-[your_org] round 3: local=842 | raw arrays sent=0 | leaf counts uploaded (curator noised) | ε cum 3.00/10 | update=2304 KB | global acc=0.74
+[your_org] round 3: raw arrays sent=0 | MASKED counts uploaded (1288 KB) | global ε 3.00/10.0 | global acc=0.79
 ```
 
 Your private key is created at `nodes/your_org/node_key.pem` (POSIX mode `0600`) and **must not be
-shared**. **ε is set and enforced by the coordinator** (the curator), not chosen by the node — you
-spend `epsilon_per_round` of your per-node budget each round, shown as `ε cum … / budget`.
+shared**. **ε is set and enforced by the coordinator**, not chosen by nodes; the federation spends
+`epsilon_per_round` of a **global** budget each round (shown as `global ε … / budget`). The round
+completes once **all enrolled institutions** have submitted (secure aggregation needs the full cohort).
 
 ## 7. The experiment protocol
 
@@ -134,6 +173,30 @@ You can watch progress live on the coordinator dashboard (`http://<coordinator-h
 federated-DP accuracy vs the centralized-DP and non-private baselines, every node's ε budget, and the
 streaming audit log.
 
+### Using the shared model (as a data-user / central node)
+
+Once the run finishes, **everyone who took part can use the jointly-trained model** — it is the whole
+point of federating. The model is an aggregated, pickle-free JSON forest held by the coordinator.
+
+```bash
+# (A) recommended — download the model and score YOUR OWN new recordings locally,
+#     so your query data also stays on your machine:
+uv run python predict.py --coord http://<coordinator-host>:8055 \
+    --folder my_new_cases --out predictions.csv
+
+# (B) convenience — send feature rows to the coordinator to score:
+uv run python predict.py --coord http://<coordinator-host>:8055 --folder my_new_cases --hosted
+
+# just archive the model artifact (JSON, carries provenance + the audit tip):
+uv run python predict.py --coord http://<coordinator-host>:8055 --save-model global_model.json
+```
+
+It prints an ASD/TD call + confidence per recording (and accuracy if your folder is labelled) and
+writes a CSV. The downloaded model carries its **provenance** — which modality, how many rounds, the DP
+ε spent vs the budget, the held-out test metric, and the audit tip you can verify against `/pubkey`.
+`GET /model` returns the artifact; `POST /predict` scores `{"X": [[…]]}` rows. Prefer (A) when the cases
+you are screening are themselves sensitive.
+
 ## 8. Security & operations
 
 - **Networking:** the coordinator binds localhost by default; for a real cross-site run we expose it
@@ -149,24 +212,28 @@ streaming audit log.
 
 | Symptom | Fix |
 |---|---|
-| `FEATURE MISMATCH … expects N` | Your feature vector length/order differs from the schema — re-run the agreed feature extraction. |
-| `UNKNOWN LABELS […]` | A label isn't in the agreed class set — fix or remap your labels. |
+| `no usable recordings found` | The folder has no files in the modality's format, or they aren't under `asd/` / `td/` subfolders — check §4/§5 layout and file type. |
+| `feature mismatch: local N vs federation M` | You picked the wrong modality (or a stale schema) — select the modality the coordinator publishes at `/schema`. |
+| `labels [...] not in federation classes` | A subfolder/label isn't in the agreed class set — put recordings under `asd/` and `td/`. |
 | `signature verification failed` | Wrong/missing key, or payload mangled by a proxy — re-run with the original `node_key.pem`. |
 | `epsilon budget exceeded (429)` | You've spent the agreed ε budget; we raise it together if the experiment needs more rounds. |
 | `unregistered node` | Run `node.py` once to enrol, or your `node-id` differs from what we enrolled. |
+| `cohort full` | The enrolled cohort is already complete — confirm your `node-id` is on the agreed list. |
+| Round never completes / node hangs at a round | Secure aggregation needs the **whole cohort** each round — a missing or slow institution stalls it for everyone. We confirm all nodes are up before starting; restart the lagging node. |
 | Can't reach coordinator | Check the URL/port, TLS, and your firewall's outbound rules. |
 
 ## 10. FAQ
 
-- **Do you ever see our raw data?** No raw records — the node transmits only integer leaf-count
-  summaries of data-independent trees. As the trusted curator we *do* receive those un-noised
-  aggregates and then add the privacy noise (central-DP). Local-DP / secure aggregation (so we never
-  see un-noised aggregates) are planned.
+- **Do you ever see our raw data — or even our institution's counts?** Neither. The node transmits
+  only **masked** count vectors; with secure aggregation we can recover **only the pooled sum across
+  all institutions**, never your individual counts (and never raw records). We then add the DP noise
+  to that sum. (Assumes we don't collude to defeat the masking; the full enrolled cohort must take part.)
 - **Can the published model leak our data?** The released model is **(ε)-differentially private**,
   which formally bounds what can be inferred about any individual record. Lower ε = stronger privacy;
   we set and enforce ε and meter your budget.
-- **Can we audit what runs?** Yes — read `node.py` and `dp.py` (short, dependency-light), and verify
-  the federation's audit log against `/pubkey`.
+- **Can we audit what runs?** Yes — read `node.py` / `node_core.py`, `modalities.py`, and `dp.py`
+  (short, dependency-light: local feature extraction, masking, signing, upload), and verify the
+  federation's audit log against `/pubkey`.
 - **What hardware/time?** CPU-only; a 5-round run is minutes. No persistent service required on your
   side — you run the node only during the experiment window.
 

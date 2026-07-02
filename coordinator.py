@@ -1,12 +1,12 @@
-"""GBA-DF federated coordinator (hardened after adversarial audit).
+"""GBA-DF federated coordinator — SECURE-AGGREGATION + central DP.
 
-Holds ONLY: a held-out test set, node public keys, the global model (accumulated
-JsonForests), and a signature-verified hash-chained audit log. Submissions carry
-a constrained JSON tree schema (no pickle) — raw feature/label arrays cannot be
-expressed in the accepted schema and are rejected.
+Per round, every enrolled node uploads a MASKED integer leaf-count vector (pairwise
+X25519 masks). The coordinator sums the masked vectors — masks cancel, so it learns only
+the POOLED leaf counts, never an individual node's — then adds Laplace(1/ε) noise to that
+sum (central DP on the secure aggregate) and meters a GLOBAL ε budget. So the coordinator
+never sees any single institution's data or even its un-noised aggregate.
 
   uv run uvicorn coordinator:app --host 127.0.0.1 --port 8055
-Default bind is localhost; expose deliberately (and add TLS) for cross-site use.
 """
 import json
 import os
@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 import dp
 import fed_common as fc
+import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -26,34 +27,46 @@ _test = np.load(os.path.join(HERE, "data", "test.npz"))
 X_TEST, Y_TEST = _test["X"], _test["y"].astype(str)
 with open(os.path.join(HERE, "data", "meta.json")) as f:
     META = json.load(f)
-CENTRAL = META["centralized"]                 # matched DP reference
+CENTRAL = META["centralized"]
 CEILING = META.get("centralized_nonprivate", {})
 CLASSES = [str(c) for c in META["classes"]]
 PRIMARY = META["primary_metric"]
 DATASET = META["dataset"]
-FEATURE_BOUNDS = META.get("feature_bounds", [])
-DP = META.get("dp", {"epsilon_per_round": 1.0, "depth": 9, "trees_per_round": 20, "budget": 10.0})
-BUDGET = float(DP.get("budget", 10.0))         # per-node cumulative epsilon cap
-EPS_ROUND = float(DP.get("epsilon_per_round", 1.0))  # epsilon the CURATOR spends per round (enforced)
+MODALITY = META.get("modality")
+MODALITY_INFO = META.get("modality_info")
+BOUNDS = np.asarray(META["feature_bounds"], dtype=float)
+DP = META["dp"]
+EPS_ROUND = float(DP["epsilon_per_round"])
+BUDGET = float(DP.get("budget", 10.0))                 # GLOBAL cumulative ε cap
+N_TREES, DEPTH = int(DP["trees_per_round"]), int(DP["depth"])
+STRUCT_SEED = int(DP.get("structure_seed", 2024))
+COHORT = int(META.get("cohort", len(META.get("nodes", []))) or 1)
+SECURE_COHORT = COHORT >= 3        # masking gives meaningful privacy only with >=3 non-colluding nodes
+N_FEATURES = int(X_TEST.shape[1])
+if not SECURE_COHORT:
+    print(f"WARNING: cohort={COHORT} < 3 — pairwise masking provides weak/no privacy "
+          f"(cohort 1 = no masking). Use >=3 nodes for a meaningful secure-aggregation guarantee.")
+# expected masked-vector length (complete trees -> constant cell count)
+EXPECT_LEN = N_TREES * (2 ** (DEPTH + 1) - 1) * len(CLASSES)
 
-COORD_KEY = fc.gen_key()                      # signs every audit entry
+
+def shared_trees(rnd: int):
+    return dp.build_shared_structure(STRUCT_SEED + rnd, N_FEATURES, BOUNDS, DEPTH, N_TREES)
+
+
+COORD_KEY = fc.gen_key()
 COORD_PUB = COORD_KEY.public_key()
-
 LOCK = threading.Lock()
 STATE = {
-    "nodes": {},                              # node_id -> {pubkey, name, samples, last_round, model_bytes}
-    "model": fc.GlobalModel(CLASSES),
-    "audit": fc.Audit(COORD_KEY),
-    "metrics": [],
-    "model_bytes_received": 0,
-    "rejected_payloads": 0,                   # off-schema / bad-signature submissions
-    "started": time.time(),
+    "nodes": {}, "model": fc.GlobalModel(CLASSES), "audit": fc.Audit(COORD_KEY),
+    "metrics": [], "round_buf": {}, "round_done": {}, "global_eps": 0.0,
+    "rejected": 0, "started": time.time(),
 }
 STATE["audit"].append("genesis", "coordinator",
-                      {"dataset": DATASET, "test_windows": int(len(Y_TEST)),
+                      {"dataset": DATASET, "cohort": COHORT, "secure_aggregation": True,
                        f"centralized_{PRIMARY}": round(CENTRAL[PRIMARY], 4)}, ts=time.time())
 
-app = FastAPI(title="GBA-DF Federated Coordinator")
+app = FastAPI(title="GBA-DF Federated Coordinator (secure aggregation)")
 
 
 @app.get("/")
@@ -63,136 +76,134 @@ async def dashboard():
 
 @app.get("/pubkey")
 async def pubkey():
-    # publish out-of-band so a third party can verify the audit log signatures
     return PlainTextResponse(fc.pub_pem(COORD_KEY).decode())
 
 
 @app.get("/schema")
 async def schema():
-    # PUBLIC federation schema a node needs to build DP-compatible updates
-    return {"classes": CLASSES, "feature_bounds": FEATURE_BOUNDS, "n_features": int(X_TEST.shape[1]),
-            "primary_metric": PRIMARY, "dp": DP, "epsilon_budget": BUDGET}
+    return {"classes": CLASSES, "feature_bounds": BOUNDS.tolist(), "n_features": N_FEATURES,
+            "primary_metric": PRIMARY, "cohort": COHORT, "dataset": DATASET,
+            "modality": MODALITY, "modality_info": MODALITY_INFO,
+            "dp": {**DP, "structure_seed": STRUCT_SEED}, "epsilon_budget": BUDGET}
+
+
+@app.get("/participants")
+async def participants():
+    with LOCK:
+        ps = [{"node_id": nid, "x_pub": v["x_pub"]} for nid, v in STATE["nodes"].items()]
+        return {"ready": len(ps) >= COHORT, "cohort": COHORT, "participants": ps}
 
 
 @app.post("/register")
 async def register(req: Request):
     try:
         b = await req.json()
-        node_id, pub, name = b["node_id"], b["pubkey_pem"], b.get("name", b["node_id"])
-        samples = int(b.get("samples", 0))
+        node_id, pub, xpub = b["node_id"], b["pubkey_pem"], b["x_pub"]
+        name, samples = b.get("name", b["node_id"]), int(b.get("samples", 0))
     except Exception:
         return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
-    if samples <= 0:        # enrolled count is the authoritative merge weight -> must be real
+    if samples <= 0:
         return JSONResponse({"ok": False, "error": "samples must be > 0"}, status_code=422)
     with LOCK:
         cur = STATE["nodes"].get(node_id)
-        if cur and cur["pubkey"] != pub:        # TOFU: cannot rebind an existing id to a new key
+        if cur and cur["pubkey"] != pub:
             STATE["audit"].append("rejected", node_id, {"reason": "pubkey rebind"}, ts=time.time())
-            return JSONResponse({"ok": False, "error": "node_id already enrolled with another key"},
-                                status_code=409)
+            return JSONResponse({"ok": False, "error": "node_id already enrolled"}, status_code=409)
+        if not cur and len(STATE["nodes"]) >= COHORT:       # enrollment cap: extra nodes would break masking
+            STATE["audit"].append("rejected", node_id, {"reason": "cohort full"}, ts=time.time())
+            return JSONResponse({"ok": False, "error": f"cohort full ({COHORT})"}, status_code=409)
         if not cur:
-            STATE["nodes"][node_id] = {"pubkey": pub, "name": name, "samples": samples,
-                                       "last_round": 0, "model_bytes": 0, "eps_spent": 0.0}
-            STATE["audit"].append("register", node_id, {"name": name, "samples": samples},
-                                  ts=time.time())
-    return {"ok": True, "node_id": node_id}
+            STATE["nodes"][node_id] = {"pubkey": pub, "x_pub": xpub, "name": name,
+                                       "samples": samples, "last_round": 0}
+            STATE["audit"].append("register", node_id, {"name": name, "samples": samples}, ts=time.time())
+    return {"ok": True, "node_id": node_id, "cohort": COHORT}
 
 
 @app.post("/submit")
 async def submit(req: Request):
     try:
         b = await req.json()
-        node_id = b["node_id"]; rnd = int(b["round"]); n_samples = int(b["n_samples"])
-        update = b["update"]; sig = bytes.fromhex(b["sig_hex"])
+        node_id, rnd, n_samples = b["node_id"], int(b["round"]), int(b["n_samples"])
+        masked, sig = b["masked"], bytes.fromhex(b["sig_hex"])
     except Exception:
         return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
-    eps = EPS_ROUND      # epsilon is set + spent by the curator, NOT declared by the node
 
     with LOCK:
         node = STATE["nodes"].get(node_id)
         if node is None:
             return JSONResponse({"ok": False, "error": "unregistered node"}, status_code=403)
-        if rnd <= node["last_round"]:                       # replay / stale round
-            STATE["rejected_payloads"] += 1
-            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "replay/stale"},
-                                  ts=time.time())
+        if rnd <= node["last_round"]:
+            STATE["rejected"] += 1
+            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "replay/stale"}, ts=time.time())
             return JSONResponse({"ok": False, "error": "stale or replayed round"}, status_code=409)
-
-        payload_hash = fc.sha256_hex(fc._canon(update))     # signature binds payload + round + n_samples
+        # validate masked vector: exact length, ints in range
+        if (not isinstance(masked, list) or len(masked) != EXPECT_LEN
+                or not all(isinstance(x, int) and 0 <= x < sa.MOD for x in masked)):
+            STATE["rejected"] += 1
+            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad masked vector"}, ts=time.time())
+            return JSONResponse({"ok": False, "error": "invalid masked payload"}, status_code=400)
+        payload_hash = fc.sha256_hex(fc._canon(masked))
         message = f"{node_id}|{rnd}|{n_samples}|{payload_hash}".encode()
         if not fc.verify_sig(fc.load_pub(node["pubkey"].encode()), sig, message):
-            STATE["rejected_payloads"] += 1
-            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad signature"},
-                                  ts=time.time())
+            STATE["rejected"] += 1
+            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad signature"}, ts=time.time())
             return JSONResponse({"ok": False, "error": "signature verification failed"}, status_code=401)
+        if rnd not in STATE["round_done"] and STATE["global_eps"] + EPS_ROUND > BUDGET + 1e-9:
+            STATE["rejected"] += 1
+            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": "global ε budget exceeded"}, ts=time.time())
+            return JSONResponse({"ok": False, "error": "global epsilon budget exceeded"}, status_code=429)
 
-        if node["eps_spent"] + eps > BUDGET + 1e-9:         # per-node DP budget ledger
-            STATE["rejected_payloads"] += 1
-            STATE["audit"].append("rejected", node_id,
-                                  {"round": rnd, "reason": "epsilon budget exceeded",
-                                   "eps_spent": round(node["eps_spent"], 4), "eps_req": eps}, ts=time.time())
-            return JSONResponse({"ok": False, "error": f"epsilon budget exceeded "
-                                 f"({node['eps_spent']:.2f}+{eps:.2f} > {BUDGET})"}, status_code=429)
-
-        # integer-count tree schema with in-range indices — never raw data, never a crashing forest
-        reason = fc.validate_count_forest(update, CLASSES, X_TEST.shape[1])
-        if reason:
-            STATE["rejected_payloads"] += 1
-            STATE["audit"].append("rejected", node_id, {"round": rnd, "reason": reason}, ts=time.time())
-            return JSONResponse({"ok": False, "error": f"invalid model payload: {reason}"}, status_code=400)
-
-        noised = dp.add_dp_noise(update, eps)                 # CURATOR adds the calibrated DP noise
-        jf = fc.JsonForest(noised)
-        weight = float(node["samples"])                       # authoritative: enrolled count, NOT the wire
-        STATE["model"].add(jf, weight, node_id, rnd)
-        try:
-            m = STATE["model"].evaluate(X_TEST, Y_TEST)
-        except Exception as exc:                              # defense-in-depth: never let one update persist+crash
-            STATE["model"].parts.pop()
-            STATE["rejected_payloads"] += 1
-            STATE["audit"].append("rejected", node_id,
-                                  {"round": rnd, "reason": f"eval error: {type(exc).__name__}"}, ts=time.time())
-            return JSONResponse({"ok": False, "error": "model failed evaluation"}, status_code=400)
-
-        nbytes = len(fc._canon(update))
-        STATE["model_bytes_received"] += nbytes
-        node["model_bytes"] += nbytes
         node["last_round"] = rnd
-        node["eps_spent"] += eps                            # charge the DP budget ledger
+        buf = STATE["round_buf"].setdefault(rnd, {})
+        buf[node_id] = np.asarray(masked, dtype=np.int64)
         STATE["audit"].append("submit", node_id,
-                              {"round": rnd, "trees": jf.n_trees, "model_bytes": nbytes,
-                               "epsilon": round(eps, 4), "eps_cum": round(node["eps_spent"], 4)},
+                              {"round": rnd, "masked_cells": len(masked)},
                               payload_sha256=payload_hash, ts=time.time())
-        point = {"seq": len(STATE["metrics"]), "ts": time.time(), "node": node_id,
-                 "round": rnd, **m, "central": CENTRAL[PRIMARY]}
-        STATE["metrics"].append(point)
-        STATE["audit"].append("aggregate", "coordinator",
-                              {"round": rnd, "global_trees": m["n_trees"],
-                               f"fed_{PRIMARY}": round(m[PRIMARY], 4),
-                               f"central_{PRIMARY}": round(CENTRAL[PRIMARY], 4)}, ts=time.time())
-    return {"ok": True, "fed_primary": m[PRIMARY], "primary_metric": PRIMARY,
-            "global_trees": m["n_trees"], "eps_cum": node["eps_spent"], "eps_budget": BUDGET}
+
+        # full cohort for this round -> SECURE-SUM (masks cancel only if the exact enrolled set submits)
+        if (len(buf) >= COHORT and set(buf) == set(STATE["nodes"]) and rnd not in STATE["round_done"]):
+            summed = sa.secure_sum(list(buf.values()))             # coordinator sees only the pooled sum
+            trees = shared_trees(rnd)
+            fd = dp.forest_from_summed_counts(trees, summed, CLASSES, EPS_ROUND)
+            weight = float(sum(STATE["nodes"][x]["samples"] for x in buf))
+            STATE["model"].add(fc.JsonForest(fd), weight, "secure-agg", rnd)
+            STATE["global_eps"] += EPS_ROUND
+            m = STATE["model"].evaluate(X_TEST, Y_TEST)
+            STATE["metrics"].append({"seq": len(STATE["metrics"]), "ts": time.time(),
+                                     "round": rnd, **m, "central": CENTRAL[PRIMARY]})
+            STATE["round_done"][rnd] = {"fed_primary": m[PRIMARY], "global_trees": m["n_trees"]}
+            STATE["audit"].append("aggregate", "coordinator",
+                                  {"round": rnd, "participants": len(buf), "global_trees": m["n_trees"],
+                                   "epsilon": EPS_ROUND, "global_eps": round(STATE["global_eps"], 4),
+                                   f"fed_{PRIMARY}": round(m[PRIMARY], 4)}, ts=time.time())
+
+        done = STATE["round_done"].get(rnd)
+    return {"ok": True, "primary_metric": PRIMARY, "pending": done is None,
+            "fed_primary": (done or {}).get("fed_primary"),
+            "global_eps": STATE["global_eps"], "epsilon_budget": BUDGET}
+
+
+@app.get("/round/{rnd}")
+async def round_result(rnd: int):
+    with LOCK:
+        d = STATE["round_done"].get(rnd)
+        return {"ready": d is not None, **(d or {}), "primary_metric": PRIMARY}
 
 
 @app.get("/status")
 async def status():
     with LOCK:
         nodes = [{"node_id": nid, "name": v["name"], "samples": v["samples"],
-                  "rounds_submitted": v["last_round"], "model_kb": round(v["model_bytes"] / 1024, 1),
-                  "eps_spent": round(v["eps_spent"], 3)}
-                 for nid, v in STATE["nodes"].items()]
+                  "rounds_submitted": v["last_round"]} for nid, v in STATE["nodes"].items()]
         last = STATE["metrics"][-1] if STATE["metrics"] else None
         return {
-            "dataset": DATASET, "classes": CLASSES, "primary_metric": PRIMARY,
-            "nodes": nodes, "metrics": STATE["metrics"],
-            "centralized": CENTRAL, "centralized_nonprivate": CEILING,
-            "dp": DP, "epsilon_budget": BUDGET,
-            "test_windows": int(len(Y_TEST)),
-            "payload_schema_enforced": True,         # raw feature/label arrays cannot pass /submit
-            "rejected_payloads": STATE["rejected_payloads"],
-            "model_kb_received": round(STATE["model_bytes_received"] / 1024, 1),
+            "dataset": DATASET, "modality": MODALITY, "modality_info": MODALITY_INFO,
+            "classes": CLASSES, "primary_metric": PRIMARY,
+            "secure_aggregation": True, "cohort": COHORT, "secure_cohort": SECURE_COHORT, "nodes": nodes,
+            "metrics": STATE["metrics"], "centralized": CENTRAL, "centralized_nonprivate": CEILING,
+            "dp": DP, "epsilon_budget": BUDGET, "global_eps": round(STATE["global_eps"], 3),
+            "test_windows": int(len(Y_TEST)), "rejected_payloads": STATE["rejected"],
             "global_trees": last["n_trees"] if last else 0,
-            "global_updates": last["n_updates"] if last else 0,
             "fed_primary": last[PRIMARY] if last else None,
             "audit_len": len(STATE["audit"].entries),
         }
@@ -201,10 +212,57 @@ async def status():
 @app.get("/audit")
 async def audit():
     with LOCK:
-        entries = STATE["audit"].entries
-        verified = STATE["audit"].verify(COORD_PUB, expected_len=len(entries))
-        tip = entries[-1]["hash"] if entries else "0" * 64
-        return {"verified": verified, "count": len(entries), "tip": tip, "entries": entries}
+        e = STATE["audit"].entries
+        return {"verified": STATE["audit"].verify(COORD_PUB, expected_len=len(e)),
+                "count": len(e), "tip": e[-1]["hash"] if e else "0" * 64, "entries": e}
+
+
+@app.get("/model")
+async def model():
+    """Download the aggregated global model (pickle-free JSON) so a data-user can run it
+    LOCALLY — their query data then never leaves their machine either. Carries provenance:
+    modality, feature schema, DP budget spent, current test metric, and the audit tip."""
+    with LOCK:
+        gm = STATE["model"]
+        if gm.n_updates() == 0:
+            return JSONResponse({"ok": False, "error": "no model yet — run some rounds first"},
+                                status_code=409)
+        last = STATE["metrics"][-1] if STATE["metrics"] else None
+        e = STATE["audit"].entries
+        return {"ok": True, "modality": MODALITY, "modality_info": MODALITY_INFO,
+                "classes": CLASSES, "n_features": N_FEATURES, "primary_metric": PRIMARY,
+                "feature_bounds": BOUNDS.tolist(), "dataset": DATASET,
+                "rounds": len(STATE["metrics"]), "n_trees": gm.n_trees(),
+                "test_metric": (last or {}).get(PRIMARY), "test_windows": int(len(Y_TEST)),
+                "global_eps": round(STATE["global_eps"], 4), "epsilon_budget": BUDGET,
+                "dp": DP, "audit_tip": e[-1]["hash"] if e else "0" * 64,
+                "coordinator_pubkey": fc.pub_pem(COORD_KEY).decode(),
+                "model": gm.serialize()}
+
+
+@app.post("/predict")
+async def predict(req: Request):
+    """Hosted inference: send feature rows (X: [[...]] in the published feature order); get
+    class probabilities + predicted labels. Convenience path — for full data-locality, prefer
+    GET /model and run predict.py on your own machine so your query data stays local too."""
+    try:
+        b = await req.json()
+        X = np.asarray(b["X"], dtype=float)
+    except Exception:
+        return JSONResponse({"ok": False, "error": "bad request: expected {\"X\": [[...]]}"}, status_code=422)
+    if X.ndim != 2 or X.shape[1] != N_FEATURES:
+        return JSONResponse({"ok": False, "error": f"X must be [n, {N_FEATURES}] in feature order"},
+                            status_code=422)
+    if X.shape[0] > 10000:
+        return JSONResponse({"ok": False, "error": "too many rows (max 10000 per call)"}, status_code=413)
+    with LOCK:
+        gm = STATE["model"]
+        if gm.n_updates() == 0:
+            return JSONResponse({"ok": False, "error": "no model yet"}, status_code=409)
+        proba = gm.predict_proba(X)
+    pred = [CLASSES[i] for i in proba.argmax(1)]
+    return {"ok": True, "classes": CLASSES, "primary_metric": PRIMARY,
+            "proba": np.round(proba, 5).tolist(), "pred": pred}
 
 
 if __name__ == "__main__":

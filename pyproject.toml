@@ -1,16 +1,25 @@
 [project]
 name = "gba-df-federated-poc"
-version = "0.1.0"
-description = "GBA-DF federated-learning POC — action/pose modality, data-stays-local, signed hash-chained audit"
+version = "0.2.0"
+description = "GBA-DF federated-learning POC — multi-modal (eye-gaze / action / EEG-fMRI), data-stays-local, secure aggregation + central DP, signed hash-chained audit"
 requires-python = ">=3.10"
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.0",
+    "matplotlib>=3.7",
     "scikit-learn>=1.4",
     "cryptography>=42",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "httpx[socks]>=0.27",
+]
+
+[project.optional-dependencies]
+# Desktop node client (partner side). GUI backend: WebKit on macOS, WebView2 on
+# Windows (needs the Edge WebView2 runtime), GTK/Qt on Linux. The headless
+# coordinator and CLI node do NOT need this — install with:  uv sync --extra client
+client = [
+    "pywebview>=6.0",
 ]
 
 [tool.uv]
