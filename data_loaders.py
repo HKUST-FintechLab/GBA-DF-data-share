@@ -36,7 +36,13 @@ def load_har():
 
 
 def load_pose():
-    """Project ASD pose seeds -> ('ASD'/'TD') labels, subject-level groups."""
+    """Project ASD pose seeds -> ('ASD'/'TD') labels, subject-level groups.
+    The seed data lives in the parent research project and is NOT part of this open-source
+    release; use --dataset har or a --modality (eyegaze/action/neuro) instead."""
+    if not (os.path.isdir(os.path.join(SEEDS, "asd")) and os.path.isdir(os.path.join(SEEDS, "td"))):
+        raise FileNotFoundError(
+            f"'pose' needs the project ASD seed data under {SEEDS}, which is not shipped with "
+            f"the open-source release. Use --dataset har, or --modality action for pose-style data.")
     from features import load_dataset
     X, y_int, groups = load_dataset(os.path.join(SEEDS, "asd"), os.path.join(SEEDS, "td"))
     y = np.where(y_int == 1, "ASD", "TD").astype(str)
