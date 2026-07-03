@@ -9,7 +9,7 @@ on any of three modalities — add `--modality eyegaze|action|neuro` (see the la
 ## Pre-flight
 
 ```bash
-cd data_share/federated_poc
+cd GBA-DF-data-share
 uv sync
 rm -rf data nodes            # optional: clean slate for a fresh recording
 ```
@@ -55,7 +55,7 @@ pickle / raw-array payload is rejected by the schema.
 
 ## Two audiences, two scripts
 
-- **Internal / technical:** forest-merge federated learning (matches CDP-TreeFusion); Ed25519-signed
+- **Internal / technical:** forest-merge federated learning (random-forest / tree-merge); Ed25519-signed
   updates; SHA-256 hash-chained audit; held-out test set; DP-noise layer is the planned next step.
 - **Partner / non-technical:** "Your data never leaves your hospital. You get a stronger shared
   screening model trained with everyone's data. Every step is signed and auditable, and you can run

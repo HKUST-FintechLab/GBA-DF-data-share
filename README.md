@@ -10,7 +10,7 @@ client** a partner runs on their own machine (pick modality → pick folder → 
 | **Multi-node** | Coordinator + N independent node processes (each can run on a different machine). | Fully supported. |
 | **DP + secure aggregation** | Every node uploads **pairwise-masked** integer leaf counts of a **shared, data-independent** forest. The coordinator can only recover the **pooled sum** (masks cancel) — never an individual node's counts — then adds **Laplace(1/ε)** to that secure aggregate (central DP on the sum) and meters a **global ε-budget**. | Genuine **(ε,0)-DP** on the aggregate, **basic composition**, ε **coordinator-enforced**. The coordinator never sees individual node data. Caveats: honest-but-curious, **non-colluding** coordinator; **full cohort required per round** (no Shamir dropout recovery — future work). |
 | **Signed + hash-chained audit** | Each node update is **Ed25519-signed** (binds round, n_samples, masked payload); each event is signed by the coordinator and **hash-chained**. `verify()` checks the chain **and** every signature against the coordinator's published key (`/pubkey`). | Detects any edit / truncation / re-sign-with-wrong-key within a run (`verify_security.py`). A *fully compromised* coordinator needs external anchoring (future work). |
-| **Federated ≈ centralized-DP, robust to non-IID** | Multi-seed benchmark (`bench.py`) vs centralized-DP + the non-private ceiling, IID **and** non-IID. | Secure-agg tracks centralized-DP and **recovers the non-IID collapse**: the naive per-node ensemble drops to **0.51±0.10** under label skew; secure-agg holds **0.73±0.03** (`data/epsilon_utility.png`). |
+| **Federated ≈ centralized-DP, robust to non-IID** | Multi-seed benchmark (`bench.py`) vs centralized-DP + the non-private ceiling, IID **and** non-IID. | Secure-agg tracks centralized-DP and **recovers the non-IID collapse**: the naive per-node ensemble drops to **0.51±0.10** under label skew; secure-agg holds **0.73±0.03** (figure below). |
 
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
@@ -23,10 +23,16 @@ only the front end that turns raw recordings into features changes. Verified liv
 (3 nodes × 4 rounds, ε=1/round): eye-gaze fed AUC **0.78**, action **~0.80**, EEG/fMRI **0.80**, each
 ≈ its centralized-DP reference and below its non-private ceiling.
 
+![Privacy–utility tradeoff: the price of the ε-guarantee, and secure aggregation's non-IID recovery](assets/epsilon_utility.png)
+
+*The privacy dial (HAR, 3 nodes, 5 seeds). Non-private ceiling ≈ 0.98 → DP ≈ 0.73 is the honest cost of
+the ε-guarantee. Under non-IID label skew the naive per-node ensemble **collapses** (~0.51) while secure
+aggregation **holds** (~0.73), tracking the centralized-DP reference. Regenerate with `uv run python bench.py`.*
+
 ## Method — DP federated forest
 
-**Secure aggregation + central differential privacy** (the strategy the protocol specifies for tree
-models like CDP-TreeFusion):
+**Secure aggregation + central differential privacy** (a strategy that fits tree / random-forest models
+whose leaves are class histograms):
 
 - **Shared, data-independent forest** — all nodes build the *same* trees from a **public** structure
   seed; splits are random features + thresholds from **public** per-feature bounds (HAR is documented-
@@ -43,7 +49,8 @@ models like CDP-TreeFusion):
   non-IID** — fixing the per-node-ensemble collapse.
 
 The non-private ceiling (label-optimised ExtraTrees) and a centralized-DP reference are computed in
-`prepare_data.py`; `bench.py` produces the multi-seed IID/non-IID comparison + `data/epsilon_utility.png`.
+`prepare_data.py`; `bench.py` produces the multi-seed IID/non-IID comparison and the ε-utility figure
+above (`assets/epsilon_utility.png`, regenerated at `data/epsilon_utility.png`).
 The legacy per-node-ensemble path (`dp.build_dp_counts`/`add_dp_noise`) is retained for that benchmark.
 
 ## Modalities (`modalities.py`) and benchmark datasets
@@ -64,17 +71,21 @@ cohort — **never** from participant data (`verify_security.py` proves it stays
 independent). `tanh` is monotone, so tree accuracy is unchanged while the DP forest gets a genuinely
 public range to draw thresholds from.
 
-**Benchmark datasets** (for the flagship strong-signal numbers, no modality front end):
+**Benchmark datasets** (for the strong-signal numbers, no modality front end):
 
 - **`har`** (default) — UCI Human Activity Recognition (6 activities, 561 features, 10,299 windows;
   fetched once via OpenML, cached to `data/`). Real action data, strong signal, the canonical FL benchmark.
-- **`pose`** — the project's own ASD action/pose seeds (real, on-brand). Small 65-subject *seed* set →
-  weak subject-generalizable signal; kept as an option. The full CDP-TreeFusion corpus is where 0.92 lives.
+- **`pose`** — an optional loader for MediaPipe-pose `.npz` seed data with a subject-level split. The
+  seed data is **not shipped** with this repo; supply your own (see `data_loaders.load_pose`) or just use
+  `har` / the `action` modality. `load_pose()` raises a clear error if the seed data is absent.
 
 ## Quick start (uv)
 
+This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`).
+
 ```bash
-cd data_share/federated_poc
+git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
+cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
 uv run python verify_security.py          # 25 checks (tamper-evidence, sig binding, schema/bounds, DP, secure-agg, modality)
 uv run python modalities.py               # optional: self-check all three feature extractors
@@ -85,6 +96,10 @@ uv run python run_demo.py --modality eyegaze --prepare         # eye-tracking fe
 uv run python run_demo.py --modality neuro --noniid --prepare  # EEG/fMRI, skewed cohort
 # open the dashboard URL it prints (http://localhost:8055), then start your screen recorder
 ```
+
+> The first run creates two **git-ignored working directories**: `data/` (the fetched HAR cache, the
+> coordinator's held-out test set, per-node partitions, and any figures `bench.py` writes) and `nodes/`
+> (each node's local data + its `0600` private signing key). Nothing in them is committed.
 
 Re-prepare / change dataset or modality:
 
@@ -169,7 +184,7 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `fed_common.py` | Ed25519 signing, signature-verified hash-chained `Audit`, multiclass `GlobalModel` (forest merge) |
 | `dp.py` | DP random forest: data-independent splits, leaf counts, shared-forest + curator noise |
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |
-| `bench.py` | multi-seed IID/non-IID benchmark + `data/epsilon_utility.png` (the privacy dial) |
+| `bench.py` | multi-seed IID/non-IID benchmark + the ε-utility figure (`assets/epsilon_utility.png`) |
 | `coordinator.py` | FastAPI server: register / verify-signature / secure-sum / evaluate / audit / dashboard (publishes modality in `/schema`) |
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
@@ -223,8 +238,7 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
   tree-merge has no iterative training; the dashboard labels the axis accordingly.
 - **HAR uses a window-level stratified, IID, single-seed split** (the OpenML variant has no subject
   ids). Absolute ~0.96/0.97 is optimistic; the federated-vs-centralized *gap* is the honest result.
-  The `pose` loader uses an honest subject-level split; the project's flagship CDP-TreeFusion 0.92 is
-  on the full corpus and is **not** produced by this POC.
+  The optional `pose` loader uses a subject-level split when you supply seed data.
 - **The eyegaze / action / neuro demo cohorts are SYNTHETIC** — recordings generated with class-dependent
   statistics (graded, *overlapping* severities so accuracy is realistic, not trivially separable). They
   validate the pipeline and the privacy mechanism **end-to-end on each modality**; they are **not** a
