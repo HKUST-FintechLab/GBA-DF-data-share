@@ -189,11 +189,11 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
 | `client_app.py` | **desktop node client** (pywebview): pick modality → folder picker → node info → connect, live progress |
-| `static/client.html` | the client's bilingual (中/EN) 4-step wizard UI (warm GAIVRT theme) |
+| `static/client.html` | the client's bilingual (中/EN) 4-step wizard UI (warm cream palette) |
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
-| `static/dashboard.html` | live coordinator dashboard (warm GAIVRT theme): accuracy, nodes, signed audit log |
+| `static/dashboard.html` | live coordinator dashboard (warm cream palette): accuracy, nodes, signed audit log |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
 
