@@ -126,6 +126,31 @@ uv run python client_app.py --selftest    # headless API smoke test (no GUI)
 No data of your own? The client's **"Generate a demo folder"** button writes a synthetic cohort (clearly
 labelled) in the right format so a partner can walk the whole flow before wiring up real recordings.
 
+To join a hosted federation, you only run the **desktop client** — no server to stand up. Ask whoever
+runs the coordinator for its **URL** and the **password**, enter both on the *Node & coordinator* step
+(the built-in **Test connection** confirms them), and go. Raw data never leaves your machine either way.
+
+### Access control (password) & cohort mode
+
+The coordinator reads two environment variables at startup — set them when you host it:
+
+```bash
+# require a shared password + run as a per-guest "solo" federation
+FED_PASSWORD=<your-password> FED_COHORT=1 \
+    uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
+
+# same password, real 3-node secure-aggregation federation
+FED_PASSWORD=<your-password> FED_COHORT=3 \
+    uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
+```
+
+| Variable | Effect |
+|---|---|
+| `FED_PASSWORD` | If set, every **contribute-path** call (`/schema`, `/register`, `/participants`, `/submit`, `/round`) must carry header `X-Fed-Key: <password>`. The desktop client sends it from its **Password** field; the CLI uses `--password`. Unset = open (local dev only). Read-only paths (`/status`, `/audit`, `/model`) stay open so the dashboard and consumer path keep working. |
+| `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
+
+Share the password out-of-band — it gates who may contribute data to the federation.
+
 ## Run a node on another machine (partner group)
 
 The federation is just a coordinator + clients over HTTP, so a partner runs a node on their own

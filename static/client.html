@@ -63,7 +63,7 @@
 
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   label.fld{display:block;font-size:11.5px;color:var(--mut);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.4px}
-  input[type=text],input[type=number]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
+  input[type=text],input[type=number],input[type=password]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
     font-family:var(--ui);font-size:13.5px;color:var(--ink);background:#fff}
   input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.12)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px}
@@ -176,8 +176,8 @@
             <input type="text" id="coord" placeholder="http://coordinator-host:8055"/>
           </div>
           <div>
-            <label class="fld" data-i="f_rounds">Rounds</label>
-            <input type="number" id="rounds" value="5" min="1" max="20"/>
+            <label class="fld" data-i="f_pass">Password</label>
+            <input type="password" id="passwd" placeholder="shared federation password"/>
           </div>
           <div>
             <label class="fld" data-i="f_nodeid">Node ID</label>
@@ -186,6 +186,10 @@
           <div>
             <label class="fld" data-i="f_name">Display name</label>
             <input type="text" id="nodename" placeholder="e.g. Shenzhen Partner Clinic"/>
+          </div>
+          <div>
+            <label class="fld" data-i="f_rounds">Rounds</label>
+            <input type="number" id="rounds" value="5" min="1" max="20"/>
           </div>
         </div>
         <div class="row" style="margin-top:14px">
@@ -241,7 +245,7 @@ const I18N = {
     s2_note:"Put recordings under class subfolders (e.g. asd/ and td/). Nothing here is uploaded — the folder is read locally to compute features only.",
     pick:"Choose folder…", gendemo:"No data? Generate a demo folder", back:"Back", next:"Next",
     s3_h:"Node & coordinator", s3_hint:"Enter the coordinator address your group shared, and a name for this node.",
-    f_coord:"Coordinator URL", f_rounds:"Rounds", f_nodeid:"Node ID", f_name:"Display name",
+    f_coord:"Coordinator URL", f_pass:"Password", f_rounds:"Rounds", f_nodeid:"Node ID", f_name:"Display name",
     testconn:"Test connection", s3_start:"Connect & start",
     s4_h:"Federated training — live", bytes:"bytes",
     s4_banner:"raw data uploaded. Only pairwise-masked integer counts leave this machine; the coordinator recovers just the pooled sum.",
@@ -264,7 +268,7 @@ const I18N = {
     s2_note:"请把录制文件放在按类别命名的子文件夹里（如 asd/ 和 td/）。这里不会上传任何东西 —— 文件夹仅在本地读取用于提取特征。",
     pick:"选择文件夹…", gendemo:"没有数据？生成一个演示文件夹", back:"上一步", next:"下一步",
     s3_h:"节点与协调器", s3_hint:"填入你们小组共享的协调器地址，并为本节点起个名字。",
-    f_coord:"协调器地址", f_rounds:"轮数", f_nodeid:"节点 ID", f_name:"显示名称",
+    f_coord:"协调器地址", f_pass:"密码", f_rounds:"轮数", f_nodeid:"节点 ID", f_name:"显示名称",
     testconn:"测试连接", s3_start:"连接并开始",
     s4_h:"联邦训练 · 实时", bytes:"字节",
     s4_banner:"原始数据被上传。离开本机的只有成对掩码后的整数计数；协调器只能还原汇总后的总和。",
@@ -366,8 +370,9 @@ $("#s2next").onclick=()=>{ if(!$("#nodeid").value) $("#nodeid").value="node_1"; 
 
 $("#testconn").onclick=async()=>{
   const coord=$("#coord").value.trim(); if(!coord){msg("#s3msg","bad","enter a coordinator URL");return;}
+  const key=$("#passwd").value.trim();
   msg("#s3msg","warn",`<span class="spin"></span> ${t("connecting")}`);
-  const r=await api().test_connect(coord, sel.modality);
+  const r=await api().test_connect(coord, sel.modality, key);
   if(!r.ok){ msg("#s3msg","bad",r.error); $("#s3next").disabled=true; setConn("off",""); return; }
   sel.sch=r;
   const host=coord.replace(/^https?:\/\//,"");
@@ -381,7 +386,8 @@ $("#testconn").onclick=async()=>{
 
 let pollTimer=null;
 $("#s3next").onclick=async()=>{
-  const cfg={ coord:$("#coord").value.trim(), node_id:($("#nodeid").value.trim()||"node_1"),
+  const cfg={ coord:$("#coord").value.trim(), key:$("#passwd").value.trim(),
+    node_id:($("#nodeid").value.trim()||"node_1"),
     name:$("#nodename").value.trim(), folder:sel.folder, modality:sel.modality,
     rounds:+$("#rounds").value||5, seed:1 };
   $("#rsSamp").textContent=sel.scan.n_samples;

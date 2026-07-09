@@ -88,9 +88,9 @@ class Api:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     # ---- connection ----
-    def test_connect(self, coord, modality=None):
+    def test_connect(self, coord, modality=None, key=None):
         try:
-            sch = nc.fetch_schema(coord)
+            sch = nc.fetch_schema(coord, key=key or None)
             fed_mod = sch.get("modality")
             compatible = (fed_mod is None or modality is None or fed_mod == modality)
             return {"ok": True, "modality": fed_mod, "modality_info": sch.get("modality_info"),
@@ -118,14 +118,15 @@ class Api:
 
     def _run(self, cfg):
         try:
-            sch = nc.fetch_schema(cfg["coord"])
+            key = cfg.get("key") or None
+            sch = nc.fetch_schema(cfg["coord"], key=key)
             X, y, key_dir = nc.load_local(sch, folder=cfg.get("folder"), data=cfg.get("data"),
                                           modality=cfg.get("modality"), on_log=self._log_line)
             summ = nc.run_node(
                 cfg["coord"], cfg["node_id"], cfg.get("name") or cfg["node_id"], X, y, sch,
                 rounds=int(cfg.get("rounds", 5)), seed=int(cfg.get("seed", 1)), key_dir=key_dir,
                 on_log=self._log_line, should_stop=lambda: self._stop,
-                on_round=lambda s: self._set_summary(s))
+                on_round=lambda s: self._set_summary(s), key=key)
             with self._lock:
                 self._state.update(running=False, done=True, summary=summ,
                                    error=None if summ.get("ok") else summ.get("error"))

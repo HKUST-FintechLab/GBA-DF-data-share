@@ -3,6 +3,7 @@
 features locally, then per round uploads only a PAIRWISE-MASKED integer count vector.
 """
 import os
+import secrets
 import time
 
 import httpx
@@ -36,9 +37,24 @@ def load_or_make_key(node_dir: str):
     return k
 
 
-def fetch_schema(coord: str) -> dict:
-    with httpx.Client(base_url=coord, timeout=30.0) as c:
-        return c.get("/schema").json()
+def _auth_headers(key: str = None, session: str = None) -> dict:
+    """Headers a node attaches to every coordinator call: the shared access token and
+    (for solo/isolated federations) this run's private session id."""
+    h = {}
+    if key:
+        h["X-Fed-Key"] = key
+    if session:
+        h["X-Fed-Session"] = session
+    return h
+
+
+def fetch_schema(coord: str, key: str = None) -> dict:
+    with httpx.Client(base_url=coord, timeout=30.0, headers=_auth_headers(key)) as c:
+        r = c.get("/schema")
+        if r.status_code == 401:
+            raise RuntimeError("unauthorized — check the federation password")
+        r.raise_for_status()
+        return r.json()
 
 
 def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
@@ -74,11 +90,17 @@ def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
 
 
 def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
-             key_dir=None, on_log=print, on_round=None, should_stop=lambda: False):
+             key_dir=None, on_log=print, on_round=None, should_stop=lambda: False,
+             key=None, session=None):
     """Register (Ed25519 + ephemeral X25519), wait for the cohort, then each round build the
     SHARED data-independent trees, count LOCAL data, upload a MASKED count vector, and poll
-    for the securely-aggregated global metric. Returns a summary dict."""
+    for the securely-aggregated global metric. Returns a summary dict.
+
+    key      shared access token (X-Fed-Key) if the federation is password-protected.
+    session  private session id (X-Fed-Session); auto-generated so a solo/isolated
+             federation gives this run its own room. Pass one to resume a specific room."""
     classes = sch["classes"]
+    session = session or secrets.token_hex(8)
     bounds = np.asarray(sch["feature_bounds"], dtype=float)
     dpc = sch["dp"]
     struct_seed, n_trees, depth = dpc["structure_seed"], dpc["trees_per_round"], dpc["depth"]
@@ -87,7 +109,7 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
 
     ed_key = load_or_make_key(key_dir)
     x_key = sa.gen_x25519()                              # ephemeral masking key for this run
-    cli = httpx.Client(base_url=coord, timeout=120.0)
+    cli = httpx.Client(base_url=coord, timeout=120.0, headers=_auth_headers(key, session))
     summary = {"node_id": node_id, "n_samples": n_samples, "rounds_done": 0,
                "raw_bytes_sent": 0, "global_eps": 0.0, "fed_primary": None,
                "primary_metric": sch.get("primary_metric", "acc"), "ok": True, "error": None}

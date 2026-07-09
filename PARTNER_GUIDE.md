@@ -121,8 +121,9 @@ uv run python client_app.py
 
 A window opens and walks you through four steps: **① pick your data modality → ② choose your data
 folder** (a native folder picker; it scans and shows how many recordings and the ASD/TD split) **→
-③ enter the coordinator URL, a node id, and a display name** (a "Test connection" button confirms the
-federation matches your modality) **→ ④ Connect & start**, with a live view of the rounds, the running
+③ enter the coordinator URL, the federation password, a node id, and a display name** (a "Test
+connection" button confirms the password and that the federation matches your modality) **→ ④ Connect &
+start**, with a live view of the rounds, the running
 global accuracy, the ε budget, and a standing **"0 bytes raw uploaded"** banner. It is bilingual (中/EN,
 top-right). The app runs the exact same node loop as the CLI below.
 
@@ -132,7 +133,8 @@ top-right). The app runs the exact same node loop as the CLI below.
 uv run python node.py \
     --node-id your_org \
     --name "Your Institution" \
-    --coord http://<coordinator-host>:8055 \
+    --coord http://<coordinator-host>:<port> \
+    --password <federation-password> \
     --folder your_data \
     --rounds 5
 ```
