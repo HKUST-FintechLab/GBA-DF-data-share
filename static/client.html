@@ -65,6 +65,8 @@
   label.fld{display:block;font-size:11.5px;color:var(--mut);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.4px}
   input[type=text],input[type=number],input[type=password]{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:8px;
     font-family:var(--ui);font-size:13.5px;color:var(--ink);background:#fff}
+  select{padding:8px 30px 8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);
+    font-family:var(--ui);font-size:13px}
   input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(217,119,87,.12)}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:620px}
   button.btn{border:0;border-radius:8px;padding:9px 17px;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--ui)}
@@ -84,6 +86,33 @@
   .msg.ok{color:var(--ok);background:#eef5f1;border:1px solid #bcdccd}
   .msg.bad{color:var(--bad);background:#fbeee9;border:1px solid #e6c3b7}
   .msg.warn{color:var(--warn);background:#fbf3e6;border:1px solid #e8d3af}
+  .videoimport{max-width:720px;margin-top:12px;padding:14px;border:1px solid #d8dfdf;border-radius:11px;background:#f7faf9}
+  .videohead{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .videohead .grow{flex:1;min-width:210px}
+  .videohead .vh{font-weight:600;color:var(--head)}
+  .videohead .vs{font-size:11.5px;color:var(--mut);margin-top:2px}
+  .videoopts{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+  .videoopts label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+  .preview{position:relative;overflow:hidden;border-radius:9px;background:#242526;min-height:180px;display:grid;place-items:center}
+  .preview canvas{display:block;width:100%;max-height:330px;object-fit:contain}
+  .preview .empty{position:absolute;color:#bbb;font-size:12px;text-align:center;padding:20px}
+  .cdnload{position:absolute;inset:0;z-index:3;display:flex;align-items:center;justify-content:center;padding:22px;
+    background:rgba(31,34,34,.88);backdrop-filter:blur(3px);color:#f8fbfa;text-align:center}
+  .cdncard{width:min(390px,90%);display:flex;flex-direction:column;align-items:center}
+  .loadring{width:38px;height:38px;border:4px solid rgba(255,255,255,.2);border-top-color:#74e0bd;
+    border-radius:50%;animation:sp .85s linear infinite;margin-bottom:13px}
+  .cdnload.failed .loadring{animation:none;border-color:#e28d75;position:relative}
+  .cdnload.failed .loadring:after{content:'!';position:absolute;inset:0;display:grid;place-items:center;font-weight:800;color:#ffb39c}
+  .cdntitle{font-size:15px;font-weight:700}.cdndetail{font-size:12px;color:#cdd8d4;line-height:1.5;margin-top:5px}
+  .cdnprogress{height:7px;width:100%;background:rgba(255,255,255,.14);border-radius:5px;overflow:hidden;margin-top:13px}
+  .cdnprogress .fill{height:100%;width:0;background:linear-gradient(90deg,#6aaee0,#74e0bd);transition:width .15s}
+  .cdnprogress.indeterminate .fill{width:35%;animation:loadslide 1.15s ease-in-out infinite}
+  .cdnretry{margin-top:13px!important;background:#fff!important;color:#2f5f53!important;border:0!important}
+  @keyframes loadslide{0%{transform:translateX(-110%)}100%{transform:translateX(310%)}}
+  .extractbar{height:7px;background:#dfe7e4;border-radius:5px;overflow:hidden;margin-top:10px}
+  .extractfill{height:100%;width:0;background:linear-gradient(90deg,var(--blue),var(--ok));transition:width .1s}
+  .extractmeta{display:flex;gap:10px;justify-content:space-between;margin-top:7px;color:var(--mut);font-size:11.5px}
+  .extractlog{margin-top:8px;max-height:72px;overflow:auto;font-family:var(--mono);font-size:11px;line-height:1.5;color:var(--ink)}
 
   .banner{display:flex;align-items:center;gap:12px;background:linear-gradient(135deg,#eef5f1,#e9f2ec);
     border:1px solid #bcdccd;border-radius:10px;padding:12px 16px;margin-bottom:14px;max-width:720px}
@@ -151,7 +180,43 @@
         <div class="hint" id="s2hint"></div>
         <div class="row">
           <button class="btn primary" id="pick" data-i="pick">Choose folder…</button>
+          <button class="btn ghost hidden" id="pickvideo" data-i="pickvideo">Extract raw video…</button>
           <button class="btn ghost" id="gendemo" data-i="gendemo">No data? Generate a demo folder</button>
+          <input type="file" id="videoFiles" accept="video/*,.mp4,.mov,.m4v,.webm" multiple class="hidden"/>
+        </div>
+        <div class="videoimport hidden" id="videoImport">
+          <div class="videohead">
+            <div class="grow">
+              <div class="vh" data-i="video_h">Browser pose extraction</div>
+              <div class="vs" data-i="video_s">MediaPipe loads on demand; selected videos never leave this device.</div>
+            </div>
+            <div class="videoopts">
+              <label><span data-i="video_label">Class for this batch</span>
+                <select id="videoLabel"><option value="ASD">ASD</option><option value="TD">TD</option></select>
+              </label>
+              <label><span data-i="video_fps">Sample rate</span>
+                <select id="videoFps"><option value="2">2 fps</option><option value="4" selected>4 fps</option><option value="8">8 fps</option></select>
+              </label>
+              <button class="btn stop hidden" id="cancelVideo" data-i="video_cancel">Cancel</button>
+            </div>
+          </div>
+          <div class="preview">
+            <video id="sourceVideo" muted playsinline preload="auto" class="hidden"></video>
+            <canvas id="poseCanvas" width="640" height="360"></canvas>
+            <div class="empty" id="previewEmpty" data-i="video_empty">Choose one or more videos to see pose extraction here.</div>
+            <div class="cdnload hidden" id="cdnLoad">
+              <div class="cdncard">
+                <div class="loadring"></div>
+                <div class="cdntitle" id="cdnTitle">Loading MediaPipe</div>
+                <div class="cdndetail" id="cdnDetail">Connecting to CDN…</div>
+                <div class="cdnprogress indeterminate" id="cdnProgress"><div class="fill" id="cdnFill"></div></div>
+                <button class="btn cdnretry hidden" id="retryCdn" data-i="cdn_retry">Retry</button>
+              </div>
+            </div>
+          </div>
+          <div class="extractbar"><div class="extractfill" id="extractFill"></div></div>
+          <div class="extractmeta"><span id="extractStatus">—</span><span id="extractCount">0 / 0</span></div>
+          <div class="extractlog" id="extractLog"></div>
         </div>
         <div class="foldbox hidden" id="foldbox">
           <div class="path" id="foldpath">—</div>
@@ -242,8 +307,20 @@ const I18N = {
     side_local:"Data stays on this machine",
     s1_h:"Choose your data type", s1_hint:"Which kind of recordings will this node contribute? Each modality is its own federation.",
     s2_h:"Select your data folder",
-    s2_note:"Put recordings under class subfolders (e.g. asd/ and td/). Nothing here is uploaded — the folder is read locally to compute features only.",
-    pick:"Choose folder…", gendemo:"No data? Generate a demo folder", back:"Back", next:"Next",
+    s2_note:"Put recordings under class subfolders (e.g. asd/ and td/). For action data, you may also convert raw videos locally in the browser. Nothing here is uploaded.",
+    pick:"Choose folder…", pick_npz:"Choose NPZ folder…", pickvideo:"Extract raw video…",
+    gendemo:"No data? Generate a demo folder", back:"Back", next:"Next",
+    video_h:"Browser pose extraction", video_s:"MediaPipe loads on demand; selected videos never leave this device.",
+    video_label:"Class for this batch", video_fps:"Sample rate", video_cancel:"Cancel",
+    video_empty:"Choose one or more videos to see pose extraction here.",
+    video_loading:"Loading MediaPipe Holistic from the CDN…", video_output:"Choose a local dataset folder for the generated NPZ files.",
+    video_processing:"Extracting pose", video_saving:"Saving compatible NPZ…", video_done:"Video extraction complete",
+    video_cancelled:"Video extraction cancelled.", video_no_pose:"Too few frames contained a detectable pose.",
+    cdn_title:"Loading MediaPipe", cdn_connecting:"Connecting to the CDN…",
+    cdn_downloading:"Downloading the browser engine", cdn_initializing:"Initializing WASM and pose model… First load may take a moment.",
+    cdn_failed:"MediaPipe could not be loaded", cdn_offline:"This device appears to be offline. Check the network and try again.",
+    cdn_timeout:"The download timed out. Check the network, VPN, or proxy and try again.",
+    cdn_help:"Check access to cdn.jsdelivr.net, or use an existing NPZ folder instead.", cdn_retry:"Retry",
     s3_h:"Node & coordinator", s3_hint:"Enter the coordinator address your group shared, and a name for this node.",
     f_coord:"Coordinator URL", f_pass:"Password", f_rounds:"Rounds", f_nodeid:"Node ID", f_name:"Display name",
     testconn:"Test connection", s3_start:"Connect & start",
@@ -265,8 +342,20 @@ const I18N = {
     side_local:"数据全程留在本机",
     s1_h:"选择数据类型", s1_hint:"这个节点将贡献哪一类录制数据？每种模态各自组成一个联邦。",
     s2_h:"选择数据文件夹",
-    s2_note:"请把录制文件放在按类别命名的子文件夹里（如 asd/ 和 td/）。这里不会上传任何东西 —— 文件夹仅在本地读取用于提取特征。",
-    pick:"选择文件夹…", gendemo:"没有数据？生成一个演示文件夹", back:"上一步", next:"下一步",
+    s2_note:"请把录制文件放在按类别命名的子文件夹里（如 asd/ 和 td/）。动作数据也可在浏览器中把原始视频本地转换为 NPZ；这里不会上传任何原始数据。",
+    pick:"选择文件夹…", pick_npz:"选择 NPZ 文件夹…", pickvideo:"提取原始视频…",
+    gendemo:"没有数据？生成一个演示文件夹", back:"上一步", next:"下一步",
+    video_h:"浏览器端骨架提取", video_s:"MediaPipe 按需加载；所选视频始终留在本机。",
+    video_label:"本批次类别", video_fps:"采样率", video_cancel:"取消",
+    video_empty:"选择一个或多个视频后，将在这里实时显示骨架提取过程。",
+    video_loading:"正在从 CDN 加载 MediaPipe Holistic…", video_output:"请选择用于保存生成 NPZ 的本地数据集文件夹。",
+    video_processing:"正在提取骨架", video_saving:"正在保存兼容的 NPZ…", video_done:"视频骨架提取完成",
+    video_cancelled:"已取消视频骨架提取。", video_no_pose:"检测到人体骨架的帧数太少。",
+    cdn_title:"正在加载 MediaPipe", cdn_connecting:"正在连接 CDN…",
+    cdn_downloading:"正在下载浏览器推理引擎", cdn_initializing:"正在初始化 WASM 和姿态模型……首次加载可能需要一点时间。",
+    cdn_failed:"MediaPipe 加载失败", cdn_offline:"当前设备似乎未联网，请检查网络后重试。",
+    cdn_timeout:"下载超时，请检查网络、VPN 或代理设置后重试。",
+    cdn_help:"请确认可以访问 cdn.jsdelivr.net，或改用已有 NPZ 文件夹。", cdn_retry:"重试",
     s3_h:"节点与协调器", s3_hint:"填入你们小组共享的协调器地址，并为本节点起个名字。",
     f_coord:"协调器地址", f_pass:"密码", f_rounds:"轮数", f_nodeid:"节点 ID", f_name:"显示名称",
     testconn:"测试连接", s3_start:"连接并开始",
@@ -286,6 +375,10 @@ const I18N = {
 };
 let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null};
 let conn={state:"off", host:""};      // off | on | run | done
+const HOLISTIC_VERSION="0.5.1675471629";
+const HOLISTIC_CDN=`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@${HOLISTIC_VERSION}`;
+const videoImport={running:false,cancelled:false,holistic:null,ready:false,lastResults:null,activeVideo:null,
+  pendingFiles:null,pendingDest:null};
 const api = () => window.pywebview.api;
 const t = k => (I18N[LANG][k] ?? k);
 const $ = s => document.querySelector(s);
@@ -294,7 +387,7 @@ function applyLang(){
   document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.getAttribute("data-i"); if(I18N[LANG][k]!=null) el.textContent=I18N[LANG][k]; });
   $("#zh").classList.toggle("on",LANG==="zh"); $("#en").classList.toggle("on",LANG==="en");
   document.documentElement.lang = LANG;
-  renderMods(); renderSteps(); updateS2Hint(); renderStatus();
+  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderStatus();
 }
 $("#zh").onclick=()=>{LANG="zh";applyLang();};
 $("#en").onclick=()=>{LANG="en";applyLang();};
@@ -333,15 +426,254 @@ function renderMods(){
     d.className="mod"+(sel.modality===m.key?" sel":"");
     d.innerHTML=`<div class="ic">${ICONS[m.key]||"📊"}</div><div class="nm">${nm}</div>
       <div class="tk">${tk}</div><div class="dim">${m.n_features} ${t("feats")}</div>`;
-    d.onclick=()=>{ sel.modality=m.key; sel.mInfo=m; sel.folder=null; sel.scan=null;
+    d.onclick=()=>{ if(videoImport.running) return; sel.modality=m.key; sel.mInfo=m; sel.folder=null; sel.scan=null;
       $("#foldbox").classList.add("hidden"); $("#s2msg").innerHTML=""; $("#s2next").disabled=true;
-      renderMods(); updateS2Hint(); goStep(2); };
+      renderMods(); updateS2Hint(); updateActionControls(); goStep(2); };
     box.appendChild(d);
   });
 }
 function updateS2Hint(){ if(sel.mInfo) $("#s2hint").textContent=(LANG==="zh"?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint); }
+function updateActionControls(){
+  const action=sel.modality==="action";
+  $("#pickvideo").classList.toggle("hidden",!action);
+  $("#videoImport").classList.toggle("hidden",!action);
+  $("#pick").textContent=action?t("pick_npz"):t("pick");
+}
 
 function msg(sel_, kind, html){ $(sel_).innerHTML=`<div class="msg ${kind}">${html}</div>`; }
+
+const POSE_CONNECTIONS=[
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+  [11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  [11,23],[12,24],[23,24],[23,25],[25,27],[27,29],[29,31],[27,31],
+  [24,26],[26,28],[28,30],[30,32],[28,32]
+];
+
+function appendExtractLog(text, bad=false){
+  const line=document.createElement("div");
+  line.textContent=text; if(bad) line.style.color="var(--bad)";
+  $("#extractLog").appendChild(line); $("#extractLog").scrollTop=$("#extractLog").scrollHeight;
+}
+function setExtractProgress(fraction, status, count){
+  $("#extractFill").style.width=(Math.max(0,Math.min(1,fraction))*100).toFixed(1)+"%";
+  $("#extractStatus").textContent=status||"—"; $("#extractCount").textContent=count||"";
+}
+function setVideoBusy(busy){
+  videoImport.running=busy;
+  ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps"].forEach(s=>$(s).disabled=busy);
+  $("#cancelVideo").classList.toggle("hidden",!busy);
+  $("#s2next").disabled=busy||!sel.scan;
+}
+class MediaPipeLoadError extends Error{constructor(message,cause=null){super(message);this.name="MediaPipeLoadError";this.cause=cause;this.isMediaPipeLoad=true;}}
+function humanBytes(n){return n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(0)} KB`:`${(n/1048576).toFixed(1)} MB`;}
+function showCdnLoad({failed=false,title=null,detail=null,progress=null,indeterminate=false,retry=false}={}){
+  const box=$("#cdnLoad");box.classList.remove("hidden");box.classList.toggle("failed",failed);
+  $("#cdnTitle").textContent=title||t(failed?"cdn_failed":"cdn_title");$("#cdnDetail").textContent=detail||t("cdn_connecting");
+  $("#cdnProgress").classList.toggle("hidden",failed);$("#cdnProgress").classList.toggle("indeterminate",indeterminate);
+  $("#cdnFill").style.width=progress==null?"0":`${Math.max(0,Math.min(1,progress))*100}%`;
+  $("#retryCdn").classList.toggle("hidden",!retry);
+}
+function hideCdnLoad(){$("#cdnLoad").classList.add("hidden");}
+function cdnFailureDetail(error){
+  if(typeof navigator!=="undefined"&&navigator.onLine===false)return t("cdn_offline");
+  if(error?.name==="AbortError"||/timeout/i.test(error?.message||""))return t("cdn_timeout");
+  const raw=String(error?.message||error||"").replace(/^MediaPipeLoadError:\s*/,"");
+  return raw?`${raw}. ${t("cdn_help")}`:t("cdn_help");
+}
+async function loadScript(src,onProgress){
+  const old=document.querySelector(`script[data-src="${src}"]`);
+  if(old?.dataset.loaded==="1")return;
+  if(old)old.remove();
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+  let response;
+  try{response=await fetch(src,{mode:"cors",cache:"default",signal:controller.signal});}
+  catch(error){clearTimeout(timer);throw new MediaPipeLoadError(error.name==="AbortError"?"CDN download timeout":"CDN connection failed",error);}
+  clearTimeout(timer);
+  if(!response.ok)throw new MediaPipeLoadError(`CDN returned HTTP ${response.status}`);
+  const total=Number(response.headers.get("content-length"))||0;let received=0,blob;
+  if(response.body?.getReader){
+    const reader=response.body.getReader(),chunks=[];
+    while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;onProgress?.(total?Math.min(1,received/total):null,received,total);}
+    blob=new Blob(chunks,{type:"application/javascript"});
+  }else{blob=await response.blob();received=blob.size;onProgress?.(1,received,received);}
+  const objectUrl=URL.createObjectURL(blob);
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement("script");s.src=objectUrl;s.async=true;s.dataset.src=src;
+    s.onload=()=>{s.dataset.loaded="1";URL.revokeObjectURL(objectUrl);resolve();};
+    s.onerror=()=>{s.remove();URL.revokeObjectURL(objectUrl);reject(new MediaPipeLoadError("MediaPipe JavaScript could not start"));};
+    document.head.appendChild(s);
+  });
+}
+async function ensureHolistic(){
+  if(videoImport.holistic) return videoImport.holistic;
+  showCdnLoad({detail:t("cdn_connecting"),indeterminate:true});setExtractProgress(0,t("video_loading"),"");
+  try{
+    await loadScript(`${HOLISTIC_CDN}/holistic.js`,(fraction,received,total)=>{
+      const amount=total?`${humanBytes(received)} / ${humanBytes(total)}`:humanBytes(received);
+      showCdnLoad({detail:`${t("cdn_downloading")} · ${amount}`,progress:fraction,indeterminate:fraction==null});
+    });
+    if(!window.Holistic)throw new MediaPipeLoadError("MediaPipe Holistic did not initialize");
+    showCdnLoad({detail:t("cdn_initializing"),indeterminate:true});
+    const holistic=new window.Holistic({locateFile:file=>`${HOLISTIC_CDN}/${file}`});
+    holistic.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,
+      smoothSegmentation:false,refineFaceLandmarks:false,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    holistic.onResults(results=>{
+      videoImport.lastResults=results;
+      if(videoImport.activeVideo)drawPose(videoImport.activeVideo,results.poseLandmarks||null);
+    });
+    videoImport.holistic=holistic;return holistic;
+  }catch(error){throw error?.isMediaPipeLoad?error:new MediaPipeLoadError("MediaPipe initialization failed",error);}
+}
+function drawPose(video, landmarks){
+  const canvas=$("#poseCanvas"), ctx=canvas.getContext("2d");
+  const vw=video.videoWidth||640, vh=video.videoHeight||360;
+  canvas.width=Math.min(720,vw); canvas.height=Math.max(180,Math.round(canvas.width*vh/vw));
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  try{ ctx.drawImage(video,0,0,canvas.width,canvas.height); }catch(_e){}
+  if(!landmarks||landmarks.length!==33) return;
+  ctx.lineWidth=Math.max(2,canvas.width/320); ctx.strokeStyle="#74e0bd"; ctx.lineCap="round";
+  for(const [a,b] of POSE_CONNECTIONS){
+    const p=landmarks[a],q=landmarks[b];
+    if((p.visibility??1)<0.25||(q.visibility??1)<0.25) continue;
+    ctx.beginPath();ctx.moveTo(p.x*canvas.width,p.y*canvas.height);ctx.lineTo(q.x*canvas.width,q.y*canvas.height);ctx.stroke();
+  }
+  ctx.fillStyle="#ff8b68";
+  for(const p of landmarks){
+    if((p.visibility??1)<0.25) continue;
+    ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,Math.max(2.2,canvas.width/230),0,Math.PI*2);ctx.fill();
+  }
+}
+function poseArray(landmarks){
+  if(!landmarks||landmarks.length!==33) return null;
+  return landmarks.map(p=>[
+    Number.isFinite(p.x)?p.x:0, Number.isFinite(p.y)?p.y:0, Number.isFinite(p.z)?p.z:0,
+    Number.isFinite(p.visibility)?Math.max(0,Math.min(1,p.visibility)):1
+  ]);
+}
+function fillMissingPose(frames){
+  const valid=[]; frames.forEach((f,i)=>{if(f)valid.push(i);});
+  if(valid.length<2) throw new Error(t("video_no_pose"));
+  const prev=new Array(frames.length),next=new Array(frames.length); let p=-1,n=-1;
+  for(let i=0;i<frames.length;i++){if(frames[i])p=i;prev[i]=p;}
+  for(let i=frames.length-1;i>=0;i--){if(frames[i])n=i;next[i]=n;}
+  return frames.map((f,i)=>{
+    if(f) return f;
+    const a=prev[i]>=0?prev[i]:next[i], b=next[i]>=0?next[i]:prev[i];
+    const w=(a===b)?0:(i-a)/(b-a);
+    return frames[a].map((v,j)=>[
+      v[0]+(frames[b][j][0]-v[0])*w, v[1]+(frames[b][j][1]-v[1])*w,
+      v[2]+(frames[b][j][2]-v[2])*w, 0
+    ]);
+  });
+}
+function waitForVideo(video,file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const done=()=>{cleanup();resolve(url);}, fail=()=>{cleanup();URL.revokeObjectURL(url);reject(new Error(`Cannot decode ${file.name}`));};
+    const cleanup=()=>{video.removeEventListener("loadeddata",done);video.removeEventListener("error",fail);};
+    video.addEventListener("loadeddata",done,{once:true}); video.addEventListener("error",fail,{once:true});
+    video.src=url; video.load();
+  });
+}
+function seekVideo(video,time){
+  const target=Math.max(0,Math.min(time,Math.max(0,video.duration-0.001)));
+  if(Math.abs(video.currentTime-target)<0.001&&video.readyState>=2) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const ok=()=>{cleanup();resolve();}, bad=()=>{cleanup();reject(new Error("Video seek failed"));};
+    const cleanup=()=>{video.removeEventListener("seeked",ok);video.removeEventListener("error",bad);};
+    video.addEventListener("seeked",ok,{once:true});video.addEventListener("error",bad,{once:true});video.currentTime=target;
+  });
+}
+function discardHolistic(){
+  try{videoImport.holistic?.close?.();}catch(_e){}
+  videoImport.holistic=null;videoImport.ready=false;videoImport.lastResults=null;
+}
+async function sendHolistic(holistic,video){
+  let timer;const timeoutMs=videoImport.ready?30000:90000;
+  try{
+    await Promise.race([
+      holistic.send({image:video}),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new MediaPipeLoadError("MediaPipe model download or initialization timeout")),timeoutMs);})
+    ]);
+    if(!videoImport.ready){videoImport.ready=true;hideCdnLoad();}
+  }catch(error){
+    discardHolistic();
+    throw error?.isMediaPipeLoad?error:new MediaPipeLoadError("MediaPipe WASM/model initialization failed",error);
+  }finally{clearTimeout(timer);}
+}
+async function extractVideo(file,fileIndex,fileTotal){
+  const video=$("#sourceVideo"), fps=Number($("#videoFps").value)||4;
+  const url=await waitForVideo(video,file); videoImport.activeVideo=video;
+  try{
+    if(!Number.isFinite(video.duration)||video.duration<=0) throw new Error(`Invalid duration: ${file.name}`);
+    const count=Math.min(12000,Math.max(2,Math.floor(video.duration*fps)+1));
+    const step=video.duration/Math.max(1,count-1), frames=[]; let detected=0;
+    $("#previewEmpty").classList.add("hidden");
+    const holistic=await ensureHolistic();
+    for(let i=0;i<count;i++){
+      if(videoImport.cancelled) throw new Error("__cancelled__");
+      await seekVideo(video,i*step); videoImport.lastResults=null;
+      await sendHolistic(holistic,video);
+      const pose=poseArray(videoImport.lastResults?.poseLandmarks); if(pose)detected++;
+      frames.push(pose);
+      const totalProgress=(fileIndex+(i+1)/count)/fileTotal;
+      setExtractProgress(totalProgress,`${t("video_processing")}: ${file.name}`,`${i+1} / ${count} · pose ${detected}`);
+      if(i%10===0) await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    return fillMissingPose(frames);
+  } finally {
+    video.pause();video.removeAttribute("src");video.load();URL.revokeObjectURL(url);videoImport.activeVideo=null;
+  }
+}
+
+$("#pickvideo").onclick=()=>$("#videoFiles").click();
+$("#cancelVideo").onclick=()=>{videoImport.cancelled=true;};
+async function runVideoBatch(files,dest){
+  videoImport.cancelled=false; setVideoBusy(true); $("#extractLog").innerHTML=""; $("#s2msg").innerHTML="";
+  videoImport.pendingFiles=files;videoImport.pendingDest=dest;
+  appendExtractLog(`${t("video_output")} ${dest.path}`);
+  let saved=0,cdnError=null;
+  try{
+    for(let i=0;i<files.length;i++){
+      if(videoImport.cancelled) break;
+      const file=files[i]; appendExtractLog(`${i+1}/${files.length} · ${file.name}`);
+      try{
+        const body=await extractVideo(file,i,files.length);
+        setExtractProgress((i+0.98)/files.length,t("video_saving"),`${body.length} frames`);
+        const r=await api().save_pose_npz(dest.path,$("#videoLabel").value,file.name,body);
+        if(!r.ok) throw new Error(r.error); saved++; appendExtractLog(`✓ ${r.path}`);
+      }catch(e){
+        if(e.message==="__cancelled__")break;
+        if(e.isMediaPipeLoad){
+          cdnError=e;videoImport.pendingFiles=files.slice(i);appendExtractLog(`✗ ${cdnFailureDetail(e)}`,true);break;
+        }
+        appendExtractLog(`✗ ${file.name}: ${e.message}`,true);
+      }
+    }
+    if(videoImport.cancelled){hideCdnLoad();setExtractProgress(0,t("video_cancelled"),"");msg("#s2msg","warn",t("video_cancelled"));}
+    else if(cdnError){
+      showCdnLoad({failed:true,detail:cdnFailureDetail(cdnError),retry:true});
+      msg("#s2msg","bad",`${t("cdn_failed")}. ${t("cdn_help")}`);
+    }
+    else if(saved){
+      hideCdnLoad();videoImport.pendingFiles=null;videoImport.pendingDest=null;
+      setExtractProgress(1,`${t("video_done")}: ${saved}/${files.length}`,"");
+      await scan(dest.path);
+    }else{hideCdnLoad();msg("#s2msg","bad",LANG==="zh"?"没有生成可用的 NPZ 文件。":"No usable NPZ file was generated.");}
+  } finally { setVideoBusy(false); }
+}
+$("#retryCdn").onclick=async()=>{
+  if(!videoImport.pendingFiles?.length||!videoImport.pendingDest)return;
+  discardHolistic();showCdnLoad({detail:t("cdn_connecting"),indeterminate:true});
+  await runVideoBatch(videoImport.pendingFiles,videoImport.pendingDest);
+};
+$("#videoFiles").onchange=async event=>{
+  const files=Array.from(event.target.files||[]); event.target.value=""; if(!files.length)return;
+  const dest=sel.folder?{ok:true,path:sel.folder}:await api().pick_folder();
+  if(!dest.ok)return;
+  await runVideoBatch(files,dest);
+};
 
 $("#pick").onclick=async()=>{
   const r=await api().pick_folder();

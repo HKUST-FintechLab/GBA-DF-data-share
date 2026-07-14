@@ -73,7 +73,7 @@ at `GET /schema` as `modality`):
 | Modality | Your raw recordings | Task |
 |---|---|---|
 | **`eyegaze`** — eye-tracking | one gaze **CSV** per recording (columns `x, y[, pupil]`) | ASD/TD social-attention screening |
-| **`action`** — body pose | one MediaPipe-pose **`.npz`** per clip (key `body`, shape `(T,33,4)`) | ASD/TD behavioural screening |
+| **`action`** — body pose | raw video converted locally in the desktop client, or one MediaPipe-pose **`.npz`** per clip (key `body`, shape `(T,33,4)`) | ASD/TD behavioural screening |
 | **`neuro`** — EEG / fMRI | one **`.npz`** (key `ts`, channels×time) or CSV per scan | ASD/TD neuroimaging screening |
 
 The feature extraction for each modality is **built in** (`modalities.py`) — you don't write feature
@@ -103,6 +103,15 @@ expects (§4): CSV for eyegaze, `.npz` for action/neuro. That's it — point the
 `your_data/` and it extracts the agreed features locally, uploading nothing. (Prefer ≥ a few hundred
 recordings per node, with both classes represented.)
 
+**Action video shortcut (desktop app only).** If you have original video rather than pose NPZ files,
+choose **Extract raw video** in step 2. Select a batch label (ASD or TD), a 2/4/8 fps sampling rate, and
+one or more videos. The app loads a pinned JavaScript build of MediaPipe Holistic from the CDN on demand,
+shows pose extraction live, and saves `body: (T,33,4)` NPZ files under the corresponding class folder.
+It then returns to the same folder-scan and federation flow used by existing NPZ data. Video decoding and
+MediaPipe inference happen inside the local web view; the source video is never sent to Python or the
+coordinator. The local Python bridge uses the already-installed NumPy only to validate and write the NPZ.
+The CDN receives library/model requests, not your video or extracted landmarks.
+
 *No data yet?* The desktop app's **"Generate a demo folder"** button (or `client_app.py`) writes a
 synthetic cohort in the right layout so you can rehearse the whole flow first.
 
@@ -120,12 +129,16 @@ uv run python client_app.py
 ```
 
 A window opens and walks you through four steps: **① pick your data modality → ② choose your data
-folder** (a native folder picker; it scans and shows how many recordings and the ASD/TD split) **→
+folder or locally convert action videos** (with a live skeleton preview; it scans and shows how many
+recordings and the ASD/TD split) **→
 ③ enter the coordinator URL, the federation password, a node id, and a display name** (a "Test
 connection" button confirms the password and that the federation matches your modality) **→ ④ Connect &
 start**, with a live view of the rounds, the running
 global accuracy, the ε budget, and a standing **"0 bytes raw uploaded"** banner. It is bilingual (中/EN,
 top-right). The app runs the exact same node loop as the CLI below.
+
+Raw-video conversion is intentionally not duplicated in the CLI. Use the desktop client to create the
+compatible NPZ folder once; that folder can subsequently be used by either the desktop app or `node.py`.
 
 ### Option B — Command line
 

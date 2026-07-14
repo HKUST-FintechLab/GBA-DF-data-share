@@ -6,7 +6,7 @@ changes per modality is the FRONT END — how a partner's folder of raw recordin
 that feature matrix. This module is that front end, one plug per signal type:
 
   eyegaze : eye-tracking gaze traces (CSV per recording)  -> fixation/saccade features
-  action  : body-pose windows (MediaPipe .npz per clip)   -> kinematic features (features.py)
+  action  : browser-converted video or MediaPipe .npz per clip -> kinematic features (features.py)
   neuro   : EEG / fMRI multivariate time-series (.npz/.csv) -> spectral + connectivity features
 
 Each modality declares a FIXED feature width, PUBLIC per-feature bounds (declared a-priori,
@@ -443,7 +443,7 @@ MODALITIES = {
         "action", "动作/姿态数据", "Body action / pose",
         "行为动作筛查 (ASD/TD)", "Behavioural-action screening (ASD/TD)",
         ACTION_DIM, ACTION_CLASSES,
-        "每段片段一个 .npz（键 'body'，形状 (T,33,4)），放入 asd/ 与 td/ · one .npz per clip (key 'body') under asd/ and td/",
+        "选择现有 body:(T,33,4) NPZ，或在桌面客户端本地转换原始视频 · choose existing body:(T,33,4) NPZ files or convert raw video locally in the desktop client",
         _action_extract, _action_synth),
     "neuro": Modality(
         "neuro", "EEG / fMRI 神经影像", "EEG / fMRI",

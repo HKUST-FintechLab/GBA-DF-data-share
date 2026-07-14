@@ -62,7 +62,7 @@ every modality runs end-to-end through the **same** extractor a real folder woul
 | Modality | Raw files a partner has | Features → task | Dim |
 |---|---|---|---|
 | **`eyegaze`** | one gaze CSV per recording (`x, y[, pupil]`), under `asd/` `td/` | fixation / saccade / spatial-attention summary → ASD/TD | 32 |
-| **`action`** | one MediaPipe-pose `.npz` (key `body`, `(T,33,4)`) per clip | kinematic pose features (`features.py`) → ASD/TD | 174 |
+| **`action`** | raw video converted locally by the desktop client, or one MediaPipe-pose `.npz` (key `body`, `(T,33,4)`) per clip | kinematic pose features (`features.py`) → ASD/TD | 174 |
 | **`neuro`** | one EEG/fMRI `.npz` (key `ts`, channels×time) or CSV per scan | spectral band-power + functional-connectivity summary → ASD/TD | 48 |
 
 Features are squashed into the **public** `[-1,1]` DP range by `tanh(raw / scale)`, where `scale` is a
@@ -113,9 +113,9 @@ uv run python run_demo.py --prepare --modality eyegaze --nodes 3 --rounds 5
 
 ## Desktop node client (partner side, pywebview)
 
-A partner runs a small desktop app instead of the CLI: **pick a data modality → native folder picker →
-enter node + coordinator info → connect**, with a live, recordable progress view. Same code path as
-`node.py` (both call `node_core.py`) — raw data never leaves the machine.
+A partner runs a small desktop app instead of the CLI: **pick a data modality → choose or prepare local
+data → enter node + coordinator info → connect**, with a live, recordable progress view. Same code path
+as `node.py` (both call `node_core.py`) — raw data never leaves the machine.
 
 ```bash
 uv sync --extra client                    # adds pywebview (WebKit/macOS, WebView2/Windows, GTK/Linux)
@@ -125,6 +125,21 @@ uv run python client_app.py --selftest    # headless API smoke test (no GUI)
 
 No data of your own? The client's **"Generate a demo folder"** button writes a synthetic cohort (clearly
 labelled) in the right format so a partner can walk the whole flow before wiring up real recordings.
+
+For the **action** modality, step 2 has two inputs:
+
+- **Choose NPZ folder** — use existing `body: (T,33,4)` files under `asd/` and `td/` as before.
+- **Extract raw video** — choose one or more local videos, assign the batch to ASD or TD, and select a
+  2/4/8 fps sampling rate. The web view loads the pinned MediaPipe Holistic JavaScript package from
+  jsDelivr only when requested, decodes every video locally, and shows the video with a live 33-point
+  skeleton overlay and extraction progress. The browser sends only the extracted landmark array to the
+  local Python bridge; the existing NumPy dependency atomically writes a compressed compatible NPZ into
+  the selected dataset folder. The app then scans that folder and continues through the unchanged
+  feature-extraction and federation path.
+
+The CDN receives normal library/model requests but never receives the selected video or its landmarks.
+Raw-video conversion therefore needs network access the first time MediaPipe assets are loaded; direct
+NPZ input remains available without that step. Python MediaPipe is not required.
 
 To join a hosted federation, you only run the **desktop client** — no server to stand up. Ask whoever
 runs the coordinator for its **URL** and the **password**, enter both on the *Node & coordinator* step

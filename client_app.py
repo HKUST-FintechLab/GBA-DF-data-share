@@ -1,9 +1,10 @@
 """GBA-DF desktop node client (pywebview).
 
 A partner runs this on their own machine. Flow: pick a data modality -> choose the folder of
-raw recordings (native folder picker) -> enter node + coordinator info -> connect. From then on
-it does exactly what node.py does — extracts features LOCALLY and uploads only masked count
-vectors — but with live, screen-recordable progress. Raw data never leaves this machine.
+raw recordings (or convert action videos to pose NPZ locally in the web view) -> enter node +
+coordinator info -> connect. From then on it does exactly what node.py does — extracts features
+LOCALLY and uploads only masked count vectors — but with live, screen-recordable progress. Raw
+data never leaves this machine.
 
   uv sync --extra client
   uv run python client_app.py                 # opens the desktop window
@@ -11,6 +12,8 @@ vectors — but with live, screen-recordable progress. Raw data never leaves thi
 """
 import argparse
 import os
+import re
+import tempfile
 import threading
 import time
 
@@ -72,6 +75,54 @@ class Api:
                     "labels": dict(zip(labels.tolist(), counts.tolist()))}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+
+    def save_pose_npz(self, root, label, filename, body):
+        """Persist browser-extracted MediaPipe pose landmarks as an action-modality NPZ.
+
+        MediaPipe inference stays in the web view; this bridge only validates the numeric
+        result and uses the project's existing NumPy dependency to write a compressed,
+        atomic ``body: (T, 33, 4)`` file. The source video itself never crosses the bridge.
+        """
+        tmp = None
+        try:
+            if not root or not os.path.isdir(root):
+                return {"ok": False, "error": "output folder not found"}
+            label = str(label).upper()
+            if label not in {"ASD", "TD"}:
+                return {"ok": False, "error": "label must be ASD or TD"}
+            arr = np.asarray(body, dtype=np.float32)
+            if arr.ndim != 3 or arr.shape[1:] != (33, 4):
+                return {"ok": False, "error": "body must have shape (T, 33, 4)"}
+            if not 2 <= arr.shape[0] <= 12000:
+                return {"ok": False, "error": "body must contain 2 to 12000 sampled frames"}
+            if not np.isfinite(arr).all():
+                return {"ok": False, "error": "body contains non-finite values"}
+
+            stem = os.path.splitext(os.path.basename(str(filename)))[0]
+            stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-") or "video"
+            out_dir = os.path.join(os.path.abspath(root), label.lower())
+            os.makedirs(out_dir, exist_ok=True)
+            out = os.path.join(out_dir, f"{stem}.npz")
+            suffix = 2
+            while os.path.exists(out):
+                out = os.path.join(out_dir, f"{stem}_{suffix}.npz")
+                suffix += 1
+
+            fd, tmp = tempfile.mkstemp(prefix=f".{stem}_", suffix=".npz", dir=out_dir)
+            os.close(fd)
+            np.savez_compressed(tmp, body=arr)
+            os.replace(tmp, out)
+            tmp = None
+            return {"ok": True, "path": out, "root": os.path.abspath(root),
+                    "label": label, "frames": int(arr.shape[0])}
+        except Exception as e:
+            return {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        finally:
+            if tmp and os.path.exists(tmp):
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
 
     def generate_demo(self, modality, n_per_class=40):
         """Make a folder of SYNTHETIC demo recordings for partners who want to try the flow
@@ -159,6 +210,18 @@ def _selftest():
     d = api.generate_demo("eyegaze", n_per_class=8)
     print("generate_demo:", d)
     print("scan_folder:", api.scan_folder("eyegaze", d["path"]))
+    with tempfile.TemporaryDirectory() as out:
+        body = np.zeros((8, 33, 4), dtype=np.float32)
+        body[..., 3] = 0.9
+        saved = api.save_pose_npz(out, "ASD", "sample video.mp4", body.tolist())
+        assert saved["ok"] and os.path.exists(saved["path"]), saved
+        assert np.load(saved["path"])["body"].shape == (8, 33, 4)
+        scanned = api.scan_folder("action", out)
+        assert scanned["ok"] and scanned["labels"] == {"ASD": 1}, scanned
+        assert not api.save_pose_npz(out, "UNKNOWN", "bad.mp4", body.tolist())["ok"]
+        assert not api.save_pose_npz(out, "TD", "bad.mp4", [[[0, 0, 0, 1]]])["ok"]
+        print("save_pose_npz:", {"ok": True, "frames": saved["frames"],
+                                  "scan": scanned["labels"]})
     print("test_connect(bad):", api.test_connect("http://localhost:1")["ok"])
     print("selftest OK")
 
