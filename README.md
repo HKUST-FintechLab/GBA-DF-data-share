@@ -5,6 +5,25 @@ It demonstrates, end-to-end and recordable, the four claims the federation rests
 **three data modalities** (eye-tracking, body-action/pose, EEG/fMRI), with a **desktop node
 client** a partner runs on their own machine (pick modality → pick folder → connect):
 
+## AI4ASD program context
+
+> **Part of the [AI4ASD research program](https://github.com/HKUST-FintechLab/AI4ASD).**
+> This repository is the privacy-preserving federation execution layer: partner
+> data stays local while approved aggregate computations produce auditable joint
+> results. Its companion AI4MATH repository studies the exact mathematical
+> certificates intended to make policy, privacy, and correctness independently
+> checkable.
+
+### Related repositories
+
+| Repository | Relationship to AI4ASD |
+|---|---|
+| [AI4ASD](https://github.com/HKUST-FintechLab/AI4ASD) | Umbrella program and integrated architecture across perception, agents, evidence, privacy, validation, and governance. |
+| [asd_super_agent](https://github.com/HKUST-FintechLab/asd_super_agent) | Evidence-grounded multi-school intervention agent and user-facing workflow. |
+| [asd_ai_ceo](https://github.com/HKUST-FintechLab/asd_ai_ceo) | Translational research workspace connecting multimodal screening, the agent system, research artifacts, and clinical/ethics validation. |
+| **GBA-DF-data-share (this repository)** | Privacy execution plane: local feature extraction, secure aggregation, differential privacy, and signed audit. |
+| [GBA-DF-data-share-AI4MATH](https://github.com/HKUST-FintechLab/GBA-DF-data-share-AI4MATH) | Companion proof plane for exact, machine-checkable policy and correctness certificates. |
+
 | Claim | How it's shown | Honest scope |
 |---|---|---|
 | **Multi-node** | Coordinator + N independent node processes (each can run on a different machine). | Fully supported. |
