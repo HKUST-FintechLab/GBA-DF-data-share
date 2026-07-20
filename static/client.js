@@ -1,0 +1,407 @@
+const I18N = window.GBA_DF_I18N;
+let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null};
+let conn={state:"off", host:""};      // off | on | run | done
+const HOLISTIC_VERSION="0.5.1675471629";
+const HOLISTIC_CDN=`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@${HOLISTIC_VERSION}`;
+const videoImport={running:false,cancelled:false,holistic:null,ready:false,lastResults:null,activeVideo:null,
+  pendingFiles:null,pendingDest:null};
+const api = () => window.pywebview.api;
+const t = k => (I18N[LANG][k] ?? k);
+const $ = s => document.querySelector(s);
+const isChinese = () => LANG === "zh" || LANG === "zh-Hant";
+const isTraditional = () => LANG === "zh-Hant";
+const HANT_MODALITIES = {
+  eyegaze:{name:"眼動資料", task:"社交注意力篩查 (ASD/TD)", hint:"每段錄製一個 CSV（欄位含 x、y[, pupil]），置於 asd/ 與 td/ 子資料夾"},
+  action:{name:"動作／姿態資料", task:"行為動作篩查 (ASD/TD)", hint:"選擇現有 body:(T,33,4) NPZ，或在桌面客戶端本地轉換原始影片"},
+  neuro:{name:"EEG／fMRI 神經影像", task:"神經影像篩查 (ASD/TD)", hint:"每次掃描一個 .npz（鍵 'ts'，通道×時間）或 CSV，置於 asd/ 與 td/ 子資料夾"}
+};
+
+function applyLang(){
+  document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.getAttribute("data-i"); if(I18N[LANG][k]!=null) el.textContent=I18N[LANG][k]; });
+  $("#zhHans").classList.toggle("on",LANG==="zh"); $("#zhHant").classList.toggle("on",LANG==="zh-Hant"); $("#en").classList.toggle("on",LANG==="en");
+  document.documentElement.lang = LANG;
+  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderStatus();
+}
+$("#zhHans").onclick=()=>{LANG="zh";applyLang();};
+$("#zhHant").onclick=()=>{LANG="zh-Hant";applyLang();};
+$("#en").onclick=()=>{LANG="en";applyLang();};
+
+function renderStatus(){
+  const map={off:"st_off",on:"st_on",run:"st_run",done:"st_done"};
+  const dot=$("#stDot"); dot.className="stdot"+(conn.state==="on"||conn.state==="done"?" on":(conn.state==="run"?" busy":""));
+  $("#stConn").textContent = t(map[conn.state]) + (conn.host?` · ${conn.host}`:"");
+}
+function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; renderStatus(); }
+
+const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"],"zh-Hant":["資料類型","資料夾","連線","訓練"]};
+let curStep=1;
+function renderSteps(){
+  const s=$("#steps"); s.innerHTML="";
+  STEP_LABELS[LANG].forEach((lb,i)=>{
+    const n=i+1, d=document.createElement("div");
+    d.className="stepdot"+(n===curStep?" active":"")+(n<curStep?" done":"");
+    d.innerHTML=`<span class="n">${n<curStep?"✓":n}</span><span>${lb}</span>`;
+    s.appendChild(d);
+  });
+}
+function goStep(n){
+  curStep=n;
+  document.querySelectorAll("[data-step]").forEach(el=>el.classList.toggle("hidden",+el.getAttribute("data-step")!==n));
+  renderSteps();
+}
+document.querySelectorAll("[data-back]").forEach(b=>b.onclick=()=>goStep(+b.getAttribute("data-back")));
+
+const ICONS={eyegaze:"👁️",action:"🏃",neuro:"🧠"};
+function renderMods(){
+  const box=$("#mods"); box.innerHTML="";
+  MODS.forEach(m=>{
+    const localized = isTraditional()?HANT_MODALITIES[m.key]:null;
+    const nm = localized?.name || (isChinese()?m.zh:m.en);
+    const tk = localized?.task || (isChinese()?m.task_zh:m.task_en);
+    const d=document.createElement("div");
+    d.className="mod"+(sel.modality===m.key?" sel":"");
+    d.innerHTML=`<div class="ic">${ICONS[m.key]||"📊"}</div><div class="nm">${nm}</div>
+      <div class="tk">${tk}</div><div class="dim">${m.n_features} ${t("feats")}</div>`;
+    d.onclick=()=>{ if(videoImport.running) return; sel.modality=m.key; sel.mInfo=m; sel.folder=null; sel.scan=null;
+      $("#foldbox").classList.add("hidden"); $("#s2msg").innerHTML=""; $("#s2next").disabled=true;
+      renderMods(); updateS2Hint(); updateActionControls(); goStep(2); };
+    box.appendChild(d);
+  });
+}
+function updateS2Hint(){
+  if(!sel.mInfo)return;
+  $("#s2hint").textContent=isTraditional()?HANT_MODALITIES[sel.mInfo.key].hint:
+    (isChinese()?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint);
+}
+function updateActionControls(){
+  const action=sel.modality==="action";
+  $("#pickvideo").classList.toggle("hidden",!action);
+  $("#videoImport").classList.toggle("hidden",!action);
+  $("#pick").textContent=action?t("pick_npz"):t("pick");
+}
+
+function msg(sel_, kind, html){ $(sel_).innerHTML=`<div class="msg ${kind}">${html}</div>`; }
+
+const POSE_CONNECTIONS=[
+  [0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+  [11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[17,19],
+  [12,14],[14,16],[16,18],[16,20],[16,22],[18,20],
+  [11,23],[12,24],[23,24],[23,25],[25,27],[27,29],[29,31],[27,31],
+  [24,26],[26,28],[28,30],[30,32],[28,32]
+];
+
+function appendExtractLog(text, bad=false){
+  const line=document.createElement("div");
+  line.textContent=text; if(bad) line.style.color="var(--bad)";
+  $("#extractLog").appendChild(line); $("#extractLog").scrollTop=$("#extractLog").scrollHeight;
+}
+function setExtractProgress(fraction, status, count){
+  $("#extractFill").style.width=(Math.max(0,Math.min(1,fraction))*100).toFixed(1)+"%";
+  $("#extractStatus").textContent=status||"—"; $("#extractCount").textContent=count||"";
+}
+function setVideoBusy(busy){
+  videoImport.running=busy;
+  ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps"].forEach(s=>$(s).disabled=busy);
+  $("#cancelVideo").classList.toggle("hidden",!busy);
+  $("#s2next").disabled=busy||!sel.scan;
+}
+class MediaPipeLoadError extends Error{constructor(message,cause=null){super(message);this.name="MediaPipeLoadError";this.cause=cause;this.isMediaPipeLoad=true;}}
+function humanBytes(n){return n<1024?`${n} B`:n<1048576?`${(n/1024).toFixed(0)} KB`:`${(n/1048576).toFixed(1)} MB`;}
+function showCdnLoad({failed=false,title=null,detail=null,progress=null,indeterminate=false,retry=false}={}){
+  const box=$("#cdnLoad");box.classList.remove("hidden");box.classList.toggle("failed",failed);
+  $("#cdnTitle").textContent=title||t(failed?"cdn_failed":"cdn_title");$("#cdnDetail").textContent=detail||t("cdn_connecting");
+  $("#cdnProgress").classList.toggle("hidden",failed);$("#cdnProgress").classList.toggle("indeterminate",indeterminate);
+  $("#cdnFill").style.width=progress==null?"0":`${Math.max(0,Math.min(1,progress))*100}%`;
+  $("#retryCdn").classList.toggle("hidden",!retry);
+}
+function hideCdnLoad(){$("#cdnLoad").classList.add("hidden");}
+function cdnFailureDetail(error){
+  if(typeof navigator!=="undefined"&&navigator.onLine===false)return t("cdn_offline");
+  if(error?.name==="AbortError"||/timeout/i.test(error?.message||""))return t("cdn_timeout");
+  const raw=String(error?.message||error||"").replace(/^MediaPipeLoadError:\s*/,"");
+  return raw?`${raw}. ${t("cdn_help")}`:t("cdn_help");
+}
+async function loadScript(src,onProgress){
+  const old=document.querySelector(`script[data-src="${src}"]`);
+  if(old?.dataset.loaded==="1")return;
+  if(old)old.remove();
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),30000);
+  let response;
+  try{response=await fetch(src,{mode:"cors",cache:"default",signal:controller.signal});}
+  catch(error){clearTimeout(timer);throw new MediaPipeLoadError(error.name==="AbortError"?"CDN download timeout":"CDN connection failed",error);}
+  clearTimeout(timer);
+  if(!response.ok)throw new MediaPipeLoadError(`CDN returned HTTP ${response.status}`);
+  const total=Number(response.headers.get("content-length"))||0;let received=0,blob;
+  if(response.body?.getReader){
+    const reader=response.body.getReader(),chunks=[];
+    while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;onProgress?.(total?Math.min(1,received/total):null,received,total);}
+    blob=new Blob(chunks,{type:"application/javascript"});
+  }else{blob=await response.blob();received=blob.size;onProgress?.(1,received,received);}
+  const objectUrl=URL.createObjectURL(blob);
+  await new Promise((resolve,reject)=>{
+    const s=document.createElement("script");s.src=objectUrl;s.async=true;s.dataset.src=src;
+    s.onload=()=>{s.dataset.loaded="1";URL.revokeObjectURL(objectUrl);resolve();};
+    s.onerror=()=>{s.remove();URL.revokeObjectURL(objectUrl);reject(new MediaPipeLoadError("MediaPipe JavaScript could not start"));};
+    document.head.appendChild(s);
+  });
+}
+async function ensureHolistic(){
+  if(videoImport.holistic) return videoImport.holistic;
+  showCdnLoad({detail:t("cdn_connecting"),indeterminate:true});setExtractProgress(0,t("video_loading"),"");
+  try{
+    await loadScript(`${HOLISTIC_CDN}/holistic.js`,(fraction,received,total)=>{
+      const amount=total?`${humanBytes(received)} / ${humanBytes(total)}`:humanBytes(received);
+      showCdnLoad({detail:`${t("cdn_downloading")} · ${amount}`,progress:fraction,indeterminate:fraction==null});
+    });
+    if(!window.Holistic)throw new MediaPipeLoadError("MediaPipe Holistic did not initialize");
+    showCdnLoad({detail:t("cdn_initializing"),indeterminate:true});
+    const holistic=new window.Holistic({locateFile:file=>`${HOLISTIC_CDN}/${file}`});
+    holistic.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,
+      smoothSegmentation:false,refineFaceLandmarks:false,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
+    holistic.onResults(results=>{
+      videoImport.lastResults=results;
+      if(videoImport.activeVideo)drawPose(videoImport.activeVideo,results.poseLandmarks||null);
+    });
+    videoImport.holistic=holistic;return holistic;
+  }catch(error){throw error?.isMediaPipeLoad?error:new MediaPipeLoadError("MediaPipe initialization failed",error);}
+}
+function drawPose(video, landmarks){
+  const canvas=$("#poseCanvas"), ctx=canvas.getContext("2d");
+  const vw=video.videoWidth||640, vh=video.videoHeight||360;
+  canvas.width=Math.min(720,vw); canvas.height=Math.max(180,Math.round(canvas.width*vh/vw));
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  try{ ctx.drawImage(video,0,0,canvas.width,canvas.height); }catch(_e){}
+  if(!landmarks||landmarks.length!==33) return;
+  ctx.lineWidth=Math.max(2,canvas.width/320); ctx.strokeStyle="#69b8ff"; ctx.lineCap="round";
+  for(const [a,b] of POSE_CONNECTIONS){
+    const p=landmarks[a],q=landmarks[b];
+    if((p.visibility??1)<0.25||(q.visibility??1)<0.25) continue;
+    ctx.beginPath();ctx.moveTo(p.x*canvas.width,p.y*canvas.height);ctx.lineTo(q.x*canvas.width,q.y*canvas.height);ctx.stroke();
+  }
+  ctx.fillStyle="#eaf5ff";
+  for(const p of landmarks){
+    if((p.visibility??1)<0.25) continue;
+    ctx.beginPath();ctx.arc(p.x*canvas.width,p.y*canvas.height,Math.max(2.2,canvas.width/230),0,Math.PI*2);ctx.fill();
+  }
+}
+function poseArray(landmarks){
+  if(!landmarks||landmarks.length!==33) return null;
+  return landmarks.map(p=>[
+    Number.isFinite(p.x)?p.x:0, Number.isFinite(p.y)?p.y:0, Number.isFinite(p.z)?p.z:0,
+    Number.isFinite(p.visibility)?Math.max(0,Math.min(1,p.visibility)):1
+  ]);
+}
+function fillMissingPose(frames){
+  const valid=[]; frames.forEach((f,i)=>{if(f)valid.push(i);});
+  if(valid.length<2) throw new Error(t("video_no_pose"));
+  const prev=new Array(frames.length),next=new Array(frames.length); let p=-1,n=-1;
+  for(let i=0;i<frames.length;i++){if(frames[i])p=i;prev[i]=p;}
+  for(let i=frames.length-1;i>=0;i--){if(frames[i])n=i;next[i]=n;}
+  return frames.map((f,i)=>{
+    if(f) return f;
+    const a=prev[i]>=0?prev[i]:next[i], b=next[i]>=0?next[i]:prev[i];
+    const w=(a===b)?0:(i-a)/(b-a);
+    return frames[a].map((v,j)=>[
+      v[0]+(frames[b][j][0]-v[0])*w, v[1]+(frames[b][j][1]-v[1])*w,
+      v[2]+(frames[b][j][2]-v[2])*w, 0
+    ]);
+  });
+}
+function waitForVideo(video,file){
+  return new Promise((resolve,reject)=>{
+    const url=URL.createObjectURL(file);
+    const done=()=>{cleanup();resolve(url);}, fail=()=>{cleanup();URL.revokeObjectURL(url);reject(new Error(`Cannot decode ${file.name}`));};
+    const cleanup=()=>{video.removeEventListener("loadeddata",done);video.removeEventListener("error",fail);};
+    video.addEventListener("loadeddata",done,{once:true}); video.addEventListener("error",fail,{once:true});
+    video.src=url; video.load();
+  });
+}
+function seekVideo(video,time){
+  const target=Math.max(0,Math.min(time,Math.max(0,video.duration-0.001)));
+  if(Math.abs(video.currentTime-target)<0.001&&video.readyState>=2) return Promise.resolve();
+  return new Promise((resolve,reject)=>{
+    const ok=()=>{cleanup();resolve();}, bad=()=>{cleanup();reject(new Error("Video seek failed"));};
+    const cleanup=()=>{video.removeEventListener("seeked",ok);video.removeEventListener("error",bad);};
+    video.addEventListener("seeked",ok,{once:true});video.addEventListener("error",bad,{once:true});video.currentTime=target;
+  });
+}
+function discardHolistic(){
+  try{videoImport.holistic?.close?.();}catch(_e){}
+  videoImport.holistic=null;videoImport.ready=false;videoImport.lastResults=null;
+}
+async function sendHolistic(holistic,video){
+  let timer;const timeoutMs=videoImport.ready?30000:90000;
+  try{
+    await Promise.race([
+      holistic.send({image:video}),
+      new Promise((_,reject)=>{timer=setTimeout(()=>reject(new MediaPipeLoadError("MediaPipe model download or initialization timeout")),timeoutMs);})
+    ]);
+    if(!videoImport.ready){videoImport.ready=true;hideCdnLoad();}
+  }catch(error){
+    discardHolistic();
+    throw error?.isMediaPipeLoad?error:new MediaPipeLoadError("MediaPipe WASM/model initialization failed",error);
+  }finally{clearTimeout(timer);}
+}
+async function extractVideo(file,fileIndex,fileTotal){
+  const video=$("#sourceVideo"), fps=Number($("#videoFps").value)||4;
+  const url=await waitForVideo(video,file); videoImport.activeVideo=video;
+  try{
+    if(!Number.isFinite(video.duration)||video.duration<=0) throw new Error(`Invalid duration: ${file.name}`);
+    const count=Math.min(12000,Math.max(2,Math.floor(video.duration*fps)+1));
+    const step=video.duration/Math.max(1,count-1), frames=[]; let detected=0;
+    $("#previewEmpty").classList.add("hidden");
+    const holistic=await ensureHolistic();
+    for(let i=0;i<count;i++){
+      if(videoImport.cancelled) throw new Error("__cancelled__");
+      await seekVideo(video,i*step); videoImport.lastResults=null;
+      await sendHolistic(holistic,video);
+      const pose=poseArray(videoImport.lastResults?.poseLandmarks); if(pose)detected++;
+      frames.push(pose);
+      const totalProgress=(fileIndex+(i+1)/count)/fileTotal;
+      setExtractProgress(totalProgress,`${t("video_processing")}: ${file.name}`,`${i+1} / ${count} · pose ${detected}`);
+      if(i%10===0) await new Promise(resolve=>setTimeout(resolve,0));
+    }
+    return fillMissingPose(frames);
+  } finally {
+    video.pause();video.removeAttribute("src");video.load();URL.revokeObjectURL(url);videoImport.activeVideo=null;
+  }
+}
+
+$("#pickvideo").onclick=()=>$("#videoFiles").click();
+$("#cancelVideo").onclick=()=>{videoImport.cancelled=true;};
+async function runVideoBatch(files,dest){
+  videoImport.cancelled=false; setVideoBusy(true); $("#extractLog").innerHTML=""; $("#s2msg").innerHTML="";
+  videoImport.pendingFiles=files;videoImport.pendingDest=dest;
+  appendExtractLog(`${t("video_output")} ${dest.path}`);
+  let saved=0,cdnError=null;
+  try{
+    for(let i=0;i<files.length;i++){
+      if(videoImport.cancelled) break;
+      const file=files[i]; appendExtractLog(`${i+1}/${files.length} · ${file.name}`);
+      try{
+        const body=await extractVideo(file,i,files.length);
+        setExtractProgress((i+0.98)/files.length,t("video_saving"),`${body.length} frames`);
+        const r=await api().save_pose_npz(dest.path,$("#videoLabel").value,file.name,body);
+        if(!r.ok) throw new Error(r.error); saved++; appendExtractLog(`✓ ${r.path}`);
+      }catch(e){
+        if(e.message==="__cancelled__")break;
+        if(e.isMediaPipeLoad){
+          cdnError=e;videoImport.pendingFiles=files.slice(i);appendExtractLog(`✗ ${cdnFailureDetail(e)}`,true);break;
+        }
+        appendExtractLog(`✗ ${file.name}: ${e.message}`,true);
+      }
+    }
+    if(videoImport.cancelled){hideCdnLoad();setExtractProgress(0,t("video_cancelled"),"");msg("#s2msg","warn",t("video_cancelled"));}
+    else if(cdnError){
+      showCdnLoad({failed:true,detail:cdnFailureDetail(cdnError),retry:true});
+      msg("#s2msg","bad",`${t("cdn_failed")}. ${t("cdn_help")}`);
+    }
+    else if(saved){
+      hideCdnLoad();videoImport.pendingFiles=null;videoImport.pendingDest=null;
+      setExtractProgress(1,`${t("video_done")}: ${saved}/${files.length}`,"");
+      await scan(dest.path);
+    }else{hideCdnLoad();msg("#s2msg","bad",isChinese()?t("video_no_output"):"No usable NPZ file was generated.");}
+  } finally { setVideoBusy(false); }
+}
+$("#retryCdn").onclick=async()=>{
+  if(!videoImport.pendingFiles?.length||!videoImport.pendingDest)return;
+  discardHolistic();showCdnLoad({detail:t("cdn_connecting"),indeterminate:true});
+  await runVideoBatch(videoImport.pendingFiles,videoImport.pendingDest);
+};
+$("#videoFiles").onchange=async event=>{
+  const files=Array.from(event.target.files||[]); event.target.value=""; if(!files.length)return;
+  const dest=sel.folder?{ok:true,path:sel.folder}:await api().pick_folder();
+  if(!dest.ok)return;
+  await runVideoBatch(files,dest);
+};
+
+$("#pick").onclick=async()=>{
+  const r=await api().pick_folder();
+  if(!r.ok) return;
+  await scan(r.path);
+};
+$("#gendemo").onclick=async()=>{
+  $("#gendemo").disabled=true;
+  const r=await api().generate_demo(sel.modality, 40);
+  $("#gendemo").disabled=false;
+  if(r.ok){ msg("#s2msg","warn",t("genok")); await scan(r.path); }
+  else msg("#s2msg","bad",r.error);
+};
+async function scan(path){
+  $("#foldbox").classList.remove("hidden");
+  $("#foldpath").textContent=path; $("#foldkv").innerHTML=`<span class="spin"></span> ${t("scanning")}`;
+  const r=await api().scan_folder(sel.modality, path);
+  if(!r.ok){ $("#foldkv").innerHTML=""; msg("#s2msg","bad",r.error); $("#s2next").disabled=true; return; }
+  sel.folder=path; sel.scan=r; $("#s2msg").innerHTML="";
+  const tags=Object.entries(r.labels).map(([k,v])=>`<span class="tag ${k.toLowerCase()==='asd'?'asd':'td'}">${k}: ${v}</span>`).join("");
+  $("#foldkv").innerHTML=`<span><b>${r.n_samples}</b> ${t("found")}</span><span><b>${r.n_files}</b> ${t("files")}</span>`+
+    `<span><b>${r.n_features}</b> ${t("feats")}</span><span>${tags}</span>`;
+  $("#s2next").disabled=false;
+}
+$("#s2next").onclick=()=>{ if(!$("#nodeid").value) $("#nodeid").value="node_1"; goStep(3); };
+
+$("#testconn").onclick=async()=>{
+  const coord=$("#coord").value.trim(); if(!coord){msg("#s3msg","bad","enter a coordinator URL");return;}
+  const key=$("#passwd").value.trim();
+  msg("#s3msg","warn",`<span class="spin"></span> ${t("connecting")}`);
+  const r=await api().test_connect(coord, sel.modality, key);
+  if(!r.ok){ msg("#s3msg","bad",r.error); $("#s3next").disabled=true; setConn("off",""); return; }
+  sel.sch=r;
+  const host=coord.replace(/^https?:\/\//,"");
+  const featOk = r.n_features===sel.scan.n_features;
+  const info=r.modality_info?(isTraditional()?HANT_MODALITIES[r.modality_info.key]?.task:(isChinese()?r.modality_info.task_zh:r.modality_info.task_en)):r.modality;
+  let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
+  if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
+  else if(!featOk){ msg("#s3msg","bad",`${t("mismatch_feat")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
+  else { msg("#s3msg","ok",`${t("compat_ok")}<br>${lines}`); $("#s3next").disabled=false; setConn("on",host); }
+};
+
+let pollTimer=null;
+$("#s3next").onclick=async()=>{
+  const cfg={ coord:$("#coord").value.trim(), key:$("#passwd").value.trim(),
+    node_id:($("#nodeid").value.trim()||"node_1"),
+    name:$("#nodename").value.trim(), folder:sel.folder, modality:sel.modality,
+    rounds:+$("#rounds").value||5, seed:1 };
+  $("#rsSamp").textContent=sel.scan.n_samples;
+  $("#rsMetric").textContent=(sel.sch.primary_metric||"acc").toUpperCase();
+  $("#log").textContent=""; $("#s4msg").innerHTML=""; $("#restart").classList.add("hidden");
+  $("#stop").classList.remove("hidden"); $("#stop").disabled=false;
+  setConn("run"); goStep(4);
+  const r=await api().start(cfg);
+  if(!r.ok){ msg("#s4msg","bad",r.error); setConn("on"); return; }
+  if(pollTimer) clearInterval(pollTimer);
+  pollTimer=setInterval(poll, 500);
+};
+async function poll(){
+  const p=await api().poll(); const st=p.state, s=st.summary;
+  const el=$("#log"); el.innerHTML=p.log.map(l=>{
+    const cls=/round|masked/.test(l)?' class="r"':''; return `<span${cls}>${l.replace(/</g,"&lt;")}</span>`;
+  }).join("\n"); el.scrollTop=el.scrollHeight;
+  if(s){
+    $("#rsRound").textContent=s.rounds_done||0;
+    const v=s.fed_primary; $("#rsFed").textContent=(typeof v==="number")?v.toFixed(3):"…";
+    $("#rsEps").textContent=(s.global_eps??0);
+    const bud=sel.sch?.epsilon_budget||10; $("#epsFill").style.width=Math.min(100,100*(s.global_eps||0)/bud)+"%";
+    $("#stEps").textContent=`ε ${s.global_eps??0} / ${bud}`;
+  }
+  if(st.done){
+    clearInterval(pollTimer); pollTimer=null;
+    $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
+    setConn(st.error?"on":"done");
+    if(st.error) msg("#s4msg","bad",st.error);
+    else msg("#s4msg","ok","✓ "+t("train_done"));
+  }
+}
+$("#stop").onclick=async()=>{ $("#stop").disabled=true; await api().stop(); };
+$("#restart").onclick=()=>goStep(3);
+
+async function init(){
+  try{ MODS=await api().list_modalities(); }catch(e){ MODS=[]; }
+  try{ const d=await api().defaults();
+    if(d){ $("#coord").value=d.coord||""; $("#nodeid").value=d.node_id||"node_1"; } }catch(e){}
+  applyLang();
+  goStep(1);
+}
+window.addEventListener("pywebviewready", init);
+// fallback if opened in a plain browser (no pywebview): still render UI
+setTimeout(()=>{ if(!MODS.length && window.pywebview) init(); }, 300);
