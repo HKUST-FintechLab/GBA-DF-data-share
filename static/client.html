@@ -161,7 +161,7 @@
   .tname{font-family:var(--ui);font-size:15px;font-weight:700;color:var(--head);letter-spacing:-.02em}
   .tsub{font-size:11.5px;color:var(--mut);margin-top:2px}
   .lang{padding:2px;border:0;border-radius:9px;background:rgba(118,118,128,.12);box-shadow:inset 0 0 0 1px rgba(60,60,67,.05)}
-  .lang button{min-width:47px;border-radius:7px;padding:6px 11px;color:#5f6368;font-weight:600;transition:background .16s,box-shadow .16s,color .16s}
+  .lang button{min-width:48px;border-radius:7px;padding:6px 11px;color:#5f6368;font-weight:600;transition:background .16s,box-shadow .16s,color .16s}
   .lang button.on{background:#fff;color:var(--accent);box-shadow:0 1px 3px rgba(0,0,0,.13);font-weight:700}
 
   .workspace{background:transparent}
@@ -236,7 +236,7 @@
       <div class="tsub" data-i="subtitle">Join a data federation — your raw data never leaves this machine</div>
     </div>
     <div class="spacer"></div>
-    <div class="lang"><button id="zh">中文</button><button id="en" class="on">EN</button></div>
+    <div class="lang" aria-label="Language"><button id="zhHans">简体</button><button id="zhHant">繁體</button><button id="en" class="on">EN</button></div>
   </div>
 
   <div class="workspace">
@@ -396,7 +396,7 @@ const I18N = {
     video_empty:"Choose one or more videos to see pose extraction here.",
     video_loading:"Loading MediaPipe Holistic from the CDN…", video_output:"Choose a local dataset folder for the generated NPZ files.",
     video_processing:"Extracting pose", video_saving:"Saving compatible NPZ…", video_done:"Video extraction complete",
-    video_cancelled:"Video extraction cancelled.", video_no_pose:"Too few frames contained a detectable pose.",
+    video_cancelled:"Video extraction cancelled.", video_no_pose:"Too few frames contained a detectable pose.", video_no_output:"No usable NPZ file was generated.",
     cdn_title:"Loading MediaPipe", cdn_connecting:"Connecting to the CDN…",
     cdn_downloading:"Downloading the browser engine", cdn_initializing:"Initializing WASM and pose model… First load may take a moment.",
     cdn_failed:"MediaPipe could not be loaded", cdn_offline:"This device appears to be offline. Check the network and try again.",
@@ -415,7 +415,7 @@ const I18N = {
     connecting:"Contacting coordinator…", compat_ok:"Compatible — federation matches your modality.",
     compat_bad:"Modality mismatch: this coordinator runs a different data type.",
     mismatch_feat:"Feature count differs from the federation; check you picked the right modality.",
-    waiting:"Waiting for the rest of the cohort to join…",
+    waiting:"Waiting for the rest of the cohort to join…", train_done:"Done — only masked aggregates ever left this machine.",
     st_off:"Not connected", st_on:"Connected", st_run:"Training", st_raw:"raw uploaded", st_done:"Done"
   },
   zh:{
@@ -431,7 +431,7 @@ const I18N = {
     video_empty:"选择一个或多个视频后，将在这里实时显示骨架提取过程。",
     video_loading:"正在从 CDN 加载 MediaPipe Holistic…", video_output:"请选择用于保存生成 NPZ 的本地数据集文件夹。",
     video_processing:"正在提取骨架", video_saving:"正在保存兼容的 NPZ…", video_done:"视频骨架提取完成",
-    video_cancelled:"已取消视频骨架提取。", video_no_pose:"检测到人体骨架的帧数太少。",
+    video_cancelled:"已取消视频骨架提取。", video_no_pose:"检测到人体骨架的帧数太少。", video_no_output:"没有生成可用的 NPZ 文件。",
     cdn_title:"正在加载 MediaPipe", cdn_connecting:"正在连接 CDN…",
     cdn_downloading:"正在下载浏览器推理引擎", cdn_initializing:"正在初始化 WASM 和姿态模型……首次加载可能需要一点时间。",
     cdn_failed:"MediaPipe 加载失败", cdn_offline:"当前设备似乎未联网，请检查网络后重试。",
@@ -450,8 +450,43 @@ const I18N = {
     connecting:"正在连接协调器…", compat_ok:"兼容 —— 联邦模态与你的选择一致。",
     compat_bad:"模态不匹配：该协调器运行的是另一种数据类型。",
     mismatch_feat:"特征维度与联邦不一致；请确认选对了模态。",
-    waiting:"等待其余节点加入本轮联邦…",
-    st_off:"未连接", st_on:"已连接", st_run:"训练中", st_raw:"已上传原始数据", st_done:"完成"
+    waiting:"等待其余节点加入本轮联邦…", train_done:"完成 —— 全程只有掩码后的聚合离开了本机。",
+    st_off:"未连接", st_on:"已连接", st_run:"训练中", st_raw:"原始数据上传", st_done:"完成"
+  },
+  "zh-Hant":{
+    title:"GBA-DF 聯邦節點", subtitle:"加入資料聯邦 —— 你的原始資料永不離開本機",
+    side_local:"資料全程留在本機",
+    s1_h:"選擇資料類型", s1_hint:"這個節點將貢獻哪一類錄製資料？每種模態各自組成一個聯邦。",
+    s2_h:"選擇資料夾",
+    s2_note:"請把錄製檔案放在按類別命名的子資料夾裡（如 asd/ 和 td/）。動作資料也可在瀏覽器中把原始影片本地轉換為 NPZ；這裡不會上傳任何原始資料。",
+    pick:"選擇資料夾…", pick_npz:"選擇 NPZ 資料夾…", pickvideo:"提取原始影片…",
+    gendemo:"沒有資料？建立一個示範資料夾", back:"上一步", next:"下一步",
+    video_h:"瀏覽器端骨架提取", video_s:"MediaPipe 按需載入；所選影片始終留在本機。",
+    video_label:"本批次類別", video_fps:"取樣率", video_cancel:"取消",
+    video_empty:"選擇一個或多個影片後，將在這裡即時顯示骨架提取過程。",
+    video_loading:"正在從 CDN 載入 MediaPipe Holistic…", video_output:"請選擇用於儲存生成 NPZ 的本機資料集資料夾。",
+    video_processing:"正在提取骨架", video_saving:"正在儲存相容的 NPZ…", video_done:"影片骨架提取完成",
+    video_cancelled:"已取消影片骨架提取。", video_no_pose:"偵測到人體骨架的影格數太少。", video_no_output:"沒有生成可用的 NPZ 檔案。",
+    cdn_title:"正在載入 MediaPipe", cdn_connecting:"正在連線至 CDN…",
+    cdn_downloading:"正在下載瀏覽器推論引擎", cdn_initializing:"正在初始化 WASM 和姿態模型……首次載入可能需要一點時間。",
+    cdn_failed:"MediaPipe 載入失敗", cdn_offline:"目前裝置似乎未連網，請檢查網路後重試。",
+    cdn_timeout:"下載逾時，請檢查網路、VPN 或代理設定後重試。",
+    cdn_help:"請確認可以存取 cdn.jsdelivr.net，或改用既有 NPZ 資料夾。", cdn_retry:"重試",
+    s3_h:"節點與協調器", s3_hint:"填入你們小組共用的協調器位址，並為本節點取個名字。",
+    f_coord:"協調器位址", f_pass:"密碼", f_rounds:"輪數", f_nodeid:"節點 ID", f_name:"顯示名稱",
+    testconn:"測試連線", s3_start:"連線並開始",
+    s4_h:"聯邦訓練 · 即時", bytes:"位元組",
+    s4_banner:"原始資料被上傳。離開本機的只有成對遮罩後的整數計數；協調器只能還原彙總後的總和。",
+    rs_fed:"全域模型", rs_round:"輪次", rs_eps:"已用隱私預算 ε", rs_samp:"本機樣本",
+    stop:"停止", restart:"再跑一次",
+    s4_note:"全域準確率由協調器在其保留測試集上評估。當協調器不合謀、且節點數≥3 時，安全聚合能提供有意義的隱私保證。",
+    scanning:"正在本機讀取資料夾…", found:"筆錄製", files:"個檔案", feats:"維特徵",
+    genok:"已建立一個合成示範資料夾（明確非真實病患資料），可在上方選擇它。",
+    connecting:"正在連線至協調器…", compat_ok:"相容 —— 聯邦模態與你的選擇一致。",
+    compat_bad:"模態不相符：該協調器運行的是另一種資料類型。",
+    mismatch_feat:"特徵維度與聯邦不一致；請確認選對了模態。",
+    waiting:"等待其餘節點加入本輪聯邦…", train_done:"完成 —— 全程只有遮罩後的彙總資料離開本機。",
+    st_off:"未連線", st_on:"已連線", st_run:"訓練中", st_raw:"原始資料上傳", st_done:"完成"
   }
 };
 let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null};
@@ -463,14 +498,22 @@ const videoImport={running:false,cancelled:false,holistic:null,ready:false,lastR
 const api = () => window.pywebview.api;
 const t = k => (I18N[LANG][k] ?? k);
 const $ = s => document.querySelector(s);
+const isChinese = () => LANG === "zh" || LANG === "zh-Hant";
+const isTraditional = () => LANG === "zh-Hant";
+const HANT_MODALITIES = {
+  eyegaze:{name:"眼動資料", task:"社交注意力篩查 (ASD/TD)", hint:"每段錄製一個 CSV（欄位含 x、y[, pupil]），置於 asd/ 與 td/ 子資料夾"},
+  action:{name:"動作／姿態資料", task:"行為動作篩查 (ASD/TD)", hint:"選擇現有 body:(T,33,4) NPZ，或在桌面客戶端本地轉換原始影片"},
+  neuro:{name:"EEG／fMRI 神經影像", task:"神經影像篩查 (ASD/TD)", hint:"每次掃描一個 .npz（鍵 'ts'，通道×時間）或 CSV，置於 asd/ 與 td/ 子資料夾"}
+};
 
 function applyLang(){
   document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.getAttribute("data-i"); if(I18N[LANG][k]!=null) el.textContent=I18N[LANG][k]; });
-  $("#zh").classList.toggle("on",LANG==="zh"); $("#en").classList.toggle("on",LANG==="en");
+  $("#zhHans").classList.toggle("on",LANG==="zh"); $("#zhHant").classList.toggle("on",LANG==="zh-Hant"); $("#en").classList.toggle("on",LANG==="en");
   document.documentElement.lang = LANG;
   renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderStatus();
 }
-$("#zh").onclick=()=>{LANG="zh";applyLang();};
+$("#zhHans").onclick=()=>{LANG="zh";applyLang();};
+$("#zhHant").onclick=()=>{LANG="zh-Hant";applyLang();};
 $("#en").onclick=()=>{LANG="en";applyLang();};
 
 function renderStatus(){
@@ -480,7 +523,7 @@ function renderStatus(){
 }
 function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; renderStatus(); }
 
-const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"]};
+const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"],"zh-Hant":["資料類型","資料夾","連線","訓練"]};
 let curStep=1;
 function renderSteps(){
   const s=$("#steps"); s.innerHTML="";
@@ -502,7 +545,9 @@ const ICONS={eyegaze:"👁️",action:"🏃",neuro:"🧠"};
 function renderMods(){
   const box=$("#mods"); box.innerHTML="";
   MODS.forEach(m=>{
-    const nm = LANG==="zh"?m.zh:m.en, tk = LANG==="zh"?m.task_zh:m.task_en;
+    const localized = isTraditional()?HANT_MODALITIES[m.key]:null;
+    const nm = localized?.name || (isChinese()?m.zh:m.en);
+    const tk = localized?.task || (isChinese()?m.task_zh:m.task_en);
     const d=document.createElement("div");
     d.className="mod"+(sel.modality===m.key?" sel":"");
     d.innerHTML=`<div class="ic">${ICONS[m.key]||"📊"}</div><div class="nm">${nm}</div>
@@ -513,7 +558,11 @@ function renderMods(){
     box.appendChild(d);
   });
 }
-function updateS2Hint(){ if(sel.mInfo) $("#s2hint").textContent=(LANG==="zh"?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint); }
+function updateS2Hint(){
+  if(!sel.mInfo)return;
+  $("#s2hint").textContent=isTraditional()?HANT_MODALITIES[sel.mInfo.key].hint:
+    (isChinese()?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint);
+}
 function updateActionControls(){
   const action=sel.modality==="action";
   $("#pickvideo").classList.toggle("hidden",!action);
@@ -741,7 +790,7 @@ async function runVideoBatch(files,dest){
       hideCdnLoad();videoImport.pendingFiles=null;videoImport.pendingDest=null;
       setExtractProgress(1,`${t("video_done")}: ${saved}/${files.length}`,"");
       await scan(dest.path);
-    }else{hideCdnLoad();msg("#s2msg","bad",LANG==="zh"?"没有生成可用的 NPZ 文件。":"No usable NPZ file was generated.");}
+    }else{hideCdnLoad();msg("#s2msg","bad",isChinese()?t("video_no_output"):"No usable NPZ file was generated.");}
   } finally { setVideoBusy(false); }
 }
 $("#retryCdn").onclick=async()=>{
@@ -790,7 +839,7 @@ $("#testconn").onclick=async()=>{
   sel.sch=r;
   const host=coord.replace(/^https?:\/\//,"");
   const featOk = r.n_features===sel.scan.n_features;
-  const info=r.modality_info?(LANG==="zh"?r.modality_info.task_zh:r.modality_info.task_en):r.modality;
+  const info=r.modality_info?(isTraditional()?HANT_MODALITIES[r.modality_info.key]?.task:(isChinese()?r.modality_info.task_zh:r.modality_info.task_en)):r.modality;
   let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
   if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
   else if(!featOk){ msg("#s3msg","bad",`${t("mismatch_feat")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
@@ -830,7 +879,7 @@ async function poll(){
     $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
     setConn(st.error?"on":"done");
     if(st.error) msg("#s4msg","bad",st.error);
-    else msg("#s4msg","ok","✓ "+(LANG==="zh"?"完成 —— 全程只有掩码后的聚合离开了本机。":"Done — only masked aggregates ever left this machine."));
+    else msg("#s4msg","ok","✓ "+t("train_done"));
   }
 }
 $("#stop").onclick=async()=>{ $("#stop").disabled=true; await api().stop(); };
