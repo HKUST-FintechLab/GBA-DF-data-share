@@ -20,8 +20,10 @@ Deployment knobs (env vars):
 """
 import json
 import os
+import tempfile
 import threading
 import time
+from urllib.parse import urlparse
 
 import numpy as np
 from fastapi import FastAPI, Request
@@ -32,6 +34,58 @@ import fed_common as fc
 import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+CLIENT_CONFIG_FORMAT = "gba-df-client-config"
+CLIENT_CONFIG_VERSION = 1
+
+
+def client_connection_config(coordinator_url: str) -> dict:
+    """Return the desktop-client configuration for this coordinator.
+
+    A configured shared password is included at the user's request. The exported runtime
+    file is therefore written with owner-only permissions and must never be committed.
+    """
+    url = str(coordinator_url or "").strip().rstrip("/")
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError("public coordinator URL must be a full http(s) URL")
+    if parsed.username or parsed.password:
+        raise ValueError("public coordinator URL must not contain credentials")
+    if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
+        raise ValueError("public coordinator URL must not include a path, query, or fragment")
+    config = {
+        "format": CLIENT_CONFIG_FORMAT,
+        "version": CLIENT_CONFIG_VERSION,
+        "coordinator_url": url,
+        "password_required": bool(FED_PASSWORD),
+        "cohort": COHORT,
+        "modality": MODALITY,
+    }
+    if FED_PASSWORD:
+        config["password"] = FED_PASSWORD
+    return config
+
+
+def write_client_connection_config(path: str, coordinator_url: str) -> tuple[str, dict]:
+    """Atomically write a shareable desktop-client config JSON file with mode 0600."""
+    config = client_connection_config(coordinator_url)
+    out = os.path.abspath(os.path.expanduser(path))
+    parent = os.path.dirname(out) or "."
+    os.makedirs(parent, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".gba-df-client-config-", suffix=".json", dir=parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+            f.write("\n")
+        os.replace(tmp, out)
+        os.chmod(out, 0o600)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+    return out, config
 
 _test = np.load(os.path.join(HERE, "data", "test.npz"))
 X_TEST, Y_TEST = _test["X"], _test["y"].astype(str)
@@ -343,5 +397,30 @@ async def predict(req: Request):
 
 
 if __name__ == "__main__":
+    import argparse
     import uvicorn
-    uvicorn.run("coordinator:app", host="127.0.0.1", port=8055)
+
+    parser = argparse.ArgumentParser(description="Run the GBA-DF federated coordinator")
+    parser.add_argument("--host", default="127.0.0.1", help="bind address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8055, help="bind port (default: 8055)")
+    parser.add_argument("--public-url", help="client-reachable http(s) URL for the exported config")
+    parser.add_argument("--write-client-config", metavar="PATH",
+                        help="write a desktop-client connection JSON file at startup (mode 0600)")
+    args = parser.parse_args()
+
+    if args.write_client_config:
+        if args.public_url:
+            public_url = args.public_url
+        elif args.host in {"0.0.0.0", "::"}:
+            parser.error("--public-url is required with a wildcard --host when exporting client config")
+        else:
+            public_url = f"http://{args.host}:{args.port}"
+        try:
+            out, config = write_client_connection_config(args.write_client_config, public_url)
+        except (OSError, ValueError) as e:
+            parser.error(f"could not write client config: {e}")
+        print(f"Wrote desktop client config (mode 0600): {out}")
+        if config["password_required"]:
+            print("The config includes the shared password; distribute it only over an approved channel.")
+
+    uvicorn.run(app, host=args.host, port=args.port)

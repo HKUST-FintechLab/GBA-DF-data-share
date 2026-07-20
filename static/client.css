@@ -139,6 +139,12 @@
   .stlock{color:var(--ok);font-weight:600}
   .stshared{margin-left:8px;color:var(--mut);font-weight:500}
 
+  .configmodal{position:fixed;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(20,30,45,.28);backdrop-filter:blur(5px)}
+  .configmodal.hidden{display:none}
+  .configcard{width:min(620px,100%);padding:22px;border:1px solid rgba(255,255,255,.76);border-radius:18px;background:rgba(255,255,255,.97);box-shadow:0 24px 64px rgba(16,34,58,.24)}
+  .configcard .vs{margin:6px 0 14px;line-height:1.55}.configjson{display:block;box-sizing:border-box;width:100%;resize:vertical;min-height:170px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#f8fbff;color:var(--ink);font:12px/1.5 var(--mono)}
+  .configjson:focus{outline:0;border-color:#5aa9ff;box-shadow:0 0 0 3px rgba(0,122,255,.12)}.configactions{margin:16px 0 0}
+
   /* ---- macOS / iOS light appearance ---- */
   :root{
     --bg:#f5f5f7; --panel:rgba(255,255,255,.86); --panel2:#f7f9fc; --sidebar:rgba(250,251,253,.92);

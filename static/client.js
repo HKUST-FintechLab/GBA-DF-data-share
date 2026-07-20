@@ -18,6 +18,7 @@ const HANT_MODALITIES = {
 
 function applyLang(){
   document.querySelectorAll("[data-i]").forEach(el=>{ const k=el.getAttribute("data-i"); if(I18N[LANG][k]!=null) el.textContent=I18N[LANG][k]; });
+  document.querySelectorAll("[data-i-placeholder]").forEach(el=>{ const k=el.getAttribute("data-i-placeholder"); if(I18N[LANG][k]!=null) el.placeholder=I18N[LANG][k]; });
   $("#zhHans").classList.toggle("on",LANG==="zh"); $("#zhHant").classList.toggle("on",LANG==="zh-Hant"); $("#en").classList.toggle("on",LANG==="en");
   document.documentElement.lang = LANG;
   renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderStatus();
@@ -79,6 +80,53 @@ function updateActionControls(){
   $("#videoImport").classList.toggle("hidden",!action);
   $("#pick").textContent=action?t("pick_npz"):t("pick");
 }
+
+const CONNECTION_CONFIG_FORMAT="gba-df-client-config";
+function openConfigImport(){
+  $("#configMsg").innerHTML="";
+  $("#configModal").classList.remove("hidden");
+  setTimeout(()=>$("#configJson").focus(),0);
+}
+function closeConfigImport(){ $("#configModal").classList.add("hidden"); }
+function cleanCoordinatorUrl(value){
+  if(typeof value!=="string") return null;
+  try{
+    const url=new URL(value.trim());
+    if(!["http:","https:"].includes(url.protocol)||!url.hostname||url.username||url.password) return null;
+    if(url.pathname!=="/"||url.search||url.hash) return null;
+    return url.origin;
+  }catch(_e){ return null; }
+}
+function importConnectionConfig(){
+  let config;
+  try{ config=JSON.parse($("#configJson").value); }
+  catch(_e){ msg("#configMsg","bad",t("config_invalid_json")); return; }
+  if(!config||Array.isArray(config)||typeof config!=="object") { msg("#configMsg","bad",t("config_invalid")); return; }
+  if(config.format!=null && config.format!==CONNECTION_CONFIG_FORMAT){ msg("#configMsg","bad",t("config_unknown_format")); return; }
+  if(config.version!=null && config.version!==1){ msg("#configMsg","bad",t("config_unknown_format")); return; }
+  const coord=cleanCoordinatorUrl(config.coordinator_url??config.coord);
+  const password=config.password??config.key;
+  const nodeId=config.node_id;
+  const name=config.display_name??config.name;
+  const rounds=config.rounds;
+  if(!coord || (password!=null&&typeof password!=="string") || (nodeId!=null&&typeof nodeId!=="string") ||
+      (name!=null&&typeof name!=="string") || (rounds!=null&&(!Number.isInteger(rounds)||rounds<1||rounds>20)) ||
+      (typeof password==="string"&&password.length>4096) || (typeof nodeId==="string"&&nodeId.length>128) ||
+      (typeof name==="string"&&name.length>160)) { msg("#configMsg","bad",t("config_invalid")); return; }
+  $("#coord").value=coord;
+  if(typeof password==="string") $("#passwd").value=password;
+  if(typeof nodeId==="string") $("#nodeid").value=nodeId;
+  if(typeof name==="string") $("#nodename").value=name;
+  if(rounds!=null) $("#rounds").value=String(rounds);
+  sel.sch=null; $("#s3next").disabled=true; setConn("off",""); closeConfigImport();
+  msg("#s3msg","warn",t("config_imported"));
+}
+
+$("#importConfig").onclick=openConfigImport;
+$("#cancelConfig").onclick=closeConfigImport;
+$("#applyConfig").onclick=importConnectionConfig;
+$("#configModal").onclick=event=>{ if(event.target===$("#configModal")) closeConfigImport(); };
+document.addEventListener("keydown",event=>{ if(event.key==="Escape"&&!$("#configModal").classList.contains("hidden")) closeConfigImport(); });
 
 function msg(sel_, kind, html){ $(sel_).innerHTML=`<div class="msg ${kind}">${html}</div>`; }
 

@@ -141,9 +141,11 @@ The CDN receives normal library/model requests but never receives the selected v
 Raw-video conversion therefore needs network access the first time MediaPipe assets are loaded; direct
 NPZ input remains available without that step. Python MediaPipe is not required.
 
-To join a hosted federation, you only run the **desktop client** — no server to stand up. Ask whoever
-runs the coordinator for its **URL** and the **password**, enter both on the *Node & coordinator* step
-(the built-in **Test connection** confirms them), and go. Raw data never leaves your machine either way.
+To join a hosted federation, you only run the **desktop client** — no server to stand up. On the *Node &
+coordinator* step, either enter the coordinator **URL** and **password** manually, or choose **Import
+connection config…** and paste the JSON supplied by the coordinator. The importer accepts
+`coordinator_url`, `password`, `node_id`, `display_name`, and `rounds`, then requires a fresh **Test
+connection** before training starts. Raw data never leaves your machine either way.
 
 ### Access control (password) & cohort mode
 
@@ -165,6 +167,23 @@ FED_PASSWORD=<your-password> FED_COHORT=3 \
 | `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
 
 Share the password out-of-band — it gates who may contribute data to the federation.
+
+### Shareable desktop connection configuration
+
+When starting the coordinator through `coordinator.py`, it can write a JSON configuration that the
+desktop client can paste directly. Use a client-reachable address for `--public-url`; a wildcard bind
+address such as `0.0.0.0` is not a usable partner address by itself.
+
+```bash
+FED_PASSWORD=<your-password> FED_COHORT=3 \
+  uv run python coordinator.py --host 0.0.0.0 --port 8055 \
+  --public-url https://federation.example.org:8055 \
+  --write-client-config ./federation-client-config.json
+```
+
+The generated JSON contains the coordinator URL, modality/cohort metadata, and—when
+`FED_PASSWORD` is set—the shared `password`. It is written with owner-only `0600` permissions and is
+never safe to commit, attach to a public issue, or share through an unapproved channel.
 
 ## Run a node on another machine (partner group)
 
