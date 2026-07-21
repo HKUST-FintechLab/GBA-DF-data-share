@@ -147,7 +147,9 @@ class Api:
             return {"ok": True, "modality": fed_mod, "modality_info": sch.get("modality_info"),
                     "n_features": sch["n_features"], "classes": sch["classes"],
                     "cohort": sch["cohort"], "dp": sch["dp"],
-                    "epsilon_budget": sch.get("epsilon_budget"), "compatible": compatible}
+                    "epsilon_budget": sch.get("epsilon_budget"),
+                    "primary_metric": sch.get("primary_metric"),
+                    "next_round": sch.get("next_round", 1), "compatible": compatible}
         except Exception as e:
             return {"ok": False, "error": f"cannot reach coordinator: {e}"}
 

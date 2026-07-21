@@ -54,6 +54,37 @@ for e in forged.entries:
     e["sig"] = base64.b64encode(atk.sign(e["hash"].encode())).decode()
 check("forged+re-signed log (wrong key) -> verify FAILS vs pinned pubkey", not forged.verify(pub))
 
+print("== exportable audit evidence bundle ==")
+from verify_audit_bundle import verify_bundle
+node_key = fc.gen_key(); node_id = "hospital_a"; rnd = 1; n_samples = 42
+payload_hash = fc.sha256_hex(fc._canon([11, 22, 33]))
+node_sig = node_key.sign(f"{node_id}|{rnd}|{n_samples}|{payload_hash}".encode())
+bundle_audit = fc.Audit(ck)
+bundle_audit.append("genesis", "coordinator", {"dataset": "test"}, ts=1.0)
+bundle_audit.append("register", node_id, {"name": "Hospital A", "samples": n_samples}, ts=2.0)
+bundle_audit.append("submit", node_id,
+                    {"round": rnd, "n_samples": n_samples, "masked_cells": 3},
+                    payload_sha256=payload_hash, ts=3.0)
+bundle_body = {
+    "format": "gba-df-audit-bundle", "version": 1, "generated_at": 4.0,
+    "room": "test", "federation": {},
+    "coordinator_public_key_pem": fc.pub_pem(ck).decode(),
+    "participants": {node_id: {"pubkey_pem": fc.pub_pem(node_key).decode(),
+                                "name": "Hospital A", "samples": n_samples}},
+    "submission_receipts": [{"node_id": node_id, "round": rnd,
+                              "n_samples": n_samples, "payload_sha256": payload_hash,
+                              "sig_hex": node_sig.hex(), "ts": 3.0}],
+    "audit_count": len(bundle_audit.entries), "audit_tip": bundle_audit.entries[-1]["hash"],
+    "audit_entries": bundle_audit.entries, "model": None, "model_sha256": None,
+}
+bundle_hash = fc.sha256_hex(fc._canon(bundle_body))
+bundle = {**bundle_body, "bundle_sha256": bundle_hash,
+          "bundle_signature": base64.b64encode(ck.sign(bundle_hash.encode())).decode()}
+check("self-contained bundle verifies offline", verify_bundle(bundle)["ok"])
+tampered_bundle = copy.deepcopy(bundle); tampered_bundle["submission_receipts"][0]["n_samples"] = 999
+check("editing an exported node receipt -> bundle verification FAILS",
+      not verify_bundle(tampered_bundle)["ok"])
+
 print("== /submit signature binding ==")
 nk = fc.gen_key(); npub = nk.public_key()
 msg = b"node_1|3|2577|" + b"a" * 64

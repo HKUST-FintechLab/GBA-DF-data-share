@@ -33,6 +33,13 @@ function renderStatus(){
   $("#stConn").textContent = t(map[conn.state]) + (conn.host?` · ${conn.host}`:"");
 }
 function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; renderStatus(); }
+function renderTraffic(s){
+  const total=s?.application_bytes_sent||0, masked=s?.masked_payload_bytes_sent||0;
+  const metadata=s?.protocol_metadata_bytes_sent||0;
+  $("#rsTx").textContent=humanBytes(total);
+  $("#rsTxDetail").textContent=`${t("tx_masked")} ${humanBytes(masked)} · ${t("tx_metadata")} ${humanBytes(metadata)}`;
+  $("#stShared").textContent=total?t("st_shared_bytes").replace("{bytes}",humanBytes(total)):t("st_shared");
+}
 
 const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"],"zh-Hant":["資料類型","資料夾","連線","訓練"]};
 let curStep=1;
@@ -411,6 +418,8 @@ $("#s3next").onclick=async()=>{
     name:$("#nodename").value.trim(), folder:sel.folder, modality:sel.modality,
     rounds:+$("#rounds").value||5, seed:1 };
   $("#rsSamp").textContent=sel.scan.n_samples;
+  $("#rsRound").textContent="0"; $("#rsFed").textContent="—"; $("#rsEps").textContent="0";
+  $("#epsFill").style.width="0"; renderTraffic(null);
   $("#rsMetric").textContent=(sel.sch.primary_metric||"acc").toUpperCase();
   $("#log").textContent=""; $("#s4msg").innerHTML=""; $("#restart").classList.add("hidden");
   $("#stop").classList.remove("hidden"); $("#stop").disabled=false;
@@ -426,11 +435,12 @@ async function poll(){
     const cls=/round|masked/.test(l)?' class="r"':''; return `<span${cls}>${l.replace(/</g,"&lt;")}</span>`;
   }).join("\n"); el.scrollTop=el.scrollHeight;
   if(s){
-    $("#rsRound").textContent=s.rounds_done||0;
+    $("#rsRound").textContent=s.current_round||s.rounds_done||0;
     const v=s.fed_primary; $("#rsFed").textContent=(typeof v==="number")?v.toFixed(3):"…";
     $("#rsEps").textContent=(s.global_eps??0);
     const bud=sel.sch?.epsilon_budget||10; $("#epsFill").style.width=Math.min(100,100*(s.global_eps||0)/bud)+"%";
     $("#stEps").textContent=`ε ${s.global_eps??0} / ${bud}`;
+    renderTraffic(s);
   }
   if(st.done){
     clearInterval(pollTimer); pollTimer=null;

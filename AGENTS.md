@@ -25,7 +25,8 @@ The project demonstrates:
 - pairwise-masked secure aggregation of integer tree-leaf counts;
 - coordinator-applied central `(epsilon, 0)` differential privacy;
 - a coordinator-enforced global epsilon budget;
-- Ed25519-signed, hash-chained audit events;
+- persistent Ed25519-signed, hash-chained audit events and exportable verification packages;
+- exact application-layer JSON payload-byte accounting in every node run;
 - comparison with centralized-DP and non-private reference models;
 - downloadable, pickle-free JSON models for local inference;
 - a CLI node, desktop partner client, coordinator dashboard, and reproducible demo.
@@ -89,6 +90,7 @@ uv run python bench.py
 | `client_app.py` | Desktop partner client |
 | `coordinator.py` | FastAPI coordinator |
 | `predict.py` | Downloaded-model local inference and optional hosted inference |
+| `verify_audit_bundle.py` | Offline audit-package signature, chain, receipt, and model-hash verifier |
 | `verify_security.py` | Security and privacy regression checks |
 | `bench.py` | IID/non-IID privacy-utility benchmark |
 | `run_demo.py` | Demo orchestration |
@@ -123,6 +125,8 @@ Do not weaken or overstate these constraints:
 - The trust model assumes an honest-but-curious, non-colluding coordinator and honest leaf-count construction.
 - Secure aggregation hides node inputs but does not provide Byzantine robustness or cryptographically prove that submitted counts are valid.
 - The signed hash chain is tamper-evident within the documented trust model. A fully compromised coordinator requires external anchoring.
+- Preserve coordinator audit persistence: state is coordinator-signed, files are atomic/mode `0600`, and corruption fails closed.
+- Transfer statistics mean exact UTF-8 JSON application payload bytes. Do not present them as total network/TLS bytes.
 - Keep all wire and model formats constrained and pickle-free. Do not introduce `pickle.loads` or opaque executable payloads.
 - Node Ed25519 private keys must remain local, use file mode `0600`, and never be committed.
 - The convergence curve represents ensemble-size variance reduction, not iterative gradient-style learning.
@@ -136,7 +140,7 @@ Do not weaken or overstate these constraints:
 
 ## Runtime configuration and repository hygiene
 
-- `FED_PASSWORD` and `FED_COHORT` are runtime environment variables. Never hard-code credentials.
+- `FED_PASSWORD`, `FED_COHORT`, and `FED_STATE_DIR` are runtime environment variables. Never hard-code credentials.
 - Do not commit real passwords, access tokens, private keys, server addresses, or deployment-specific connection details.
 - Cross-site deployment requires appropriate TLS, authentication, firewall, key-management, and institutional data-processing controls.
 - `data/`, `nodes/`, `.venv/`, caches, logs, and generated artifacts are runtime-local and git-ignored.

@@ -26,8 +26,9 @@ window.GBA_DF_I18N = {
     config_invalid_json:"Enter valid JSON configuration.", config_invalid:"The connection configuration is invalid.",
     config_unknown_format:"This is not a supported GBA-DF connection configuration.", config_imported:"Configuration imported. Test the connection before starting.",
     s4_h:"Federated training — live", s4_private:"Raw data stays local",
-    s4_banner:"This node shares pairwise-masked integer counts only; the coordinator recovers just the pooled sum.",
-    rs_fed:"Global model", rs_round:"Round", rs_eps:"Privacy ε used", rs_samp:"Local samples",
+    s4_banner:"This node sends pairwise-masked integer counts plus protocol metadata; the coordinator recovers just the pooled sum.",
+    rs_fed:"Global model", rs_round:"Round", rs_eps:"Privacy ε used", rs_samp:"Local samples", rs_tx:"FL JSON payload sent",
+    rs_tx_detail:"masked 0 B · metadata 0 B", tx_masked:"masked", tx_metadata:"metadata",
     stop:"Stop", restart:"Run again",
     s4_note:"The global accuracy is evaluated by the coordinator on its held-out test set. Secure aggregation gives a meaningful privacy guarantee with a non-colluding coordinator and a cohort of 3 or more nodes.",
     scanning:"Reading folder locally…", found:"recordings found", files:"files", feats:"features",
@@ -35,8 +36,8 @@ window.GBA_DF_I18N = {
     connecting:"Contacting coordinator…", compat_ok:"Compatible — federation matches your modality.",
     compat_bad:"Modality mismatch: this coordinator runs a different data type.",
     mismatch_feat:"Feature count differs from the federation; check you picked the right modality.",
-    waiting:"Waiting for the rest of the cohort to join…", train_done:"Done — only masked aggregates ever left this machine.",
-    st_off:"Not connected", st_on:"Connected", st_run:"Training", st_privacy:"Raw data stays local", st_shared:"Sharing: masked aggregate counts only", st_done:"Done"
+    waiting:"Waiting for the rest of the cohort to join…", train_done:"Done — no raw data left this machine; only masked counts and protocol metadata were sent.",
+    st_off:"Not connected", st_on:"Connected", st_run:"Training", st_privacy:"Raw data stays local", st_shared:"Sharing: masked counts + protocol metadata", st_shared_bytes:"FL JSON payload sent: {bytes}", st_done:"Done"
   },
   zh:{
     title:"GBA-DF 联邦节点", subtitle:"加入数据联邦 —— 你的原始数据永不离开本机",
@@ -65,8 +66,9 @@ window.GBA_DF_I18N = {
     config_invalid_json:"请输入有效的 JSON 配置。", config_invalid:"连接配置无效。",
     config_unknown_format:"这不是受支持的 GBA-DF 连接配置。", config_imported:"配置已导入；开始前请测试连接。",
     s4_h:"联邦训练 · 实时", s4_private:"原始数据留在本机",
-    s4_banner:"本节点只共享成对掩码后的整数计数；协调器只能还原汇总后的总和。",
-    rs_fed:"全局模型", rs_round:"轮次", rs_eps:"已用隐私预算 ε", rs_samp:"本地样本",
+    s4_banner:"本节点发送成对掩码后的整数计数及协议元数据；协调器只能还原汇总后的总和。",
+    rs_fed:"全局模型", rs_round:"轮次", rs_eps:"已用隐私预算 ε", rs_samp:"本地样本", rs_tx:"已发送 FL JSON 载荷",
+    rs_tx_detail:"掩码计数 0 B · 元数据 0 B", tx_masked:"掩码计数", tx_metadata:"元数据",
     stop:"停止", restart:"再跑一次",
     s4_note:"全局准确率由协调器在其保留测试集上评估。当协调器不合谋、且节点数≥3 时，安全聚合能提供有意义的隐私保证。",
     scanning:"正在本地读取文件夹…", found:"条录制", files:"个文件", feats:"维特征",
@@ -74,8 +76,8 @@ window.GBA_DF_I18N = {
     connecting:"正在连接协调器…", compat_ok:"兼容 —— 联邦模态与你的选择一致。",
     compat_bad:"模态不匹配：该协调器运行的是另一种数据类型。",
     mismatch_feat:"特征维度与联邦不一致；请确认选对了模态。",
-    waiting:"等待其余节点加入本轮联邦…", train_done:"完成 —— 全程只有掩码后的聚合离开了本机。",
-    st_off:"未连接", st_on:"已连接", st_run:"训练中", st_privacy:"原始数据留在本机", st_shared:"共享：仅掩码后的聚合计数", st_done:"完成"
+    waiting:"等待其余节点加入本轮联邦…", train_done:"完成 —— 原始数据没有离开本机；仅发送了掩码计数和协议元数据。",
+    st_off:"未连接", st_on:"已连接", st_run:"训练中", st_privacy:"原始数据留在本机", st_shared:"共享：掩码计数及协议元数据", st_shared_bytes:"已发送 FL JSON 载荷：{bytes}", st_done:"完成"
   },
   "zh-Hant":{
     title:"GBA-DF 聯邦節點", subtitle:"加入資料聯邦 —— 你的原始資料永不離開本機",
@@ -104,8 +106,9 @@ window.GBA_DF_I18N = {
     config_invalid_json:"請輸入有效的 JSON 設定。", config_invalid:"連線設定無效。",
     config_unknown_format:"這不是受支援的 GBA-DF 連線設定。", config_imported:"設定已匯入；開始前請測試連線。",
     s4_h:"聯邦訓練 · 即時", s4_private:"原始資料留在本機",
-    s4_banner:"本節點只分享成對遮罩後的整數計數；協調器只能還原彙總後的總和。",
-    rs_fed:"全域模型", rs_round:"輪次", rs_eps:"已用隱私預算 ε", rs_samp:"本機樣本",
+    s4_banner:"本節點傳送成對遮罩後的整數計數及協定中繼資料；協調器只能還原彙總後的總和。",
+    rs_fed:"全域模型", rs_round:"輪次", rs_eps:"已用隱私預算 ε", rs_samp:"本機樣本", rs_tx:"已傳送 FL JSON 載荷",
+    rs_tx_detail:"遮罩計數 0 B · 中繼資料 0 B", tx_masked:"遮罩計數", tx_metadata:"中繼資料",
     stop:"停止", restart:"再跑一次",
     s4_note:"全域準確率由協調器在其保留測試集上評估。當協調器不合謀、且節點數≥3 時，安全聚合能提供有意義的隱私保證。",
     scanning:"正在本機讀取資料夾…", found:"筆錄製", files:"個檔案", feats:"維特徵",
@@ -113,7 +116,7 @@ window.GBA_DF_I18N = {
     connecting:"正在連線至協調器…", compat_ok:"相容 —— 聯邦模態與你的選擇一致。",
     compat_bad:"模態不相符：該協調器運行的是另一種資料類型。",
     mismatch_feat:"特徵維度與聯邦不一致；請確認選對了模態。",
-    waiting:"等待其餘節點加入本輪聯邦…", train_done:"完成 —— 全程只有遮罩後的彙總資料離開本機。",
-    st_off:"未連線", st_on:"已連線", st_run:"訓練中", st_privacy:"原始資料留在本機", st_shared:"分享：僅遮罩後的彙總計數", st_done:"完成"
+    waiting:"等待其餘節點加入本輪聯邦…", train_done:"完成 —— 原始資料沒有離開本機；僅傳送了遮罩計數和協定中繼資料。",
+    st_off:"未連線", st_on:"已連線", st_run:"訓練中", st_privacy:"原始資料留在本機", st_shared:"分享：遮罩計數及協定中繼資料", st_shared_bytes:"已傳送 FL JSON 載荷：{bytes}", st_done:"完成"
   }
 };

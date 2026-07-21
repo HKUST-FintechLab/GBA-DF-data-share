@@ -73,7 +73,8 @@ def main():
 
     print(f"\n== Done. Dashboard live at {url} (Ctrl+C to stop) ==")
     print("   Federated vs centralized AUC, signed audit chain, and the")
-    print("   'raw data transferred: 0 bytes' invariant are all on screen.")
+    print("   exact JSON payload accounting and the 'raw data transferred: 0 bytes' invariant")
+    print("   are all on screen.")
     try:
         coord.wait()
     except KeyboardInterrupt:

@@ -112,11 +112,30 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
     cli = httpx.Client(base_url=coord, timeout=120.0, headers=_auth_headers(key, session))
     summary = {"node_id": node_id, "n_samples": n_samples, "rounds_done": 0,
                "raw_bytes_sent": 0, "global_eps": 0.0, "fed_primary": None,
-               "primary_metric": sch.get("primary_metric", "acc"), "ok": True, "error": None}
+               "primary_metric": sch.get("primary_metric", "acc"), "ok": True, "error": None,
+               "current_round": None, "application_bytes_sent": 0,
+               "application_bytes_received": 0, "masked_payload_bytes_sent": 0,
+               "protocol_metadata_bytes_sent": 0}
+
+    def post_json(path, payload, masked_bytes=0):
+        """Send and count the exact UTF-8 JSON application body (not HTTP/TLS overhead)."""
+        body = fc._canon(payload)
+        summary["application_bytes_sent"] += len(body)
+        summary["masked_payload_bytes_sent"] += masked_bytes
+        summary["protocol_metadata_bytes_sent"] += len(body) - masked_bytes
+        response = cli.post(path, content=body, headers={"Content-Type": "application/json"})
+        summary["application_bytes_received"] += len(response.content)
+        return response.json()
+
+    def get_json(path):
+        response = cli.get(path)
+        summary["application_bytes_received"] += len(response.content)
+        return response.json()
+
     try:
-        r = cli.post("/register", json={
+        r = post_json("/register", {
             "node_id": node_id, "name": name, "pubkey_pem": fc.pub_pem(ed_key).decode(),
-            "x_pub": sa.x_pub_hex(x_key), "samples": n_samples}).json()
+            "x_pub": sa.x_pub_hex(x_key), "samples": n_samples})
         if not r.get("ok"):
             summary.update(ok=False, error=f"register rejected: {r.get('error')}")
             on_log(f"register rejected: {r.get('error')}"); return summary
@@ -126,7 +145,7 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         for _ in range(480):
             if should_stop():
                 summary.update(ok=False, error="stopped"); return summary
-            p = cli.get("/participants").json()
+            p = get_json("/participants")
             if p["ready"]:
                 peers = {q["node_id"]: sa.load_x_pub(q["x_pub"]) for q in p["participants"]}
                 break
@@ -136,17 +155,20 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             on_log("cohort never completed — aborting."); return summary
         on_log(f"cohort ready ({len(peers)} nodes); secure aggregation active.")
 
-        for rd in range(1, rounds + 1):
+        start_round = int(sch.get("next_round", 1))
+        for completed, rd in enumerate(range(start_round, start_round + rounds), start=1):
             if should_stop():
                 summary.update(error="stopped"); break
             trees = dpmod.build_shared_structure(struct_seed + rd, X.shape[1], bounds, depth, n_trees)
             counts = dpmod.count_on_shared(trees, X, y, classes, assign_seed=seed * 100 + rd)
             flat = dpmod.flatten_counts(counts)
             masked = [int(v) for v in sa.mask_counts(node_id, x_key, peers, rd, flat)]
-            phash = fc.sha256_hex(fc._canon(masked))
+            masked_body = fc._canon(masked)
+            phash = fc.sha256_hex(masked_body)
             sig = ed_key.sign(f"{node_id}|{rd}|{n_samples}|{phash}".encode())
-            resp = cli.post("/submit", json={"node_id": node_id, "round": rd,
-                            "n_samples": n_samples, "masked": masked, "sig_hex": sig.hex()}).json()
+            resp = post_json("/submit", {"node_id": node_id, "round": rd,
+                             "n_samples": n_samples, "masked": masked,
+                             "sig_hex": sig.hex()}, masked_bytes=len(masked_body))
             if not resp.get("ok"):
                 summary.update(ok=False, error=f"round {rd}: {resp.get('error')}")
                 on_log(f"round {rd} REJECTED: {resp.get('error')}"); break
@@ -154,17 +176,21 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             for _ in range(480):
                 if should_stop():
                     break
-                rr = cli.get(f"/round/{rd}").json()
+                rr = get_json(f"/round/{rd}")
                 if rr.get("ready"):
                     res = rr; break
                 time.sleep(0.3)
             val = res.get("fed_primary")
-            summary.update(rounds_done=rd, global_eps=resp.get("global_eps"),
-                           fed_primary=val)
+            global_eps = float(res.get("global_eps", resp.get("global_eps")) or 0.0)
+            epsilon_budget = res.get("epsilon_budget", resp.get("epsilon_budget"))
+            summary.update(rounds_done=completed, current_round=rd,
+                           global_eps=global_eps, fed_primary=val)
             val_s = f"{val:.3f}" if isinstance(val, (int, float)) else "n/a"
-            kb = len(fc._canon(masked)) / 1024
-            on_log(f"round {rd}: raw sent = 0 bytes · masked counts uploaded ({kb:.0f} KB) · "
-                   f"global ε {resp.get('global_eps'):.2f}/{resp.get('epsilon_budget')} · "
+            total_kb = summary["application_bytes_sent"] / 1024
+            masked_kb = summary["masked_payload_bytes_sent"] / 1024
+            on_log(f"round {rd}: raw sent = 0 bytes · JSON payload sent {total_kb:.1f} KB "
+                   f"(masked vector {masked_kb:.1f} KB) · "
+                   f"global ε {global_eps:.2f}/{epsilon_budget} · "
                    f"global {summary['primary_metric']} = {val_s}")
             if on_round:
                 on_round(dict(summary))
@@ -173,5 +199,5 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         on_log(f"error: {e}")
     finally:
         cli.close()
-    on_log("done — only masked aggregates ever left this machine.")
+    on_log("done — no raw data left this machine; only masked counts and protocol metadata were sent.")
     return summary

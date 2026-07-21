@@ -80,6 +80,9 @@
   <a class="badge" id="modelLink" href="/model" target="_blank"
      style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
      title="Download the aggregated global model (JSON) — consume it with predict.py">⬇ model</a>
+  <a class="badge" id="auditBundleLink" href="/audit/bundle"
+     style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
+     title="Download a self-contained, offline-verifiable audit evidence package">⬇ audit package</a>
 </header>
 
 <main>
@@ -118,7 +121,7 @@
     <div class="audit" id="audit"></div>
   </section>
 </main>
-<div class="foot">Secure aggregation — under a non-colluding coordinator + full cohort (n≥3) it recovers only the pooled sum, never an individual node's data (hides inputs, does not verify them) · central (ε)-DP on the aggregate, global ε-budget · Ed25519-signed, hash-chained audit verifiable at <a href="/pubkey" style="color:var(--mut)">/pubkey</a></div>
+<div class="foot">Secure aggregation — under a non-colluding coordinator + full cohort (n≥3) it recovers only the pooled sum, never an individual node's data (hides inputs, does not verify them) · central (ε)-DP on the aggregate, global ε-budget · persistent Ed25519-signed audit, independently verifiable from the exported package</div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -151,7 +154,7 @@ async function poll(){
   $('caveat').textContent = `${warn}Secure aggregation: nodes upload PAIRWISE-MASKED leaf counts of a shared data-independent forest; under an honest-but-curious, non-colluding coordinator with the full cohort (n≥3) it recovers ONLY the pooled sum — not any node's data — then adds Laplace at ε=${eR}/round (central DP), global budget ${s.epsilon_budget}. It HIDES inputs but does NOT verify them — a malicious node could skew the model (input-robustness = future work). Utility cost ≈${ceil?ceil.toFixed(2):'?'}→${fed?fed.toFixed(2):'?'} is the price of data-independent splits; secure-agg matches centralized-DP even under non-IID. ${s.dataset.toUpperCase()}, single-seed, window-level.`;
 
   // chain badge
-  $('chainBadge').textContent = a.verified ? `chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
+  $('chainBadge').textContent = a.verified ? `${s.audit_persistent?'persistent · ':''}chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
   $('chainBadge').className = 'badge '+(a.verified?'ok':'');
   if(!a.verified){ $('chainBadge').style.color='var(--warn)'; $('chainBadge').style.borderColor='#e8c39a'; }
 

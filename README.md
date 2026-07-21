@@ -9,13 +9,13 @@ client** a partner runs on their own machine (pick modality → pick folder → 
 |---|---|---|
 | **Multi-node** | Coordinator + N independent node processes (each can run on a different machine). | Fully supported. |
 | **DP + secure aggregation** | Every node uploads **pairwise-masked** integer leaf counts of a **shared, data-independent** forest. The coordinator can only recover the **pooled sum** (masks cancel) — never an individual node's counts — then adds **Laplace(1/ε)** to that secure aggregate (central DP on the sum) and meters a **global ε-budget**. | Genuine **(ε,0)-DP** on the aggregate, **basic composition**, ε **coordinator-enforced**. The coordinator never sees individual node data. Caveats: honest-but-curious, **non-colluding** coordinator; **full cohort required per round** (no Shamir dropout recovery — future work). |
-| **Signed + hash-chained audit** | Each node update is **Ed25519-signed** (binds round, n_samples, masked payload); each event is signed by the coordinator and **hash-chained**. `verify()` checks the chain **and** every signature against the coordinator's published key (`/pubkey`). | Detects any edit / truncation / re-sign-with-wrong-key within a run (`verify_security.py`). A *fully compromised* coordinator needs external anchoring (future work). |
+| **Persistent, exportable audit** | Each node update is **Ed25519-signed**; every event is coordinator-signed and hash-chained. The coordinator key, chain, node public keys, signed submission receipts, privacy spend, and latest model survive restarts. `GET /audit/bundle` exports a self-contained package for `verify_audit_bundle.py`. | Detects edits to the package, chain, receipts, or model. Files are written atomically with mode `0600`. A *fully compromised* coordinator still needs external anchoring (future work). |
 | **Federated ≈ centralized-DP, robust to non-IID** | Multi-seed benchmark (`bench.py`) vs centralized-DP + the non-private ceiling, IID **and** non-IID. | Secure-agg tracks centralized-DP and **recovers the non-IID collapse**: the naive per-node ensemble drops to **0.51±0.10** under label skew; secure-agg holds **0.73±0.03** (figure below). |
 
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
 ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **25 checks**. Hardened across **four rounds** of adversarial code audit
+`verify_security.py` runs **27 checks**. Hardened across **four rounds** of adversarial code audit
 (security · regressions · DP correctness · secure aggregation).
 
 Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
@@ -165,8 +165,28 @@ FED_PASSWORD=<your-password> FED_COHORT=3 \
 |---|---|
 | `FED_PASSWORD` | If set, every **contribute-path** call (`/schema`, `/register`, `/participants`, `/submit`, `/round`) must carry header `X-Fed-Key: <password>`. The desktop client sends it from its **Password** field; the CLI uses `--password`. Unset = open (local dev only). Read-only paths (`/status`, `/audit`, `/model`) stay open so the dashboard and consumer path keep working. |
 | `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
+| `FED_STATE_DIR` | Directory for the persistent coordinator signing key and per-room audit state. Default: `data/coordinator_state/`. State is coordinator-signed; key/state files are atomically written with owner-only mode `0600`. Back this directory up and never commit it. |
 
 Share the password out-of-band — it gates who may contribute data to the federation.
+
+### Export and verify the audit package
+
+The dashboard's **audit package** button downloads the complete verification evidence. It can be
+verified offline without trusting the running coordinator:
+
+```bash
+curl -o audit-bundle.json http://<host>:8055/audit/bundle
+uv run python verify_audit_bundle.py audit-bundle.json
+```
+
+The verifier checks the package signature, coordinator-signed hash chain, every retained node
+submission signature, the audit tip/count, and the included model hash. A restart resumes the signed
+chain and restores the global privacy spend/model; an incomplete in-flight round is intentionally
+discarded and recorded as a `coordinator_restart` event.
+
+The desktop client also reports the exact UTF-8 JSON application payload it sends, split into the
+masked vector and protocol metadata. This is not a packet-capture figure: HTTP headers, TCP/IP, and
+TLS framing are excluded, while raw recording bytes remain exactly zero in the recommended path.
 
 ### Shareable desktop connection configuration
 
@@ -245,14 +265,15 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |
 | `bench.py` | multi-seed IID/non-IID benchmark + the ε-utility figure (`assets/epsilon_utility.png`) |
 | `coordinator.py` | FastAPI server: register / verify-signature / secure-sum / evaluate / audit / dashboard (publishes modality in `/schema`) |
+| `verify_audit_bundle.py` | offline verifier for exported audit packages: bundle/chain/node signatures + model hash |
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
 | `client_app.py` | **desktop node client** (pywebview): pick modality → folder picker → node info → connect, live progress |
-| `static/client.html` | the client's bilingual (中/EN) 4-step wizard UI (warm cream palette) |
+| `static/client.html` | the client's English / 简体中文 / 繁體中文 4-step desktop wizard |
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
-| `static/dashboard.html` | live coordinator dashboard (warm cream palette): accuracy, nodes, signed audit log |
+| `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
 
@@ -272,8 +293,10 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
   silently corrupt the sum. A startup warning fires if **cohort < 3** (masking needs ≥3 to be meaningful).
 - **Replay protection** (round must increase) and **TOFU enrolment** (`node_id` can't be rebound to a
   new key). Coordinator binds **127.0.0.1 by default** — expose deliberately and add TLS for cross-site.
-- **Audit signatures are actually verified** against the coordinator's published key (`/pubkey`); the
-  in-process check is integrity-against-accident + naive tampering, not against a compromised host.
+- **Audit evidence is persistent and portable.** The coordinator key and signed per-room state are
+  written atomically with mode `0600`; `/audit/bundle` includes the chain, node signature receipts, public keys,
+  privacy spend, and model hash. `verify_audit_bundle.py` verifies it offline. This is still not external
+  anchoring against a fully compromised coordinator host.
 - Node private keys are written `0600` and git-ignored.
 
 Run `uv run python verify_security.py` to see all of this pass (and the attacks fail).

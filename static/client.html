@@ -141,6 +141,7 @@
           <div class="rs"><div class="l" data-i="rs_round">Round</div><div class="v" id="rsRound">0</div></div>
           <div class="rs"><div class="l" data-i="rs_eps">Privacy ε used</div><div class="v" id="rsEps">0</div><div class="epsbar"><div class="epsfill" id="epsFill"></div></div></div>
           <div class="rs"><div class="l" data-i="rs_samp">Local samples</div><div class="v" id="rsSamp">—</div></div>
+          <div class="rs"><div class="l" data-i="rs_tx">FL JSON payload sent</div><div class="v" id="rsTx">0 B</div><div class="l" id="rsTxDetail" data-i="rs_tx_detail">masked 0 B · metadata 0 B</div></div>
         </div>
         <div class="log" id="log"></div>
         <div id="s4msg"></div>
@@ -171,7 +172,7 @@
     <span class="stdot" id="stDot"></span><span id="stConn"></span>
     <span class="spacer"></span>
     <span id="stEps" class="stmeta"></span>
-    <span class="stlock">🔒 <span data-i="st_privacy">Raw data stays local</span><span class="stshared" data-i="st_shared">Sharing: masked aggregate counts only</span></span>
+    <span class="stlock">🔒 <span data-i="st_privacy">Raw data stays local</span><span class="stshared" id="stShared" data-i="st_shared">Sharing: masked counts + protocol metadata</span></span>
   </div>
 </div>
 

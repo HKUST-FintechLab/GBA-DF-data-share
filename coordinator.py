@@ -18,6 +18,7 @@ Deployment knobs (env vars):
                  never sees another guest's data or model. (cohort=1 => no masking, so the
                  privacy story there is central DP only, not secure aggregation.)
 """
+import base64
 import json
 import os
 import tempfile
@@ -109,6 +110,8 @@ COHORT = int(os.environ.get("FED_COHORT", META.get("cohort", len(META.get("nodes
 SECURE_COHORT = COHORT >= 3        # masking gives meaningful privacy only with >=3 non-colluding nodes
 ISOLATE = COHORT == 1              # per-guest private federations (multi-tenant), keyed by session
 FED_PASSWORD = os.environ.get("FED_PASSWORD", "")      # shared access token; "" = open (local dev)
+STATE_DIR = os.path.abspath(os.path.expanduser(
+    os.environ.get("FED_STATE_DIR", os.path.join(HERE, "data", "coordinator_state"))))
 N_FEATURES = int(X_TEST.shape[1])
 if not SECURE_COHORT:
     print(f"WARNING: cohort={COHORT} < 3 — pairwise masking provides weak/no privacy "
@@ -126,7 +129,36 @@ def shared_trees(rnd: int):
     return dp.build_shared_structure(STRUCT_SEED + rnd, N_FEATURES, BOUNDS, DEPTH, N_TREES)
 
 
-COORD_KEY = fc.gen_key()
+def _atomic_private_write(path: str, payload: bytes):
+    """Atomically persist coordinator evidence with owner-only permissions."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".gba-df-state-", dir=os.path.dirname(path))
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "wb") as f:
+            f.write(payload)
+        os.replace(tmp, path)
+        os.chmod(path, 0o600)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def _load_or_make_coordinator_key():
+    path = os.path.join(STATE_DIR, "coordinator_key.pem")
+    if os.path.exists(path):
+        os.chmod(path, 0o600)
+        with open(path, "rb") as f:
+            return fc.load_priv(f.read())
+    key = fc.gen_key()
+    _atomic_private_write(path, fc.priv_pem(key))
+    return key
+
+
+COORD_KEY = _load_or_make_coordinator_key()
 COORD_PUB = COORD_KEY.public_key()
 LOCK = threading.Lock()
 
@@ -135,15 +167,90 @@ LOCK = threading.Lock()
 SESSIONS = {}          # room_id -> state dict
 
 
-def new_state():
+def _state_path(room: str) -> str:
+    room_hash = fc.sha256_hex(room.encode())[:24]
+    return os.path.join(STATE_DIR, f"audit-{room_hash}.json")
+
+
+def _federation_config() -> dict:
+    return {"dataset": DATASET, "modality": MODALITY, "classes": CLASSES,
+            "n_features": N_FEATURES, "cohort": COHORT, "dp": DP,
+            "structure_seed": STRUCT_SEED}
+
+
+def _persist_state(room: str, st: dict):
+    payload = {
+        "format": "gba-df-audit-state", "version": 1, "room": room,
+        "federation_config": _federation_config(),
+        "coordinator_public_key_pem": fc.pub_pem(COORD_KEY).decode(),
+        "audit_entries": st["audit"].entries,
+        "participants": st["evidence_participants"],
+        "submission_receipts": st["submission_receipts"],
+        "model": st["model"].serialize() if st["model"].n_updates() else None,
+        "metrics": st["metrics"], "global_eps": st["global_eps"],
+        "rejected": st["rejected"], "updated_at": time.time(),
+    }
+    digest = fc.sha256_hex(fc._canon(payload))
+    sealed = {**payload, "state_sha256": digest,
+              "state_signature": base64.b64encode(COORD_KEY.sign(digest.encode())).decode()}
+    _atomic_private_write(_state_path(room), fc._canon(sealed))
+
+
+def _valid_state_seal(saved: dict) -> bool:
+    try:
+        signed = {k: v for k, v in saved.items()
+                  if k not in {"state_sha256", "state_signature"}}
+        digest = fc.sha256_hex(fc._canon(signed))
+        signature = base64.b64decode(saved.get("state_signature", ""), validate=True)
+        return saved.get("state_sha256") == digest and fc.verify_sig(
+            COORD_PUB, signature, digest.encode())
+    except Exception:
+        return False
+
+
+def _append_audit(room: str, st: dict, event: str, node: str, detail: dict,
+                  payload_sha256: str = ""):
+    entry = st["audit"].append(event, node, detail, payload_sha256=payload_sha256,
+                               ts=time.time())
+    _persist_state(room, st)
+    return entry
+
+
+def new_state(room: str):
     st = {
         "nodes": {}, "model": fc.GlobalModel(CLASSES), "audit": fc.Audit(COORD_KEY),
         "metrics": [], "round_buf": {}, "round_done": {}, "global_eps": 0.0,
-        "rejected": 0, "started": time.time(),
+        "rejected": 0, "started": time.time(), "evidence_participants": {},
+        "submission_receipts": [],
     }
-    st["audit"].append("genesis", "coordinator",
-                       {"dataset": DATASET, "cohort": COHORT, "secure_aggregation": SECURE_COHORT,
-                        f"centralized_{PRIMARY}": round(CENTRAL[PRIMARY], 4)}, ts=time.time())
+    path = _state_path(room)
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            saved = json.load(f)
+        if (saved.get("format") != "gba-df-audit-state" or saved.get("version") != 1
+                or saved.get("room") != room
+                or saved.get("federation_config") != _federation_config()
+                or saved.get("coordinator_public_key_pem") != fc.pub_pem(COORD_KEY).decode()
+                or not _valid_state_seal(saved)):
+            raise RuntimeError(f"invalid persisted audit state: {path}")
+        st["audit"].entries = saved.get("audit_entries", [])
+        if not st["audit"].verify(COORD_PUB, expected_len=len(st["audit"].entries)):
+            raise RuntimeError(f"persisted audit chain verification failed: {path}")
+        st["evidence_participants"] = saved.get("participants", {})
+        st["submission_receipts"] = saved.get("submission_receipts", [])
+        st["metrics"] = saved.get("metrics", [])
+        st["global_eps"] = float(saved.get("global_eps", 0.0))
+        st["rejected"] = int(saved.get("rejected", 0))
+        if saved.get("model"):
+            st["model"] = fc.GlobalModel.from_serialized(saved["model"])
+        _append_audit(room, st, "coordinator_restart", "coordinator",
+                      {"discarded_incomplete_rounds": True,
+                       "global_eps_restored": round(st["global_eps"], 4)})
+    else:
+        _append_audit(room, st, "genesis", "coordinator",
+                      {"dataset": DATASET, "cohort": COHORT,
+                       "secure_aggregation": SECURE_COHORT,
+                       f"centralized_{PRIMARY}": round(CENTRAL[PRIMARY], 4)})
     return st
 
 
@@ -152,7 +259,7 @@ def get_state(room: str):
     Call while holding LOCK."""
     st = SESSIONS.get(room)
     if st is None:
-        st = SESSIONS[room] = new_state()
+        st = SESSIONS[room] = new_state(room)
     return st
 
 
@@ -193,11 +300,18 @@ async def pubkey():
 
 
 @app.get("/schema")
-async def schema():
+async def schema(request: Request):
+    room = room_of(request)
+    with LOCK:
+        st = get_state(room)
+        completed = [int(e["detail"]["round"]) for e in st["audit"].entries
+                     if e.get("event") == "aggregate" and "round" in e.get("detail", {})]
+        next_round = max(completed, default=0) + 1
     return {"classes": CLASSES, "feature_bounds": BOUNDS.tolist(), "n_features": N_FEATURES,
             "primary_metric": PRIMARY, "cohort": COHORT, "dataset": DATASET,
             "modality": MODALITY, "modality_info": MODALITY_INFO, "isolated": ISOLATE,
-            "dp": {**DP, "structure_seed": STRUCT_SEED}, "epsilon_budget": BUDGET}
+            "dp": {**DP, "structure_seed": STRUCT_SEED}, "epsilon_budget": BUDGET,
+            "next_round": next_round}
 
 
 @app.get("/participants")
@@ -223,16 +337,28 @@ async def register(req: Request):
     with LOCK:
         st = get_state(room)
         cur = st["nodes"].get(node_id)
-        if cur and cur["pubkey"] != pub:
-            st["audit"].append("rejected", node_id, {"reason": "pubkey rebind"}, ts=time.time())
+        enrolled = st["evidence_participants"].get(node_id)
+        if (cur and cur["pubkey"] != pub) or (enrolled and enrolled["pubkey_pem"] != pub):
+            _append_audit(room, st, "rejected", node_id, {"reason": "pubkey rebind"})
             return JSONResponse({"ok": False, "error": "node_id already enrolled"}, status_code=409)
-        if not cur and len(st["nodes"]) >= COHORT:       # enrollment cap: extra nodes would break masking
-            st["audit"].append("rejected", node_id, {"reason": "cohort full"}, ts=time.time())
+        historical_full = len(st["evidence_participants"]) >= COHORT and not enrolled
+        if not cur and (len(st["nodes"]) >= COHORT or historical_full):
+            # Enrollment remains bound to the original signing keys across restarts.
+            _append_audit(room, st, "rejected", node_id, {"reason": "cohort full"})
             return JSONResponse({"ok": False, "error": f"cohort full ({COHORT})"}, status_code=409)
         if not cur:
+            # Incomplete rounds are intentionally discarded on restart, so only a completed
+            # aggregate advances replay protection. Nodes may safely resubmit an interrupted round.
+            previous_round = max((int(e["detail"]["round"]) for e in st["audit"].entries
+                                  if e.get("event") == "aggregate"), default=0)
             st["nodes"][node_id] = {"pubkey": pub, "x_pub": xpub, "name": name,
-                                    "samples": samples, "last_round": 0}
-            st["audit"].append("register", node_id, {"name": name, "samples": samples}, ts=time.time())
+                                    "samples": samples, "last_round": previous_round}
+            st["evidence_participants"][node_id] = {
+                "pubkey_pem": pub, "name": name, "samples": samples,
+            }
+            _append_audit(room, st, "register", node_id,
+                          {"name": name, "samples": samples,
+                           "key_fingerprint": fc.sha256_hex(pub.encode())[:16]})
     return {"ok": True, "node_id": node_id, "cohort": COHORT}
 
 
@@ -253,31 +379,39 @@ async def submit(req: Request):
             return JSONResponse({"ok": False, "error": "unregistered node"}, status_code=403)
         if rnd <= node["last_round"]:
             st["rejected"] += 1
-            st["audit"].append("rejected", node_id, {"round": rnd, "reason": "replay/stale"}, ts=time.time())
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "replay/stale"})
             return JSONResponse({"ok": False, "error": "stale or replayed round"}, status_code=409)
         # validate masked vector: exact length, ints in range
         if (not isinstance(masked, list) or len(masked) != EXPECT_LEN
                 or not all(isinstance(x, int) and 0 <= x < sa.MOD for x in masked)):
             st["rejected"] += 1
-            st["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad masked vector"}, ts=time.time())
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "bad masked vector"})
             return JSONResponse({"ok": False, "error": "invalid masked payload"}, status_code=400)
         payload_hash = fc.sha256_hex(fc._canon(masked))
         message = f"{node_id}|{rnd}|{n_samples}|{payload_hash}".encode()
         if not fc.verify_sig(fc.load_pub(node["pubkey"].encode()), sig, message):
             st["rejected"] += 1
-            st["audit"].append("rejected", node_id, {"round": rnd, "reason": "bad signature"}, ts=time.time())
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "bad signature"})
             return JSONResponse({"ok": False, "error": "signature verification failed"}, status_code=401)
         if rnd not in st["round_done"] and st["global_eps"] + EPS_ROUND > BUDGET + 1e-9:
             st["rejected"] += 1
-            st["audit"].append("rejected", node_id, {"round": rnd, "reason": "global ε budget exceeded"}, ts=time.time())
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "global ε budget exceeded"})
             return JSONResponse({"ok": False, "error": "global epsilon budget exceeded"}, status_code=429)
 
         node["last_round"] = rnd
         buf = st["round_buf"].setdefault(rnd, {})
         buf[node_id] = np.asarray(masked, dtype=np.int64)
-        st["audit"].append("submit", node_id,
-                           {"round": rnd, "masked_cells": len(masked)},
-                           payload_sha256=payload_hash, ts=time.time())
+        st["submission_receipts"].append({
+            "node_id": node_id, "round": rnd, "n_samples": n_samples,
+            "payload_sha256": payload_hash, "sig_hex": sig.hex(), "ts": time.time(),
+        })
+        _append_audit(room, st, "submit", node_id,
+                      {"round": rnd, "n_samples": n_samples,
+                       "masked_cells": len(masked)}, payload_sha256=payload_hash)
 
         # full cohort for this round -> SECURE-SUM (masks cancel only if the exact enrolled set submits)
         if (len(buf) >= COHORT and set(buf) == set(st["nodes"]) and rnd not in st["round_done"]):
@@ -291,10 +425,11 @@ async def submit(req: Request):
             st["metrics"].append({"seq": len(st["metrics"]), "ts": time.time(),
                                   "round": rnd, **m, "central": CENTRAL[PRIMARY]})
             st["round_done"][rnd] = {"fed_primary": m[PRIMARY], "global_trees": m["n_trees"]}
-            st["audit"].append("aggregate", "coordinator",
-                               {"round": rnd, "participants": len(buf), "global_trees": m["n_trees"],
-                                "epsilon": EPS_ROUND, "global_eps": round(st["global_eps"], 4),
-                                f"fed_{PRIMARY}": round(m[PRIMARY], 4)}, ts=time.time())
+            _append_audit(room, st, "aggregate", "coordinator",
+                          {"round": rnd, "participants": len(buf),
+                           "global_trees": m["n_trees"], "epsilon": EPS_ROUND,
+                           "global_eps": round(st["global_eps"], 4),
+                           f"fed_{PRIMARY}": round(m[PRIMARY], 4)})
 
         done = st["round_done"].get(rnd)
         eps = st["global_eps"]
@@ -309,7 +444,8 @@ async def round_result(rnd: int, request: Request):
     with LOCK:
         st = get_state(room)
         d = st["round_done"].get(rnd)
-        return {"ready": d is not None, **(d or {}), "primary_metric": PRIMARY}
+        return {"ready": d is not None, **(d or {}), "primary_metric": PRIMARY,
+                "global_eps": st["global_eps"], "epsilon_budget": BUDGET}
 
 
 @app.get("/status")
@@ -331,6 +467,8 @@ async def status(request: Request):
             "global_trees": last["n_trees"] if last else 0,
             "fed_primary": last[PRIMARY] if last else None,
             "audit_len": len(st["audit"].entries),
+            "audit_persistent": True,
+            "audit_bundle_endpoint": "/audit/bundle",
         }
 
 
@@ -342,6 +480,46 @@ async def audit(request: Request):
         e = st["audit"].entries
         return {"verified": st["audit"].verify(COORD_PUB, expected_len=len(e)),
                 "count": len(e), "tip": e[-1]["hash"] if e else "0" * 64, "entries": e}
+
+
+def build_audit_bundle(room: str, st: dict) -> dict:
+    """Build a self-contained, coordinator-signed verification package."""
+    entries = st["audit"].entries
+    model_data = st["model"].serialize() if st["model"].n_updates() else None
+    payload = {
+        "format": "gba-df-audit-bundle", "version": 1, "generated_at": time.time(),
+        "room": room,
+        "federation": {
+            "dataset": DATASET, "modality": MODALITY, "classes": CLASSES,
+            "cohort": COHORT, "secure_aggregation": SECURE_COHORT,
+            "dp": DP, "epsilon_budget": BUDGET,
+            "global_eps": round(st["global_eps"], 4),
+        },
+        "coordinator_public_key_pem": fc.pub_pem(COORD_KEY).decode(),
+        "participants": st["evidence_participants"],
+        "submission_receipts": st["submission_receipts"],
+        "audit_count": len(entries),
+        "audit_tip": entries[-1]["hash"] if entries else "0" * 64,
+        "audit_entries": entries,
+        "model": model_data,
+        "model_sha256": fc.sha256_hex(fc._canon(model_data)) if model_data else None,
+    }
+    digest = fc.sha256_hex(fc._canon(payload))
+    return {**payload, "bundle_sha256": digest,
+            "bundle_signature": base64.b64encode(COORD_KEY.sign(digest.encode())).decode()}
+
+
+@app.get("/audit/bundle")
+async def audit_bundle(request: Request):
+    room = room_of(request)
+    with LOCK:
+        st = get_state(room)
+        bundle = build_audit_bundle(room, st)
+    filename = f"gba-df-audit-{fc.sha256_hex(room.encode())[:12]}.json"
+    return JSONResponse(bundle, headers={
+        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Cache-Control": "no-store",
+    })
 
 
 @app.get("/model")
