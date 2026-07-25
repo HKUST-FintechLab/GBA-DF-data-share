@@ -149,7 +149,8 @@ class Api:
                     "cohort": sch["cohort"], "dp": sch["dp"],
                     "epsilon_budget": sch.get("epsilon_budget"),
                     "primary_metric": sch.get("primary_metric"),
-                    "next_round": sch.get("next_round", 1), "compatible": compatible}
+                    "next_round": sch.get("next_round", 1), "compatible": compatible,
+                    "invitation_required": bool(sch.get("invitation_required"))}
         except Exception as e:
             return {"ok": False, "error": f"cannot reach coordinator: {e}"}
 
@@ -175,11 +176,14 @@ class Api:
             sch = nc.fetch_schema(cfg["coord"], key=key)
             X, y, key_dir = nc.load_local(sch, folder=cfg.get("folder"), data=cfg.get("data"),
                                           modality=cfg.get("modality"), on_log=self._log_line)
+            invitation = cfg.get("invitation") or None
+            if invitation is not None and not isinstance(invitation, dict):
+                raise ValueError("the imported invitation is not a valid JSON object")
             summ = nc.run_node(
                 cfg["coord"], cfg["node_id"], cfg.get("name") or cfg["node_id"], X, y, sch,
                 rounds=int(cfg.get("rounds", 5)), seed=int(cfg.get("seed", 1)), key_dir=key_dir,
                 on_log=self._log_line, should_stop=lambda: self._stop,
-                on_round=lambda s: self._set_summary(s), key=key)
+                on_round=lambda s: self._set_summary(s), key=key, invitation=invitation)
             with self._lock:
                 self._state.update(running=False, done=True, summary=summ,
                                    error=None if summ.get("ok") else summ.get("error"))

@@ -1,5 +1,5 @@
 const I18N = window.GBA_DF_I18N;
-let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null};
+let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null, invitation:null};
 let conn={state:"off", host:""};      // off | on | run | done
 const HOLISTIC_VERSION="0.5.1675471629";
 const HOLISTIC_CDN=`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@${HOLISTIC_VERSION}`;
@@ -89,6 +89,8 @@ function updateActionControls(){
 }
 
 const CONNECTION_CONFIG_FORMAT="gba-df-client-config";
+const CONNECTION_CONFIG_VERSIONS=[1,2];
+const INVITATION_FORMAT="gba-df-invitation";
 function openConfigImport(){
   $("#configMsg").innerHTML="";
   $("#configModal").classList.remove("hidden");
@@ -110,23 +112,28 @@ function importConnectionConfig(){
   catch(_e){ msg("#configMsg","bad",t("config_invalid_json")); return; }
   if(!config||Array.isArray(config)||typeof config!=="object") { msg("#configMsg","bad",t("config_invalid")); return; }
   if(config.format!=null && config.format!==CONNECTION_CONFIG_FORMAT){ msg("#configMsg","bad",t("config_unknown_format")); return; }
-  if(config.version!=null && config.version!==1){ msg("#configMsg","bad",t("config_unknown_format")); return; }
+  if(config.version!=null && !CONNECTION_CONFIG_VERSIONS.includes(config.version)){ msg("#configMsg","bad",t("config_unknown_format")); return; }
   const coord=cleanCoordinatorUrl(config.coordinator_url??config.coord);
   const password=config.password??config.key;
   const nodeId=config.node_id;
   const name=config.display_name??config.name;
   const rounds=config.rounds;
+  // The invitation is forwarded to the coordinator untouched — it alone verifies the signature.
+  const invitation=config.invitation;
   if(!coord || (password!=null&&typeof password!=="string") || (nodeId!=null&&typeof nodeId!=="string") ||
       (name!=null&&typeof name!=="string") || (rounds!=null&&(!Number.isInteger(rounds)||rounds<1||rounds>20)) ||
       (typeof password==="string"&&password.length>4096) || (typeof nodeId==="string"&&nodeId.length>128) ||
       (typeof name==="string"&&name.length>160)) { msg("#configMsg","bad",t("config_invalid")); return; }
+  if(invitation!=null && (typeof invitation!=="object"||Array.isArray(invitation)||invitation.format!==INVITATION_FORMAT)){
+    msg("#configMsg","bad",t("config_invalid_invitation")); return; }
+  sel.invitation=invitation??null;
   $("#coord").value=coord;
   if(typeof password==="string") $("#passwd").value=password;
   if(typeof nodeId==="string") $("#nodeid").value=nodeId;
   if(typeof name==="string") $("#nodename").value=name;
   if(rounds!=null) $("#rounds").value=String(rounds);
   sel.sch=null; $("#s3next").disabled=true; setConn("off",""); closeConfigImport();
-  msg("#s3msg","warn",t("config_imported"));
+  msg("#s3msg","warn",t(sel.invitation?"config_imported_invited":"config_imported"));
 }
 
 $("#importConfig").onclick=openConfigImport;
@@ -408,6 +415,7 @@ $("#testconn").onclick=async()=>{
   let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
   if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
   else if(!featOk){ msg("#s3msg","bad",`${t("mismatch_feat")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
+  else if(r.invitation_required && !sel.invitation){ msg("#s3msg","bad",`${t("invitation_missing")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
   else { msg("#s3msg","ok",`${t("compat_ok")}<br>${lines}`); $("#s3next").disabled=false; setConn("on",host); }
 };
 
@@ -416,7 +424,7 @@ $("#s3next").onclick=async()=>{
   const cfg={ coord:$("#coord").value.trim(), key:$("#passwd").value.trim(),
     node_id:($("#nodeid").value.trim()||"node_1"),
     name:$("#nodename").value.trim(), folder:sel.folder, modality:sel.modality,
-    rounds:+$("#rounds").value||5, seed:1 };
+    rounds:+$("#rounds").value||5, seed:1, invitation:sel.invitation||null };
   $("#rsSamp").textContent=sel.scan.n_samples;
   $("#rsRound").textContent="0"; $("#rsFed").textContent="—"; $("#rsEps").textContent="0";
   $("#epsFill").style.width="0"; renderTraffic(null);

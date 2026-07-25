@@ -2,6 +2,7 @@
 (client_app.py) share ONE implementation. Nothing here transmits raw data: it extracts
 features locally, then per round uploads only a PAIRWISE-MASKED integer count vector.
 """
+import json
 import os
 import secrets
 import time
@@ -9,12 +10,38 @@ import time
 import httpx
 import numpy as np
 
+import client_config as ccfg
 import dp as dpmod
 import fed_common as fc
 import modalities as mods
 import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def load_client_config(path: str) -> dict:
+    """Read an administrator-issued connection config into node settings.
+
+    Version 2 files also carry the coordinator-signed institution invitation, which is
+    forwarded verbatim at registration — this node never inspects or alters it; the
+    coordinator is the only party that verifies the signature.
+    """
+    with open(os.path.expanduser(path), encoding="utf-8") as f:
+        config = json.load(f)
+    if not isinstance(config, dict):
+        raise ValueError("connection config must be a JSON object")
+    if config.get("format") != ccfg.CLIENT_CONFIG_FORMAT:
+        raise ValueError("not a GBA-DF connection configuration")
+    if config.get("version") not in ccfg.SUPPORTED_VERSIONS:
+        raise ValueError(f"unsupported connection config version: {config.get('version')}")
+    coord = ccfg.clean_coordinator_url(config.get("coordinator_url"))
+    invitation = config.get("invitation")
+    if invitation is not None and not isinstance(invitation, dict):
+        raise ValueError("invitation must be a JSON object")
+    return {"coord": coord, "password": config.get("password") or None,
+            "node_id": config.get("node_id") or None,
+            "name": config.get("display_name") or None,
+            "modality": config.get("modality") or None, "invitation": invitation}
 
 
 def load_or_make_key(node_dir: str):
@@ -91,14 +118,16 @@ def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
 
 def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
              key_dir=None, on_log=print, on_round=None, should_stop=lambda: False,
-             key=None, session=None):
+             key=None, session=None, invitation=None):
     """Register (Ed25519 + ephemeral X25519), wait for the cohort, then each round build the
     SHARED data-independent trees, count LOCAL data, upload a MASKED count vector, and poll
     for the securely-aggregated global metric. Returns a summary dict.
 
-    key      shared access token (X-Fed-Key) if the federation is password-protected.
-    session  private session id (X-Fed-Session); auto-generated so a solo/isolated
-             federation gives this run its own room. Pass one to resume a specific room."""
+    key         shared access token (X-Fed-Key) if the federation is password-protected.
+    session     private session id (X-Fed-Session); auto-generated so a solo/isolated
+                federation gives this run its own room. Pass one to resume a specific room.
+    invitation  the coordinator-signed institution invitation, when the federation enforces
+                them. Sent verbatim at registration and bound there to this node's key."""
     classes = sch["classes"]
     session = session or secrets.token_hex(8)
     bounds = np.asarray(sch["feature_bounds"], dtype=float)
@@ -133,9 +162,15 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         return response.json()
 
     try:
-        r = post_json("/register", {
-            "node_id": node_id, "name": name, "pubkey_pem": fc.pub_pem(ed_key).decode(),
-            "x_pub": sa.x_pub_hex(x_key), "samples": n_samples})
+        enrol = {"node_id": node_id, "name": name,
+                 "pubkey_pem": fc.pub_pem(ed_key).decode(),
+                 "x_pub": sa.x_pub_hex(x_key), "samples": n_samples}
+        if invitation:
+            enrol["invitation"] = invitation
+        elif sch.get("invitation_required"):
+            on_log("this federation requires a signed institution invitation — "
+                   "import the connection configuration your administrator issued.")
+        r = post_json("/register", enrol)
         if not r.get("ok"):
             summary.update(ok=False, error=f"register rejected: {r.get('error')}")
             on_log(f"register rejected: {r.get('error')}"); return summary
