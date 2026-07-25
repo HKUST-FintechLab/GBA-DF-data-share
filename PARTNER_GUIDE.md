@@ -227,8 +227,13 @@ you are screening are themselves sensitive.
 ## 8. Security & operations
 
 - **Networking:** the coordinator binds localhost by default; for a real cross-site run we expose it
-  deliberately **behind TLS** (HTTPS) and share a pinned certificate / URL. Keep your node's outbound
-  access limited to that host.
+  deliberately **behind TLS** (HTTPS) at an institutional reverse proxy and share the URL. Keep your
+  node's outbound access limited to that host.
+- **You can check you reached the right coordinator.** Your invitation records the coordinator's key
+  fingerprint, so your node verifies it before registering and aborts — uploading nothing — if the
+  server at that address holds a different key. You will see `coordinator identity pinned to the key
+  that signed your invitation` in the log, and a warning if the address is plain `http://`. If you
+  ever see an identity mismatch, stop and contact us; do not retry against another address.
 - **Keys:** `node_key.pem` is your identity — back it up securely, never commit or email it.
 - **Access:** contributor and read/operator passwords are separate pilot roles. Exchange them through
   an approved out-of-band channel.

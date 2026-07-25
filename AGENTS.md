@@ -141,6 +141,7 @@ Do not weaken or overstate these constraints:
 - Institution invitations are coordinator-signed, bound to the node key on first registration, and re-checked against the signed registry on every submission. Keep every failure path closed: unknown, edited, expired, revoked, and unreadable all deny.
 - `admin_invite.py` is intentionally host-access only. Do not expose invitation issuance or revocation as an HTTP endpoint.
 - An invitation authenticates an institution. It does not attest to the honesty of that institution's counts.
+- A node pins the coordinator against the key fingerprint inside its invitation before registering, and must upload nothing on a mismatch. Pinning authenticates the peer; it does not encrypt the transport, so do not present it as a replacement for TLS.
 - Secure aggregation hides node inputs but does not provide Byzantine robustness or cryptographically prove that submitted counts are valid.
 - The signed hash chain is tamper-evident within the documented trust model. A fully compromised coordinator requires external anchoring.
 - Preserve coordinator audit persistence: state is coordinator-signed, files are atomic/mode `0600`, and corruption fails closed.

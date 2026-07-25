@@ -219,6 +219,33 @@ Properties worth stating precisely:
 - An invitation is still a bearer credential until first use, and it authenticates an institution,
   not the honesty of its counts. Distribute it over an approved channel.
 
+### Transport and coordinator identity
+
+The pilot topology is deliberately simple, so that what each layer proves stays easy to state:
+
+```text
+partner node ──HTTPS──▶ institutional reverse proxy (TLS terminates here)
+                          │  private network / loopback
+                          ▼
+                        uvicorn coordinator, bound to 127.0.0.1
+```
+
+| Layer | What it proves |
+|---|---|
+| TLS on the proxy | The transport is encrypted and the *hostname* is the one the certificate was issued for. |
+| Invitation pinning | The process answering at that address holds the coordinator key that signed your invitation. Checked by the node before it registers; a mismatch aborts before anything is uploaded. |
+| Contributor password | The caller knows a shared token. |
+| Signed invitation | *Which* institution is calling, until when. |
+
+The node reports the pinning outcome (`coordinator identity pinned to the key that signed your
+invitation`) and warns when the address is plain `http://`. Pinning is not a substitute for TLS: on
+its own it authenticates the peer but leaves the payloads readable in transit. mTLS remains optional
+— the invitation plus a locally generated node key is the default onboarding path, because it needs
+no certificate authority on the partner side.
+
+Never expose the uvicorn process directly on a public interface; it binds `127.0.0.1` by default
+precisely so exposure is a deliberate act.
+
 ### Export and verify the audit package
 
 The dashboard's **audit package** button downloads the complete verification evidence. It can be

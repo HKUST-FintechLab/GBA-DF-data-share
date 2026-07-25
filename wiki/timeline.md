@@ -34,15 +34,17 @@ If only one engineer is available, move pilot go-live to 2026-09-28 and producti
   every enrolment and submission, the host-only `admin_invite.py`, and invitation-import UX in both
   the desktop client and `node.py --config`. Verified live: an uninvited node cannot register, and a
   revoked institution stops being accepted without a coordinator restart.
-- **Still required for the Aug 3–9 gate:** certificate/pinning diagnostics in the client, and the
-  frozen TLS topology those diagnostics assume.
+- **Aug 3–9 gate complete on 2026-07-26:** the node pins the coordinator against the key fingerprint
+  in its invitation before registering and aborts without uploading on a mismatch; the desktop client
+  runs the same check at *Test connection*; the pilot TLS topology is frozen and documented.
+  Verified live against a second coordinator holding a different key.
 
 ## Six-week pilot critical path
 
 | Period | Stream A — backend/security | Stream B — client/QA | Exit gate |
 |---|---|---|---|
-| **Jul 27–Aug 2** | Freeze threat model, endpoint permission matrix, invitation schema, TLS topology, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
-| **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX~~ (done 07-26); add certificate/pinning diagnostics | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
+| **Jul 27–Aug 2** | ~~Invitation schema and TLS topology~~ (done 07-26); freeze threat model, endpoint permission matrix, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
+| **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | Add durable round state, idempotency, timeout, cancel/restart, reconnect, and epsilon double-spend protection | Add clear waiting/offline/retry UI and network-failure recovery | Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice |
 | **Aug 17–23** | Add structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment (`/health` and `/ready` complete) | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
 | **Aug 24–30** | Add CI, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Run Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |

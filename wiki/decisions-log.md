@@ -4,6 +4,20 @@ Last updated: 2026-07-26
 
 Newest decisions appear first.
 
+## 2026-07-26 — Freeze the pilot TLS topology and coordinator pinning
+
+- Pilot topology: partner node → HTTPS → institutional reverse proxy terminating TLS → uvicorn
+  coordinator bound to `127.0.0.1`. The coordinator process is never exposed directly.
+- Pin coordinator identity using the key fingerprint already inside the invitation, rather than
+  distributing certificates or fingerprints separately. The node checks it before registering and
+  aborts without uploading on a mismatch.
+- Keep mTLS optional. Requiring a certificate authority on the partner side would slow onboarding for
+  a guarantee the invitation plus a locally generated node key already provides at the application
+  layer.
+- State the division of labour rather than blurring it: TLS proves the hostname and encrypts the
+  transport; pinning proves the process holds the issuing key; the password proves token knowledge;
+  the invitation proves which institution is calling. Do not present pinning as a TLS substitute.
+
 ## 2026-07-26 — Lock the institution-invitation design
 
 - An invitation is a coordinator-signed record naming one institution, its role, and an expiry, and

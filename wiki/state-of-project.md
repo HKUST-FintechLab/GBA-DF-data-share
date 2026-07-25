@@ -34,6 +34,8 @@ Verified on 2026-07-26:
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
 - Live three-command rehearsal: an issued invitation enrolled and trained a node, an uninvited node
   was refused, and a revocation stopped the enrolled node without restarting the coordinator.
+- Live pinning rehearsal against two coordinators: the node trained against the one holding the
+  issuing key and aborted, uploading nothing, when the same invitation was pointed at the other.
 
 ## Pilot blockers
 
@@ -54,7 +56,9 @@ Verified on 2026-07-26:
   re-read on every enrolment and submission, so a partner can be withdrawn without a coordinator
   restart, a client reinstall, or a password rotation for anyone else. Issuance lives in the
   host-only `admin_invite.py`, which also exports a version 2 partner configuration carrying the
-  invitation, imported by the desktop client or passed to `node.py --config`. This closes the
+  invitation, imported by the desktop client or passed to `node.py --config`. The node also pins the
+  coordinator against the key fingerprint in its invitation before registering, so a redirected or
+  impersonating address aborts the run before anything is uploaded. This closes the
   institution-identity blocker; the remaining P0 items are reliability, operations, and governance.
 - **2026-07-26 — Coordinator API boundary:** all contributor and read/model/audit/inference paths now
   have explicit access classes; contributor and read/operator passwords can be separated; only the
