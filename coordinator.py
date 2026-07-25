@@ -12,6 +12,9 @@ Deployment knobs (env vars):
   FED_PASSWORD   shared access token. If set, node-facing endpoints (/schema, /register,
                  /participants, /submit, /round) require header  X-Fed-Key: <password>.
                  Unset (default) = open, for local dev.
+  FED_READ_PASSWORD
+                 optional separate token for dashboard/model/audit/inference endpoints.
+                 Defaults to FED_PASSWORD when unset.
   FED_COHORT     override the cohort published in meta.json. FED_COHORT=1 turns on
                  PER-GUEST ISOLATION: each client (keyed by its X-Fed-Session header) gets
                  its OWN private cohort-1 federation — anyone can try alone, anytime, and
@@ -19,8 +22,10 @@ Deployment knobs (env vars):
                  privacy story there is central DP only, not secure aggregation.)
 """
 import base64
+from collections import deque
 import json
 import os
+import secrets
 import tempfile
 import threading
 import time
@@ -110,8 +115,26 @@ COHORT = int(os.environ.get("FED_COHORT", META.get("cohort", len(META.get("nodes
 SECURE_COHORT = COHORT >= 3        # masking gives meaningful privacy only with >=3 non-colluding nodes
 ISOLATE = COHORT == 1              # per-guest private federations (multi-tenant), keyed by session
 FED_PASSWORD = os.environ.get("FED_PASSWORD", "")      # shared access token; "" = open (local dev)
+FED_READ_PASSWORD = os.environ.get("FED_READ_PASSWORD", FED_PASSWORD)
 STATE_DIR = os.path.abspath(os.path.expanduser(
     os.environ.get("FED_STATE_DIR", os.path.join(HERE, "data", "coordinator_state"))))
+
+
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        raise RuntimeError(f"{name} must be an integer")
+    if not minimum <= value <= maximum:
+        raise RuntimeError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+MAX_BODY_BYTES = _bounded_env_int("FED_MAX_BODY_BYTES", 32 * 1024 * 1024,
+                                  1024, 128 * 1024 * 1024)
+RATE_LIMIT_PER_MINUTE = _bounded_env_int("FED_RATE_LIMIT_PER_MINUTE", 600, 10, 10000)
+WRITE_RATE_LIMIT_PER_MINUTE = _bounded_env_int(
+    "FED_WRITE_RATE_LIMIT_PER_MINUTE", 120, 5, 5000)
 N_FEATURES = int(X_TEST.shape[1])
 if not SECURE_COHORT:
     print(f"WARNING: cohort={COHORT} < 3 — pairwise masking provides weak/no privacy "
@@ -121,6 +144,8 @@ if ISOLATE:
     print("cohort=1 -> PER-GUEST ISOLATION on: each X-Fed-Session gets its own private federation.")
 if FED_PASSWORD:
     print("FED_PASSWORD set -> node endpoints require the X-Fed-Key header.")
+if FED_READ_PASSWORD:
+    print("Read/model/audit/inference endpoints require the X-Fed-Key header.")
 # expected masked-vector length (complete trees -> constant cell count)
 EXPECT_LEN = N_TREES * (2 ** (DEPTH + 1) - 1) * len(CLASSES)
 
@@ -274,24 +299,104 @@ def room_of(request: Request) -> str:
 
 app = FastAPI(title="GBA-DF Federated Coordinator (secure aggregation)")
 
-# endpoints that require the shared password (the "contribute your data" surface)
-_PROTECTED = ("/schema", "/participants", "/register", "/submit", "/round")
+# Public endpoints intentionally carry no institution/model/audit information.
+_CONTRIBUTE_PATHS = ("/schema", "/participants", "/register", "/submit", "/round")
+_READ_PATHS = ("/status", "/audit", "/model", "/predict")
+_RATE_LOCK = threading.Lock()
+_RATE_EVENTS = {}
+_RATE_LAST_CLEANUP = 0.0
+
+
+def _matches_path(path: str, prefixes: tuple[str, ...]) -> bool:
+    return any(path == p or path.startswith(p + "/") for p in prefixes)
+
+
+def _required_access(path: str) -> tuple[str, str]:
+    if _matches_path(path, _READ_PATHS):
+        return "read", FED_READ_PASSWORD
+    if _matches_path(path, _CONTRIBUTE_PATHS):
+        return "contribute", FED_PASSWORD
+    return "public", ""
+
+
+def _rate_allowed(client: str, bucket: str, limit: int, now: float) -> tuple[bool, int]:
+    """Per-process pilot limiter. A shared backend replaces this for multi-instance production."""
+    global _RATE_LAST_CLEANUP
+    cutoff = now - 60.0
+    key = (client, bucket)
+    with _RATE_LOCK:
+        if now - _RATE_LAST_CLEANUP >= 60.0:
+            stale = [k for k, q in _RATE_EVENTS.items() if not q or q[-1] < cutoff]
+            for old in stale:
+                _RATE_EVENTS.pop(old, None)
+            _RATE_LAST_CLEANUP = now
+        events = _RATE_EVENTS.setdefault(key, deque())
+        while events and events[0] < cutoff:
+            events.popleft()
+        if len(events) >= limit:
+            retry_after = max(1, int(61 - (now - events[0])))
+            return False, retry_after
+        events.append(now)
+        return True, 0
 
 
 @app.middleware("http")
-async def _auth(request: Request, call_next):
-    if FED_PASSWORD:
-        path = request.url.path
-        if any(path == p or path.startswith(p + "/") for p in _PROTECTED):
-            if request.headers.get("x-fed-key", "") != FED_PASSWORD:
-                return JSONResponse({"ok": False, "error": "unauthorized: bad or missing password"},
-                                    status_code=401)
+async def _security_boundary(request: Request, call_next):
+    path = request.url.path
+    access, required_key = _required_access(path)
+
+    if request.method in {"POST", "PUT", "PATCH"}:
+        content_length = request.headers.get("content-length")
+        try:
+            declared = int(content_length) if content_length is not None else None
+        except ValueError:
+            return JSONResponse({"ok": False, "error": "invalid Content-Length"}, status_code=400)
+        if declared is not None and declared > MAX_BODY_BYTES:
+            return JSONResponse({"ok": False, "error": "request body too large"},
+                                status_code=413)
+        body = await request.body()
+        if len(body) > MAX_BODY_BYTES:
+            return JSONResponse({"ok": False, "error": "request body too large"},
+                                status_code=413)
+
+    if access != "public":
+        client = request.client.host if request.client else "unknown"
+        is_write = request.method not in {"GET", "HEAD", "OPTIONS"}
+        limit = WRITE_RATE_LIMIT_PER_MINUTE if is_write else RATE_LIMIT_PER_MINUTE
+        allowed, retry_after = _rate_allowed(client, "write" if is_write else "read",
+                                             limit, time.monotonic())
+        if not allowed:
+            return JSONResponse({"ok": False, "error": "rate limit exceeded"}, status_code=429,
+                                headers={"Retry-After": str(retry_after)})
+
+    if required_key:
+        supplied = request.headers.get("x-fed-key", "")
+        if not secrets.compare_digest(supplied, required_key):
+            return JSONResponse(
+                {"ok": False, "error": f"unauthorized: {access} access required"},
+                status_code=401,
+            )
     return await call_next(request)
 
 
 @app.get("/")
 async def dashboard():
     return FileResponse(os.path.join(HERE, "static", "dashboard.html"))
+
+
+@app.get("/health")
+async def health():
+    """Public liveness check. It deliberately exposes no federation state."""
+    return {"ok": True, "service": "gba-df-coordinator"}
+
+
+@app.get("/ready")
+async def ready():
+    """Public readiness check for deployment probes."""
+    writable = os.path.isdir(STATE_DIR) and os.access(STATE_DIR, os.W_OK)
+    if not writable:
+        return JSONResponse({"ok": False, "ready": False}, status_code=503)
+    return {"ok": True, "ready": True}
 
 
 @app.get("/pubkey")
