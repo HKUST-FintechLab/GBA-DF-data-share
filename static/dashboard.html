@@ -128,6 +128,7 @@
 
   <section class="card">
     <h2>Participating nodes — each trains on its OWN local data</h2>
+    <div class="note" id="roundWait" style="display:none"></div>
     <div class="nodes" id="nodes"></div>
   </section>
 
@@ -214,6 +215,17 @@ async function poll(){
   $('chainBadge').textContent = a.verified ? `${s.audit_persistent?'persistent · ':''}chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
   $('chainBadge').className = 'badge '+(a.verified?'ok':'');
   if(!a.verified){ $('chainBadge').style.color='var(--warn)'; $('chainBadge').style.borderColor='#e8c39a'; }
+
+  // a stalled round names the institution the cohort is waiting on, and when it expires
+  const pending=(s.pending_rounds||[]).filter(r=>(r.waiting_for||[]).length);
+  const wait=$('roundWait');
+  wait.style.display = pending.length ? 'block' : 'none';
+  wait.innerHTML = pending.map(r=>{
+    const left=Math.max(0, Math.round((s.round_timeout_seconds||0)-r.waited_seconds));
+    return `Round ${esc(r.round)} is waiting for <b>${esc((r.waiting_for||[]).join(', '))}</b>
+      — ${esc(Math.round(r.waited_seconds))}s elapsed; discarded in ${esc(left)}s if the cohort
+      does not complete. A discarded round spends no ε and may be submitted again.`;
+  }).join('<br>');
 
   // nodes
   $('nodes').innerHTML = s.nodes.map(n=>`
