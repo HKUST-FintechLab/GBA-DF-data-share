@@ -299,7 +299,9 @@ def room_of(request: Request) -> str:
 
 app = FastAPI(title="GBA-DF Federated Coordinator (secure aggregation)")
 
-# Public endpoints intentionally carry no institution/model/audit information.
+# Public endpoints intentionally carry no institution/model/audit information. Any route not
+# explicitly classified below defaults to read/operator access so newly added endpoints fail closed.
+_PUBLIC_PATHS = ("/", "/health", "/ready", "/pubkey")
 _CONTRIBUTE_PATHS = ("/schema", "/participants", "/register", "/submit", "/round")
 _READ_PATHS = ("/status", "/audit", "/model", "/predict")
 _RATE_LOCK = threading.Lock()
@@ -312,11 +314,13 @@ def _matches_path(path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def _required_access(path: str) -> tuple[str, str]:
+    if path in _PUBLIC_PATHS:
+        return "public", ""
     if _matches_path(path, _READ_PATHS):
         return "read", FED_READ_PASSWORD
     if _matches_path(path, _CONTRIBUTE_PATHS):
         return "contribute", FED_PASSWORD
-    return "public", ""
+    return "read", FED_READ_PASSWORD
 
 
 def _rate_allowed(client: str, bucket: str, limit: int, now: float) -> tuple[bool, int]:

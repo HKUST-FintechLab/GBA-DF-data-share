@@ -34,6 +34,9 @@ check("liveness is public and contains no federation state",
       client.get("/health").json() == {"ok": True, "service": "gba-df-coordinator"})
 check("readiness is public", client.get("/ready").status_code == 200)
 check("coordinator public key remains public", client.get("/pubkey").status_code == 200)
+check("unclassified routes fail closed behind read/operator access",
+      client.get("/docs").status_code == 401
+      and client.get("/docs", headers=read).status_code == 200)
 
 check("schema rejects an anonymous request", client.get("/schema").status_code == 401)
 check("schema accepts the contributor credential",
