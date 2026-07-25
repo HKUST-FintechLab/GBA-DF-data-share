@@ -3,7 +3,7 @@
 Goal: a clean ~90-second screen recording that shows the claims live.
 Verified run (HAR, ε=1/round): **federated-DP 0.760 ≈ centralized-DP 0.723** (siloing is free) vs
 **non-private ceiling 0.972** (the DP utility cost); global ε metered (5/10), budget-exceed blocked;
-audit **chain + signatures verified**; `verify_security.py` → **25/25** checks pass. The same demo runs
+audit **chain + signatures verified**; `verify_security.py` → **28/28** checks pass. The same demo runs
 on any of three modalities — add `--modality eyegaze|action|neuro` (see the last section).
 
 ## Pre-flight
@@ -56,7 +56,8 @@ pickle / raw-array payload is rejected by the schema.
 ## Two audiences, two scripts
 
 - **Internal / technical:** forest-merge federated learning (random-forest / tree-merge); Ed25519-signed
-  updates; SHA-256 hash-chained audit; held-out test set; DP-noise layer is the planned next step.
+  updates; SHA-256 hash-chained audit; held-out test set; coordinator-applied Laplace noise and a
+  global ε budget.
 - **Partner / non-technical:** "Your data never leaves your hospital. You get a stronger shared
   screening model trained with everyone's data. Every step is signed and auditable, and you can run
   the node on your own machine."
@@ -75,8 +76,8 @@ uv run python client_app.py
 
 Narrate the client's four steps on camera: **pick modality → choose data folder** (native picker; it
 scans and shows the ASD/TD split locally) **→ enter coordinator + node info** ("Test connection" confirms
-the federation matches your modality) **→ Connect & start**. Point at the standing **"0 bytes raw
-uploaded"** banner and the live ε bar. Key line: *"same privacy machinery, any modality — only the
+the federation matches your modality) **→ Connect & start**. Point at **"Raw data stays local"**, the
+exact **FL JSON payload sent** counter, and the live ε bar. Key line: *"same privacy machinery, any modality — only the
 front end that reads your recordings changes; your raw data never leaves this window."*
 
 > The eye-gaze / action / EEG-fMRI demo cohorts are **synthetic** (clearly labelled) — they prove the

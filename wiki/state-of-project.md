@@ -28,7 +28,8 @@ These percentages are planning estimates, not formal maturity certifications.
 
 Verified on 2026-07-26:
 
-- `uv run python verify_security.py` — all 27 security/privacy checks passed.
+- `uv run python verify_security.py` — all 28 security/privacy checks passed, including the
+  coordinator HTTP security boundary.
 - `uv run python modalities.py` — eyegaze, action, and neuro extraction checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
 
@@ -37,13 +38,21 @@ Verified on 2026-07-26:
 | Priority | Blocker | Pilot solution |
 |---|---|---|
 | P0 | Shared password does not provide institution-level authorization | Signed one-time invitation JSON, per-institution Ed25519 identity, revocation, and role-based endpoint access |
-| P0 | Some read/model/audit/inference endpoints are not protected | Authenticate and authorize every non-public endpoint |
 | P0 | Full-cohort aggregation stalls if one node drops | Explicit round timeout, abort/restart, reconnect, and idempotent submission |
 | P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, durable round state, backup/restore, health checks, and monitoring |
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
 | P0 | Browser pose extraction depends on a public CDN | Bundled or institution-hosted MediaPipe/WASM assets with hashes and an offline path |
 | P0 | No automated CI/E2E/failure suite | CI plus three-node network, restart, timeout, duplicate-submit, and restore tests |
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
+
+## Recently completed
+
+- **2026-07-26 — Coordinator API boundary:** all contributor and read/model/audit/inference paths now
+  have explicit access classes; contributor and read/operator passwords can be separated; only the
+  dashboard shell, `/health`, `/ready`, and `/pubkey` are public. Constant-time token checks,
+  configurable request-body limits, a per-process pilot rate limiter, authenticated dashboard/model/
+  audit consumers, and an automated API regression suite were added. This closes endpoint exposure,
+  but does not replace the remaining institution-invitation and revocation blocker.
 
 ## Production-after-pilot blockers
 
@@ -58,4 +67,3 @@ Verified on 2026-07-26:
 The September target is a **monitored research pilot** with a small fixed cohort and a documented
 abort/restart procedure. It is not a clinical claim, a diagnostic product, or an unattended public
 service. Clinical use cannot be accelerated merely by completing engineering tasks.
-

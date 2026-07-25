@@ -23,14 +23,23 @@ Last updated: 2026-07-26
 
 If only one engineer is available, move pilot go-live to 2026-09-28 and production to 2026-12.
 
+## Progress
+
+- **Completed early on 2026-07-26:** explicit public/contributor/read endpoint classes; protection for
+  status, audit packages, models, and hosted inference; separate contributor and read/operator
+  passwords; constant-time checks; request-body limits; a per-process pilot rate limiter; `/health`
+  and `/ready`; authenticated dashboard and CLI consumers; and API security regressions.
+- **Still required for the Aug 3–9 gate:** signed institution invitations, expiry/revocation,
+  institution roles, and invitation-import UX. The current password roles are an interim boundary.
+
 ## Six-week pilot critical path
 
 | Period | Stream A — backend/security | Stream B — client/QA | Exit gate |
 |---|---|---|---|
 | **Jul 27–Aug 2** | Freeze threat model, endpoint permission matrix, invitation schema, TLS topology, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
-| **Aug 3–9** | Protect every endpoint; implement signed institution invitations, roles, revocation, rate/body limits, and secret handling | Add invitation import UX and certificate/pinning diagnostics | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
+| **Aug 3–9** | Finish signed institution invitations, roles, expiry/revocation, and secret handling; endpoint protection and pilot limits are complete | Add invitation import UX and certificate/pinning diagnostics | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | Add durable round state, idempotency, timeout, cancel/restart, reconnect, and epsilon double-spend protection | Add clear waiting/offline/retry UI and network-failure recovery | Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice |
-| **Aug 17–23** | Add `/health`/`/ready`, structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
+| **Aug 17–23** | Add structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment (`/health` and `/ready` complete) | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
 | **Aug 24–30** | Add CI, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Run Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
 | **Aug 31–Sep 6** | Deploy staging and fix security/operations findings | Conduct at least three complete three-institution rehearsals and finalize partner runbook | Go/no-go checklist passes |
 | **Sep 7** | **Start monitored three-institution research pilot** | Named operator and rollback owner on duty | Pilot only; no clinical claims |
@@ -72,4 +81,3 @@ All items are mandatory:
 - Byzantine-proof input validity/range proofs beyond the agreed trusted-partner research model.
 
 Those items need their own evidence, governance, and regulatory schedule.
-

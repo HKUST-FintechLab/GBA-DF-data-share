@@ -117,8 +117,9 @@ synthetic cohort in the right layout so you can rehearse the whole flow first.
 
 > **Advanced (pre-computed features):** if you already have an aligned feature matrix, you can instead
 > build a baked `data.npz` (`X` float32 `[n, n_features]`, `y` string labels) — e.g. from a CSV via
-> `uv run python make_node_data.py --csv your.csv --label-col label --coord http://<host>:8055 --out
-> nodes/your_org/data.npz` — and pass `--data` instead of `--folder` in §6.
+> `uv run python make_node_data.py --csv your.csv --label-col label --coord http://<host>:8055
+> --password <federation-password> --out nodes/your_org/data.npz` — and pass `--data` instead of
+> `--folder` in §6.
 
 ## 6. Run your node
 
@@ -134,8 +135,9 @@ recordings and the ASD/TD split) **→
 ③ enter the coordinator URL, the federation password, a node id, and a display name** (a "Test
 connection" button confirms the password and that the federation matches your modality) **→ ④ Connect &
 start**, with a live view of the rounds, the running
-global accuracy, the ε budget, and a standing **"0 bytes raw uploaded"** banner. It is bilingual (中/EN,
-top-right). The app runs the exact same node loop as the CLI below.
+global accuracy, the ε budget, and the exact **FL JSON payload sent**, split into masked counts and
+protocol metadata, beside a clear **Raw data stays local** statement. It supports English, 简体中文,
+and 繁體中文. The app runs the exact same node loop as the CLI below.
 
 Raw-video conversion is intentionally not duplicated in the CLI. Use the desktop client to create the
 compatible NPZ folder once; that folder can subsequently be used by either the desktop app or `node.py`.
@@ -185,8 +187,8 @@ completes once **all enrolled institutions** have submitted (secure aggregation 
 6. **Repeat / extend** — add modalities, partners, or a non-IID analysis as agreed.
 
 You can watch progress live on the coordinator dashboard (`http://<coordinator-host>:8055`):
-federated-DP accuracy vs the centralized-DP and non-private baselines, every node's ε budget, and the
-streaming audit log.
+federated-DP accuracy vs the centralized-DP and non-private baselines, global ε budget, and the
+streaming audit log. A protected deployment prompts for the separate read/operator password.
 
 ### Using the shared model (as a data-user / central node)
 
@@ -196,14 +198,16 @@ point of federating. The model is an aggregated, pickle-free JSON forest held by
 ```bash
 # (A) recommended — download the model and score YOUR OWN new recordings locally,
 #     so your query data also stays on your machine:
-uv run python predict.py --coord http://<coordinator-host>:8055 \
+uv run python predict.py --coord http://<coordinator-host>:8055 --password <read-password> \
     --folder my_new_cases --out predictions.csv
 
 # (B) convenience — send feature rows to the coordinator to score:
-uv run python predict.py --coord http://<coordinator-host>:8055 --folder my_new_cases --hosted
+uv run python predict.py --coord http://<coordinator-host>:8055 --password <read-password> \
+    --folder my_new_cases --hosted
 
 # just archive the model artifact (JSON, carries provenance + the audit tip):
-uv run python predict.py --coord http://<coordinator-host>:8055 --save-model global_model.json
+uv run python predict.py --coord http://<coordinator-host>:8055 --password <read-password> \
+    --save-model global_model.json
 ```
 
 It prints an ASD/TD call + confidence per recording (and accuracy if your folder is labelled) and
@@ -218,6 +222,9 @@ you are screening are themselves sensitive.
   deliberately **behind TLS** (HTTPS) and share a pinned certificate / URL. Keep your node's outbound
   access limited to that host.
 - **Keys:** `node_key.pem` is your identity — back it up securely, never commit or email it.
+- **Access:** contributor and read/operator passwords are separate pilot roles. Exchange them through
+  an approved out-of-band channel; institution-specific invitations and revocation are not yet
+  implemented.
 - **Enrolment:** a node id binds to the first key it registers (it can't be hijacked afterwards). Send
   us your node id + public key out-of-band so we can confirm it.
 - **Budget:** once your cumulative ε reaches the agreed budget, further uploads are refused (HTTP 429)

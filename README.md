@@ -18,7 +18,7 @@ Project status and the compressed delivery schedule are maintained in the
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
 ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **27 checks**. Hardened across **four rounds** of adversarial code audit
+`verify_security.py` runs **28 checks**. Hardened across **four rounds** of adversarial code audit
 (security · regressions · DP correctness · secure aggregation).
 
 Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
@@ -90,7 +90,7 @@ This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`
 git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
 cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
-uv run python verify_security.py          # 25 checks (tamper-evidence, sig binding, schema/bounds, DP, secure-agg, modality)
+uv run python verify_security.py          # 28 checks, including the coordinator API security boundary
 uv run python modalities.py               # optional: self-check all three feature extractors
 
 # one command: prepare data -> start coordinator -> run all nodes -> live dashboard
@@ -150,27 +150,35 @@ connection config…** and paste the JSON supplied by the coordinator. The impor
 `coordinator_url`, `password`, `node_id`, `display_name`, and `rounds`, then requires a fresh **Test
 connection** before training starts. Raw data never leaves your machine either way.
 
-### Access control (password) & cohort mode
+### Access control, request limits & cohort mode
 
-The coordinator reads two environment variables at startup — set them when you host it:
+The coordinator reads these environment variables at startup. For a cross-site deployment, set
+separate contributor and read/operator passwords:
 
 ```bash
-# require a shared password + run as a per-guest "solo" federation
-FED_PASSWORD=<your-password> FED_COHORT=1 \
+# protected per-guest "solo" federation
+FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT=1 \
     uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
 
-# same password, real 3-node secure-aggregation federation
-FED_PASSWORD=<your-password> FED_COHORT=3 \
+# protected real 3-node secure-aggregation federation
+FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT=3 \
     uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
 ```
 
 | Variable | Effect |
 |---|---|
-| `FED_PASSWORD` | If set, every **contribute-path** call (`/schema`, `/register`, `/participants`, `/submit`, `/round`) must carry header `X-Fed-Key: <password>`. The desktop client sends it from its **Password** field; the CLI uses `--password`. Unset = open (local dev only). Read-only paths (`/status`, `/audit`, `/model`) stay open so the dashboard and consumer path keep working. |
+| `FED_PASSWORD` | Protects contributor calls: `/schema`, `/register`, `/participants`, `/submit`, and `/round`. The desktop client sends it from its **Password** field; the node CLI and `make_node_data.py` use `--password`. |
+| `FED_READ_PASSWORD` | Protects `/status`, `/audit` (including `/audit/bundle`), `/model`, and `/predict`. It defaults to `FED_PASSWORD` for compatibility. The dashboard prompts for it and keeps it only in tab-scoped `sessionStorage`; `predict.py` uses `--password`. |
 | `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
 | `FED_STATE_DIR` | Directory for the persistent coordinator signing key and per-room audit state. Default: `data/coordinator_state/`. State is coordinator-signed; key/state files are atomically written with owner-only mode `0600`. Back this directory up and never commit it. |
+| `FED_MAX_BODY_BYTES` | Maximum POST/PUT/PATCH body size; default 32 MiB, allowed range 1 KiB–128 MiB. |
+| `FED_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated reads; default 600/minute per client address. |
+| `FED_WRITE_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated writes; default 120/minute per client address. A shared limiter is still required for multi-instance production. |
 
-Share the password out-of-band — it gates who may contribute data to the federation.
+Only `/`, `/health`, `/ready`, and `/pubkey` are intentionally public. If both password variables are
+unset, all paths remain open for local development. Share runtime passwords out-of-band; do not commit
+them. This two-role password boundary is an interim pilot control, not institution-level identity:
+signed invitations and revocation remain on the release roadmap.
 
 ### Export and verify the audit package
 
@@ -178,7 +186,8 @@ The dashboard's **audit package** button downloads the complete verification evi
 verified offline without trusting the running coordinator:
 
 ```bash
-curl -o audit-bundle.json http://<host>:8055/audit/bundle
+curl -H "X-Fed-Key: <read-password>" \
+  -o audit-bundle.json http://<host>:8055/audit/bundle
 uv run python verify_audit_bundle.py audit-bundle.json
 ```
 
@@ -233,13 +242,16 @@ The model everyone trained together lives in the coordinator as an aggregated, p
 ```bash
 # (A) LOCAL inference — download the model once, score your OWN recordings offline so your
 #     query data also stays on your machine (symmetric with training):
-uv run python predict.py --coord http://<host>:8062 --folder my_new_cases --out predictions.csv
+uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+  --folder my_new_cases --out predictions.csv
 
 # (B) HOSTED inference — send feature rows to the coordinator's /predict (convenience):
-uv run python predict.py --coord http://<host>:8062 --folder my_new_cases --hosted --out predictions.csv
+uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+  --folder my_new_cases --hosted --out predictions.csv
 
 # just archive the model artifact (JSON, with provenance) for offline / audit use:
-uv run python predict.py --coord http://<host>:8062 --save-model global_model.json
+uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+  --save-model global_model.json
 ```
 
 `predict.py` prints a per-recording ASD/TD call + confidence, and (if your folder is labelled) the
@@ -276,6 +288,7 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
+| `verify_api_security.py` | coordinator endpoint-authentication, request-size, downstream-body, and rate-limit regression checks |
 | `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
@@ -296,6 +309,10 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
   silently corrupt the sum. A startup warning fires if **cohort < 3** (masking needs ≥3 to be meaningful).
 - **Replay protection** (round must increase) and **TOFU enrolment** (`node_id` can't be rebound to a
   new key). Coordinator binds **127.0.0.1 by default** — expose deliberately and add TLS for cross-site.
+- **Explicit API boundary:** health/readiness and the coordinator public key are public; contributor
+  and read/operator paths use separate constant-time token checks, request-size limits, and a
+  single-process pilot rate limiter. Institution invitations, revocation, and shared multi-instance
+  limiting remain pre-pilot work.
 - **Audit evidence is persistent and portable.** The coordinator key and signed per-room state are
   written atomically with mode `0600`; `/audit/bundle` includes the chain, node signature receipts, public keys,
   privacy spend, and model hash. `verify_audit_bundle.py` verifies it offline. This is still not external

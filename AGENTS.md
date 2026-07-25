@@ -103,6 +103,7 @@ uv run python bench.py
 | `predict.py` | Downloaded-model local inference and optional hosted inference |
 | `verify_audit_bundle.py` | Offline audit-package signature, chain, receipt, and model-hash verifier |
 | `verify_security.py` | Security and privacy regression checks |
+| `verify_api_security.py` | Coordinator HTTP access-control, body-limit, and rate-limit regression checks |
 | `bench.py` | IID/non-IID privacy-utility benchmark |
 | `run_demo.py` | Demo orchestration |
 | `static/` | Desktop-client and coordinator-dashboard interfaces |
@@ -151,7 +152,9 @@ Do not weaken or overstate these constraints:
 
 ## Runtime configuration and repository hygiene
 
-- `FED_PASSWORD`, `FED_COHORT`, and `FED_STATE_DIR` are runtime environment variables. Never hard-code credentials.
+- `FED_PASSWORD`, `FED_READ_PASSWORD`, `FED_COHORT`, `FED_STATE_DIR`,
+  `FED_MAX_BODY_BYTES`, `FED_RATE_LIMIT_PER_MINUTE`, and
+  `FED_WRITE_RATE_LIMIT_PER_MINUTE` are runtime environment variables. Never hard-code credentials.
 - Do not commit real passwords, access tokens, private keys, server addresses, or deployment-specific connection details.
 - Cross-site deployment requires appropriate TLS, authentication, firewall, key-management, and institutional data-processing controls.
 - `data/`, `nodes/`, `.venv/`, caches, logs, and generated artifacts are runtime-local and git-ignored.
