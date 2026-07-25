@@ -4,6 +4,23 @@ Last updated: 2026-07-26
 
 Newest decisions appear first.
 
+## 2026-07-26 — Lock the institution-invitation design
+
+- An invitation is a coordinator-signed record naming one institution, its role, and an expiry, and
+  is valid only against the coordinator public key that signed it.
+- Bind the invitation to the node's Ed25519 key on first registration. First use wins; a leaked
+  invitation cannot afterwards be redeemed under a different key.
+- Keep issuance and revocation OUT of the HTTP API. `admin_invite.py` requires access to the
+  coordinator host, because issuing institution identity should not be reachable with a bearer token.
+- Let the offline CLI be the only writer of the registry and the running coordinator only a reader,
+  so revocation needs no restart and the two processes never race for the file.
+- Fail closed everywhere: unknown, edited, expired, revoked, and unreadable registries all deny.
+  An invitation absent from the registry is refused even when its signature verifies.
+- Keep enforcement behind `FED_REQUIRE_INVITATION` so demo and solo modes are unaffected, and make
+  `=1` a pilot go/no-go checklist item rather than a silent default.
+- State the limit plainly: an invitation authenticates an institution, not the honesty of its counts,
+  and it is a bearer credential until first use.
+
 ## 2026-07-26 — Establish the interim coordinator access boundary
 
 - Keep only the dashboard shell, liveness/readiness probes, and coordinator public key public.

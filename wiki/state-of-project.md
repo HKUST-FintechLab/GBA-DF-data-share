@@ -18,7 +18,7 @@ and institutional governance rather than another model feature.
 | Target | Readiness estimate | Status |
 |---|---:|---|
 | Demonstration/internal dry run | 90%+ | Available now |
-| Controlled three-institution research pilot | ~65% | Six-week hardening plan active |
+| Controlled three-institution research pilot | ~70% | Six-week hardening plan active |
 | 7×24 production research platform | ~40% | Follows the pilot |
 | Clinical screening/diagnostic deployment | <20% | Separate validation/regulatory programme |
 
@@ -28,16 +28,17 @@ These percentages are planning estimates, not formal maturity certifications.
 
 Verified on 2026-07-26:
 
-- `uv run python verify_security.py` — all 28 security/privacy checks passed, including the
-  coordinator HTTP security boundary.
+- `uv run python verify_security.py` — all 39 checks passed, including the 22-check coordinator
+  HTTP boundary and invitation-enforcement suite it runs as a subprocess.
 - `uv run python modalities.py` — eyegaze, action, and neuro extraction checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
+- Live three-command rehearsal: an issued invitation enrolled and trained a node, an uninvited node
+  was refused, and a revocation stopped the enrolled node without restarting the coordinator.
 
 ## Pilot blockers
 
 | Priority | Blocker | Pilot solution |
 |---|---|---|
-| P0 | Shared password does not provide institution-level authorization | Signed one-time invitation JSON, per-institution Ed25519 identity, revocation, and role-based endpoint access |
 | P0 | Full-cohort aggregation stalls if one node drops | Explicit round timeout, abort/restart, reconnect, and idempotent submission |
 | P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, durable round state, backup/restore, health checks, and monitoring |
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
@@ -47,16 +48,27 @@ Verified on 2026-07-26:
 
 ## Recently completed
 
+- **2026-07-26 — Institution invitations:** `FED_REQUIRE_INVITATION=1` makes enrolment require a
+  coordinator-signed invitation naming the institution, with an expiry, bound to the node's Ed25519
+  key on first use. A separate coordinator-signed registry records issuance and revocation and is
+  re-read on every enrolment and submission, so a partner can be withdrawn without a coordinator
+  restart, a client reinstall, or a password rotation for anyone else. Issuance lives in the
+  host-only `admin_invite.py`, which also exports a version 2 partner configuration carrying the
+  invitation, imported by the desktop client or passed to `node.py --config`. This closes the
+  institution-identity blocker; the remaining P0 items are reliability, operations, and governance.
 - **2026-07-26 — Coordinator API boundary:** all contributor and read/model/audit/inference paths now
   have explicit access classes; contributor and read/operator passwords can be separated; only the
   dashboard shell, `/health`, `/ready`, and `/pubkey` are public. Constant-time token checks,
   configurable request-body limits, a per-process pilot rate limiter, authenticated dashboard/model/
-  audit consumers, and an automated API regression suite were added. This closes endpoint exposure,
-  but does not replace the remaining institution-invitation and revocation blocker.
+  audit consumers, and an automated API regression suite were added.
 
 ## Production-after-pilot blockers
 
 - Threshold/dropout-recovery secure aggregation with an independent security review.
+- Invitation-layer hardening: the file-backed registry assumes a single administrative writer and an
+  invitation is a bearer credential until its first use. Production needs the registry in the same
+  transactional store as federation state, and a decision on whether to require mTLS or an
+  out-of-band key confirmation at first enrolment.
 - Transactional database-backed federation state and safe multi-worker/multi-instance operation.
 - High availability, key-management integration, automated backups, restore drills, and SLA monitoring.
 - External audit anchoring and a completed penetration test with no unresolved high-severity findings.

@@ -29,15 +29,20 @@ If only one engineer is available, move pilot go-live to 2026-09-28 and producti
   status, audit packages, models, and hosted inference; separate contributor and read/operator
   passwords; constant-time checks; request-body limits; a per-process pilot rate limiter; `/health`
   and `/ready`; authenticated dashboard and CLI consumers; and API security regressions.
-- **Still required for the Aug 3–9 gate:** signed institution invitations, expiry/revocation,
-  institution roles, and invitation-import UX. The current password roles are an interim boundary.
+- **Aug 3–9 gate met early on 2026-07-26:** signed institution invitations with expiry, contributor/
+  observer roles, node-key binding on first use, a signed issuance/revocation registry re-read on
+  every enrolment and submission, the host-only `admin_invite.py`, and invitation-import UX in both
+  the desktop client and `node.py --config`. Verified live: an uninvited node cannot register, and a
+  revoked institution stops being accepted without a coordinator restart.
+- **Still required for the Aug 3–9 gate:** certificate/pinning diagnostics in the client, and the
+  frozen TLS topology those diagnostics assume.
 
 ## Six-week pilot critical path
 
 | Period | Stream A — backend/security | Stream B — client/QA | Exit gate |
 |---|---|---|---|
 | **Jul 27–Aug 2** | Freeze threat model, endpoint permission matrix, invitation schema, TLS topology, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
-| **Aug 3–9** | Finish signed institution invitations, roles, expiry/revocation, and secret handling; endpoint protection and pilot limits are complete | Add invitation import UX and certificate/pinning diagnostics | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
+| **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX~~ (done 07-26); add certificate/pinning diagnostics | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | Add durable round state, idempotency, timeout, cancel/restart, reconnect, and epsilon double-spend protection | Add clear waiting/offline/retry UI and network-failure recovery | Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice |
 | **Aug 17–23** | Add structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment (`/health` and `/ready` complete) | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
 | **Aug 24–30** | Add CI, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Run Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
@@ -50,6 +55,8 @@ All items are mandatory:
 
 - TLS is enforced and coordinator identity is pinned or institutionally trusted.
 - Every non-public endpoint has an explicit authorization policy.
+- The pilot coordinator runs with `FED_REQUIRE_INVITATION=1`, and every enrolled institution holds a
+  current invitation recorded in the signed registry.
 - Invitations can expire and be revoked without reinstalling the client.
 - Restart, timeout, duplicate submission, and one-node disconnect have documented outcomes.
 - No failure path can spend epsilon twice for one completed round.
