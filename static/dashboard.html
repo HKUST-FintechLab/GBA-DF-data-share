@@ -4,17 +4,15 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GBA-DF · Federated Learning POC</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#faf9f5; --panel:#fff; --panel2:#fbf7f0; --line:#e8e2d4; --line2:#e6ebf1;
     --ink:#3a3733; --head:#2f2d29; --mut:#867f74; --accent:#d97757; --accent-h:#c2683f;
     --blue:#6a9ccd; --ok:#2e7d6b; --warn:#b06a2e;
-    --ui:'Inter',-apple-system,BlinkMacSystemFont,sans-serif; --serif:Cambria,Georgia,serif;
+    --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; --serif:Cambria,Georgia,serif;
   }
   *{box-sizing:border-box} html,body{margin:0;height:100%}
+  .hidden{display:none!important}
   body{font-family:var(--ui);background:radial-gradient(1100px 520px at 88% -12%,#f4ece0,var(--bg) 58%);
     color:var(--ink);min-height:100vh}
   header{padding:16px 26px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;
@@ -25,6 +23,7 @@
   .sub{font-size:12.5px;color:var(--mut);margin-top:2px}
   .spacer{flex:1}
   .badge{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:#fff}
+  button.badge{font-family:var(--ui);cursor:pointer}
   .badge.ok{color:var(--ok);border-color:#bcdccd;background:#eef5f1;font-weight:600}
   main{padding:22px 26px;max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
   .full{grid-column:1 / -1}
@@ -64,6 +63,20 @@
   .a-hash{color:var(--mut);margin-left:auto}
   .note{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.5;border-left:2px solid var(--line);padding-left:10px}
   .foot{text-align:center;color:var(--mut);font-size:11.5px;padding:14px}
+  .auth-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;
+    background:rgba(43,48,56,.28);backdrop-filter:blur(8px)}
+  .auth-card{width:min(390px,100%);padding:24px;background:#fff;border:1px solid var(--line);
+    border-radius:18px;box-shadow:0 20px 60px rgba(35,41,49,.18)}
+  .auth-card h2{margin:0;color:var(--head);font:700 20px var(--serif)}
+  .auth-card p{margin:8px 0 16px;color:var(--mut);font-size:13px;line-height:1.5}
+  .auth-card input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
+    font:14px var(--ui);outline:none}
+  .auth-card input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(106,156,205,.15)}
+  .auth-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
+  .auth-actions button{border:0;border-radius:10px;padding:10px 15px;background:var(--accent);color:#fff;
+    font:600 13px var(--ui);cursor:pointer}
+  .auth-error{font-size:12px;color:var(--warn);min-height:18px;margin-top:10px}
+  .header-msg{font-size:11px;color:var(--warn);max-width:180px}
 </style>
 </head>
 <body>
@@ -77,10 +90,12 @@
   <span class="badge" id="datasetBadge">—</span>
   <span class="badge ok" id="saBadge">secure-agg ✓</span>
   <span class="badge ok" id="chainBadge">audit chain ✓</span>
-  <a class="badge" id="modelLink" href="/model" target="_blank"
+  <span class="header-msg" id="headerMsg"></span>
+  <button class="badge" id="accessLink" type="button" title="Set or change dashboard access password">🔑 access</button>
+  <a class="badge" id="modelLink" href="#"
      style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
      title="Download the aggregated global model (JSON) — consume it with predict.py">⬇ model</a>
-  <a class="badge" id="auditBundleLink" href="/audit/bundle"
+  <a class="badge" id="auditBundleLink" href="#"
      style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
      title="Download a self-contained, offline-verifiable audit evidence package">⬇ audit package</a>
 </header>
@@ -123,14 +138,56 @@
 </main>
 <div class="foot">Secure aggregation — under a non-colluding coordinator + full cohort (n≥3) it recovers only the pooled sum, never an individual node's data (hides inputs, does not verify them) · central (ε)-DP on the aggregate, global ε-budget · persistent Ed25519-signed audit, independently verifiable from the exported package</div>
 
+<div class="auth-overlay hidden" id="authOverlay">
+  <form class="auth-card" id="authForm">
+    <h2>Coordinator access</h2>
+    <p>Enter the read/operator password to view institution status, models, and audit evidence.
+      It is kept only for this browser tab.</p>
+    <input id="authPassword" type="password" autocomplete="current-password"
+           placeholder="Read/operator password" aria-label="Read/operator password"/>
+    <div class="auth-error" id="authError"></div>
+    <div class="auth-actions">
+      <button type="submit">Unlock dashboard</button>
+    </div>
+  </form>
+</div>
+
 <script>
 const $=id=>document.getElementById(id);
 const fmtBytes=b=>b===0?"0 B":(b<1024?b+" B":b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(1)+" MB");
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let readKey=sessionStorage.getItem("gba-df-read-key")||"";
+
+function accessHeaders(){
+  return readKey?{"X-Fed-Key":readKey}:{};
+}
+function showAuth(message=""){
+  $("authError").textContent=message;
+  $("authOverlay").classList.remove("hidden");
+  setTimeout(()=>$("authPassword").focus(),0);
+}
+function hideAuth(){
+  $("authOverlay").classList.add("hidden");
+  $("authError").textContent="";
+}
+async function apiFetch(path, options={}){
+  const headers={...accessHeaders(),...(options.headers||{})};
+  return fetch(path,{...options,headers});
+}
 
 async function poll(){
-  let s,a;
-  try{ s=await (await fetch('/status')).json(); a=await (await fetch('/audit')).json(); }
-  catch(e){ return; }
+  let sr,ar,s,a;
+  try{
+    [sr,ar]=await Promise.all([apiFetch('/status'),apiFetch('/audit')]);
+    if(sr.status===401||ar.status===401){showAuth("A valid read/operator password is required.");return false;}
+    if(!sr.ok||!ar.ok)throw new Error(`coordinator returned ${sr.status}/${ar.status}`);
+    [s,a]=await Promise.all([sr.json(),ar.json()]);
+  }catch(e){
+    $("headerMsg").textContent="Coordinator unavailable";
+    return false;
+  }
+  hideAuth();
+  $("headerMsg").textContent="";
   const pm=s.primary_metric, ML={acc:'accuracy',auc:'AUC'}[pm]||pm;
   $('sub').textContent=`Greater Bay Area Data Federation · dataset: ${s.dataset} · ${s.classes.length} classes · ${s.test_windows} held-out test samples`;
   $('datasetBadge').textContent=`${s.dataset.toUpperCase()} · ${s.global_trees} trees`;
@@ -160,9 +217,9 @@ async function poll(){
 
   // nodes
   $('nodes').innerHTML = s.nodes.map(n=>`
-    <div class="node"><div class="nm">${n.name}<span class="pill-local">masked uploads only</span></div>
-      <div class="row"><span>local samples (kept local)</span><b>${n.samples}</b></div>
-      <div class="row"><span>rounds submitted</span><b>${n.rounds_submitted}</b></div>
+    <div class="node"><div class="nm">${esc(n.name)}<span class="pill-local">masked uploads only</span></div>
+      <div class="row"><span>local samples (kept local)</span><b>${esc(n.samples)}</b></div>
+      <div class="row"><span>rounds submitted</span><b>${esc(n.rounds_submitted)}</b></div>
       <div class="row"><span>coordinator sees</span><b style="color:var(--ok)">masked sum only</b></div>
     </div>`).join('');
 
@@ -172,13 +229,42 @@ async function poll(){
   const ev=a.entries.slice(-14).reverse();
   $('auditCount').textContent=`— ${a.entries.length} entries`;
   $('audit').innerHTML=ev.map(e=>{
-    const d=Object.entries(e.detail||{}).map(([k,v])=>`${k}=${v}`).join(' ');
-    return `<div class="a-entry"><span class="a-ev ev-${e.event}">${e.event}</span>
-      <span>#${e.seq}</span><span style="color:var(--ink)">${e.node}</span>
-      <span style="color:var(--mut)">${d.slice(0,60)}</span>
-      <span class="a-hash">${e.hash.slice(0,12)}…</span></div>`;
+    const d=Object.entries(e.detail||{}).map(([k,v])=>`${k}=${v}`).join(' ').slice(0,60);
+    return `<div class="a-entry"><span class="a-ev ev-${esc(e.event)}">${esc(e.event)}</span>
+      <span>#${esc(e.seq)}</span><span style="color:var(--ink)">${esc(e.node)}</span>
+      <span style="color:var(--mut)">${esc(d)}</span>
+      <span class="a-hash">${esc(String(e.hash).slice(0,12))}…</span></div>`;
   }).join('');
+  return true;
 }
+
+async function downloadProtected(path,fallbackName){
+  $("headerMsg").textContent="";
+  const response=await apiFetch(path);
+  if(response.status===401){showAuth("Unlock the dashboard before downloading.");return;}
+  if(!response.ok){
+    let detail=`Download failed (${response.status})`;
+    try{const body=await response.json();if(body.error)detail=body.error;}catch(_e){}
+    $("headerMsg").textContent=detail;
+    return;
+  }
+  const blob=await response.blob(),url=URL.createObjectURL(blob);
+  const disposition=response.headers.get("content-disposition")||"";
+  const match=disposition.match(/filename="?([^";]+)"?/i);
+  const link=document.createElement("a");
+  link.href=url;link.download=match?.[1]||fallbackName;document.body.appendChild(link);link.click();link.remove();
+  URL.revokeObjectURL(url);
+}
+
+$("authForm").addEventListener("submit",async event=>{
+  event.preventDefault();
+  readKey=$("authPassword").value;
+  const ok=await poll();
+  if(ok){sessionStorage.setItem("gba-df-read-key",readKey);$("authPassword").value="";}
+});
+$("accessLink").addEventListener("click",()=>showAuth(""));
+$("modelLink").addEventListener("click",event=>{event.preventDefault();downloadProtected("/model","gba-df-model.json");});
+$("auditBundleLink").addEventListener("click",event=>{event.preventDefault();downloadProtected("/audit/bundle","gba-df-audit.json");});
 
 function drawChart(metrics, central, pm){
   const svg=$('chart'); const W=700,H=300, pad={l:46,r:14,t:14,b:28};

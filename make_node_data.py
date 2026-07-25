@@ -23,6 +23,8 @@ def main():
     ap.add_argument("--label-col", required=True)
     ap.add_argument("--out", required=True, help="output .npz (X, y)")
     ap.add_argument("--coord", default=None, help="coordinator URL to validate feature count + labels")
+    ap.add_argument("--password", default=None,
+                    help="contributor password when the coordinator protects /schema")
     args = ap.parse_args()
 
     with open(args.csv, newline="") as f:
@@ -46,7 +48,11 @@ def main():
 
     if args.coord:
         import httpx
-        sch = httpx.get(args.coord.rstrip("/") + "/schema", timeout=15).json()
+        headers = {"X-Fed-Key": args.password} if args.password else {}
+        response = httpx.get(args.coord.rstrip("/") + "/schema", timeout=15, headers=headers)
+        if response.status_code != 200:
+            sys.exit(f"could not read federation schema: {response.status_code} {response.text}")
+        sch = response.json()
         if X.shape[1] != sch["n_features"]:
             sys.exit(f"FEATURE MISMATCH: your CSV has {X.shape[1]} features but the federation "
                      f"schema expects {sch['n_features']}. Align your feature pipeline first.")

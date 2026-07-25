@@ -53,6 +53,8 @@ def load_features(meta, folder=None, data=None, modality=None):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--coord", required=True, help="coordinator URL")
+    ap.add_argument("--password", default=None,
+                    help="read/operator password when the coordinator protects model access")
     ap.add_argument("--folder", default=None, help="folder of raw recordings to score (stays local)")
     ap.add_argument("--data", default=None, help="baked features .npz to score")
     ap.add_argument("--modality", choices=list(mods.MODALITIES), default=None)
@@ -61,7 +63,8 @@ def main():
     ap.add_argument("--out", default=None, help="write predictions CSV here")
     args = ap.parse_args()
 
-    cli = httpx.Client(base_url=args.coord, timeout=120.0)
+    headers = {"X-Fed-Key": args.password} if args.password else {}
+    cli = httpx.Client(base_url=args.coord, timeout=120.0, headers=headers)
     r = cli.get("/model")
     if r.status_code != 200:
         sys.exit(f"could not download model: {r.status_code} {r.text}")

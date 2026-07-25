@@ -20,7 +20,7 @@ PY = sys.executable
 def wait_health(url, tries=60):
     for _ in range(tries):
         try:
-            if httpx.get(url + "/status", timeout=2).status_code == 200:
+            if httpx.get(url + "/health", timeout=2).status_code == 200:
                 return True
         except Exception:
             pass
