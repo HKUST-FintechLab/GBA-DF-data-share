@@ -8,6 +8,17 @@ This file contains the complete development guidance for this repository.
 - Do not inherit instructions, wikis, or project memory from a containing repository or parent directory.
 - Use only files in this repository unless the user explicitly places an external source in scope.
 
+## Local project wiki
+
+- `wiki/` is the canonical release-readiness and timeline memory for this standalone project.
+- For questions such as “where are we?”, “what is next?”, or “when can this ship?”, read:
+  1. `wiki/README.md`;
+  2. `wiki/state-of-project.md`;
+  3. `wiki/timeline.md`;
+  4. `wiki/decisions-log.md` when a recommendation could change a locked target or scope boundary.
+- Update the relevant wiki pages and their `Last updated:` stamps when a blocker, target, or locked
+  delivery decision changes.
+
 ## Project overview
 
 GBA-DF is a Python proof of concept for privacy-preserving federated learning across independent institutions. It supports three separate data modalities:

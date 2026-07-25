@@ -5,6 +5,9 @@ It demonstrates, end-to-end and recordable, the four claims the federation rests
 **three data modalities** (eye-tracking, body-action/pose, EEG/fMRI), with a **desktop node
 client** a partner runs on their own machine (pick modality → pick folder → connect):
 
+Project status and the compressed delivery schedule are maintained in the
+[`wiki/`](wiki/README.md).
+
 | Claim | How it's shown | Honest scope |
 |---|---|---|
 | **Multi-node** | Coordinator + N independent node processes (each can run on a different machine). | Fully supported. |
