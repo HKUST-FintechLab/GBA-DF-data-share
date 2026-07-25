@@ -9,9 +9,11 @@ Demonstrates the post-audit fixes:
 """
 import base64
 import copy
+import json
 import os
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 from sklearn.ensemble import ExtraTreesClassifier
@@ -149,7 +151,6 @@ check("a missing node corrupts the sum (full cohort required)",
       not np.array_equal(sa.secure_sum(masked[:2]) % sa.MOD, (vecs["node_1"] + vecs["node_2"]) % sa.MOD))
 
 print("== multi-modal front end (public, participant-independent normalization) ==")
-import tempfile
 import modalities as mods
 for key in ("eyegaze", "action", "neuro"):
     m = mods.get(key)
@@ -167,6 +168,58 @@ for key in ("eyegaze", "action", "neuro"):
     map1 = m.normalize(raw); map2 = m.normalize(raw)
     check(f"{key}: normalization is a fixed public function (scale is a shipped constant)",
           np.allclose(map1, map2) and np.allclose(map1, np.tanh(0.5)))
+
+print("== institution invitations (identity, expiry, revocation) ==")
+import time
+
+import invitations as iv
+admin = fc.gen_key(); admin_pub = admin.public_key()
+invite = iv.build_invitation(admin, institution_id="node_1", institution_name="Hospital A")
+check("a freshly issued invitation verifies for its own institution",
+      iv.verify_invitation(invite, admin_pub, expected_institution="node_1",
+                           require_role="contributor") == "")
+check("presenting it as a different institution is REJECTED",
+      iv.verify_invitation(invite, admin_pub, expected_institution="node_2") != "")
+edited = copy.deepcopy(invite); edited["institution_name"] = "Attacker General"
+check("editing an invitation field -> signature verification FAILS",
+      iv.verify_invitation(edited, admin_pub) != "")
+check("an invitation signed by another key is REJECTED (coordinator key is pinned)",
+      iv.verify_invitation(invite, fc.gen_key().public_key()) != "")
+stale = iv.build_invitation(admin, institution_id="node_1", institution_name="Hospital A",
+                            lifetime_seconds=3600.0, issued_at=time.time() - 7200.0)
+check("an expired invitation is REJECTED", iv.verify_invitation(stale, admin_pub) != "")
+check("malformed invitations return a reason (do NOT throw)",
+      iv.verify_invitation("gANjc2tsZWFybg==", admin_pub) != ""
+      and iv.verify_invitation({"format": "gba-df-invitation"}, admin_pub) != "")
+
+with tempfile.TemporaryDirectory() as reg_dir:
+    reg_path = os.path.join(reg_dir, "invitations.json")
+    registry = iv.record_issue(iv.new_registry(admin_pub), invite)
+    iv.save_registry(reg_path, registry, admin)
+    check("the registry file is written owner-only (0600)",
+          oct(os.stat(reg_path).st_mode & 0o777) == "0o600")
+    check("an issued invitation is admitted by the signed registry",
+          iv.registry_status(iv.load_registry(reg_path, admin_pub),
+                             invite["invitation_id"]) == "")
+    check("an invitation absent from the registry is REJECTED",
+          iv.registry_status(iv.load_registry(reg_path, admin_pub), "0" * 32) != "")
+    iv.revoke(registry, invite["invitation_id"], "partner exit")
+    iv.save_registry(reg_path, registry, admin)
+    check("a revoked invitation is REJECTED on the next check (no restart needed)",
+          iv.registry_status(iv.load_registry(reg_path, admin_pub),
+                             invite["invitation_id"]) != "")
+    with open(reg_path, encoding="utf-8") as f:
+        forged = json.load(f)
+    forged["invitations"][invite["invitation_id"]]["revoked_at"] = None
+    with open(reg_path, "w", encoding="utf-8") as f:
+        json.dump(forged, f)
+    try:
+        iv.load_registry(reg_path, admin_pub)
+        tampered_registry_rejected = False
+    except RuntimeError:
+        tampered_registry_rejected = True
+    check("un-revoking by editing the registry file -> load FAILS CLOSED",
+          tampered_registry_rejected)
 
 print("== coordinator API boundary ==")
 api_check = subprocess.run(

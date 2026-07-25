@@ -7,13 +7,17 @@ _state_tmp = tempfile.TemporaryDirectory(prefix="gba-df-api-security-")
 os.environ["FED_PASSWORD"] = "contribute-secret"
 os.environ["FED_READ_PASSWORD"] = "read-secret"
 os.environ["FED_STATE_DIR"] = _state_tmp.name
-os.environ["FED_MAX_BODY_BYTES"] = "1024"
+os.environ["FED_MAX_BODY_BYTES"] = "4096"
 os.environ["FED_RATE_LIMIT_PER_MINUTE"] = "600"
 os.environ["FED_WRITE_RATE_LIMIT_PER_MINUTE"] = "120"
+os.environ["FED_REQUIRE_INVITATION"] = "1"
 
 from fastapi.testclient import TestClient
 
 import coordinator
+import fed_common as fc
+import invitations as invites
+import secure_agg as sa
 
 
 ok_all = True
@@ -59,7 +63,75 @@ check("authenticated prediction body reaches the endpoint intact",
       client.post("/predict", headers=read,
                   json={"X": [[0.0] * coordinator.N_FEATURES]}).status_code == 409)
 check("oversized authenticated bodies fail before endpoint processing",
-      client.post("/predict", headers=read, content=b"x" * 1025).status_code == 413)
+      client.post("/predict", headers=read, content=b"x" * 4097).status_code == 413)
+
+print("== institution invitation enforcement ==")
+node_key = fc.gen_key()
+node_pub = fc.pub_pem(node_key).decode()
+x_key = sa.gen_x25519()
+
+
+def enrol(invitation=None, node_id="node_1", pubkey_pem=node_pub):
+    body = {"node_id": node_id, "name": "Pilot Hospital", "pubkey_pem": pubkey_pem,
+            "x_pub": sa.x_pub_hex(x_key), "samples": 12}
+    if invitation is not None:
+        body["invitation"] = invitation
+    return client.post("/register", json=body, headers=contribute)
+
+
+registry_path = coordinator.REGISTRY_PATH
+invitation = invites.build_invitation(coordinator.COORD_KEY, institution_id="node_1",
+                                      institution_name="Pilot Hospital")
+check("the contributor password alone cannot enrol an institution",
+      coordinator.REQUIRE_INVITATION and enrol().status_code == 401)
+check("a signed invitation that was never issued cannot enrol",
+      enrol(invitation).status_code == 403)
+
+registry = invites.record_issue(invites.new_registry(coordinator.COORD_PUB), invitation)
+invites.save_registry(registry_path, registry, coordinator.COORD_KEY)
+check("an issued invitation enrols its own institution", enrol(invitation).status_code == 200)
+check("the same invitation cannot be re-bound to another node key",
+      enrol(invitation, pubkey_pem=fc.pub_pem(fc.gen_key()).decode()).status_code == 409)
+
+
+def submit(rnd):
+    masked = [0] * coordinator.EXPECT_LEN
+    payload_hash = fc.sha256_hex(fc._canon(masked))
+    signature = node_key.sign(f"node_1|{rnd}|12|{payload_hash}".encode())
+    return client.post("/submit", headers=contribute,
+                       json={"node_id": "node_1", "round": rnd, "n_samples": 12,
+                             "masked": masked, "sig_hex": signature.hex()})
+
+
+# The masked vector is larger than the configured body cap, so this round-trip is checked
+# through the coordinator's own submission handler rather than the HTTP body limit.
+with coordinator.LOCK:
+    state = coordinator.get_state("default")
+    still_invited = coordinator._check_still_invited(state, "node_1") is None
+check("an invited node passes the per-submission invitation check", still_invited)
+
+invites.revoke(registry, invitation["invitation_id"], "partner exit")
+invites.save_registry(registry_path, registry, coordinator.COORD_KEY)
+revoked_blocked = False
+with coordinator.LOCK:
+    try:
+        coordinator._check_still_invited(coordinator.get_state("default"), "node_1")
+    except coordinator.InvitationRefused as e:
+        revoked_blocked = e.status == 403
+check("revocation stops an enrolled node without a coordinator restart", revoked_blocked)
+check("a revoked institution cannot re-enrol", enrol(invitation).status_code == 403)
+
+with open(registry_path, "w", encoding="utf-8") as f:
+    f.write("{}")
+unreadable_fails_closed = False
+with coordinator.LOCK:
+    try:
+        coordinator._check_still_invited(coordinator.get_state("default"), "node_1")
+    except coordinator.InvitationRefused as e:
+        unreadable_fails_closed = e.status == 503
+check("an unreadable registry fails closed instead of admitting everyone",
+      unreadable_fails_closed)
+os.unlink(registry_path)
 
 coordinator._RATE_EVENTS.clear()
 first = coordinator._rate_allowed("test-client", "test", 2, 100.0)
