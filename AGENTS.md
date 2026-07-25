@@ -96,6 +96,9 @@ uv run python bench.py
 | `dp.py` | Data-independent forest structure, local leaf counts, and curator DP noise |
 | `secure_agg.py` | Pairwise X25519 masks and secure summation |
 | `fed_common.py` | Signing, audit chain, JSON forest validation, and global model |
+| `invitations.py` | Signed institution invitations and the signed issuance/revocation registry |
+| `admin_invite.py` | Host-side CLI to issue, list, and revoke institution invitations |
+| `client_config.py` | Partner connection-config format (v1 connection, v2 with invitation) |
 | `node_core.py` | Shared node execution path used by the CLI and desktop client |
 | `node.py` | Command-line federation node |
 | `client_app.py` | Desktop partner client |
@@ -103,7 +106,7 @@ uv run python bench.py
 | `predict.py` | Downloaded-model local inference and optional hosted inference |
 | `verify_audit_bundle.py` | Offline audit-package signature, chain, receipt, and model-hash verifier |
 | `verify_security.py` | Security and privacy regression checks |
-| `verify_api_security.py` | Coordinator HTTP access-control, body-limit, and rate-limit regression checks |
+| `verify_api_security.py` | Coordinator HTTP access-control, invitation-enforcement, body-limit, and rate-limit regression checks |
 | `bench.py` | IID/non-IID privacy-utility benchmark |
 | `run_demo.py` | Demo orchestration |
 | `static/` | Desktop-client and coordinator-dashboard interfaces |
@@ -135,6 +138,9 @@ Do not weaken or overstate these constraints:
 - Meaningful pairwise-masking privacy requires at least three non-colluding nodes.
 - `FED_COHORT=1` is isolated solo-demo mode with central DP only. Never describe it as secure aggregation.
 - The trust model assumes an honest-but-curious, non-colluding coordinator and honest leaf-count construction.
+- Institution invitations are coordinator-signed, bound to the node key on first registration, and re-checked against the signed registry on every submission. Keep every failure path closed: unknown, edited, expired, revoked, and unreadable all deny.
+- `admin_invite.py` is intentionally host-access only. Do not expose invitation issuance or revocation as an HTTP endpoint.
+- An invitation authenticates an institution. It does not attest to the honesty of that institution's counts.
 - Secure aggregation hides node inputs but does not provide Byzantine robustness or cryptographically prove that submitted counts are valid.
 - The signed hash chain is tamper-evident within the documented trust model. A fully compromised coordinator requires external anchoring.
 - Preserve coordinator audit persistence: state is coordinator-signed, files are atomic/mode `0600`, and corruption fails closed.
@@ -153,8 +159,10 @@ Do not weaken or overstate these constraints:
 ## Runtime configuration and repository hygiene
 
 - `FED_PASSWORD`, `FED_READ_PASSWORD`, `FED_COHORT`, `FED_STATE_DIR`,
-  `FED_MAX_BODY_BYTES`, `FED_RATE_LIMIT_PER_MINUTE`, and
-  `FED_WRITE_RATE_LIMIT_PER_MINUTE` are runtime environment variables. Never hard-code credentials.
+  `FED_MAX_BODY_BYTES`, `FED_RATE_LIMIT_PER_MINUTE`,
+  `FED_WRITE_RATE_LIMIT_PER_MINUTE`, `FED_REQUIRE_INVITATION`, and
+  `FED_INVITATION_REGISTRY` are runtime environment variables. Never hard-code credentials.
+- Issued invitation files and the invitation registry are runtime secrets. Never commit them.
 - Do not commit real passwords, access tokens, private keys, server addresses, or deployment-specific connection details.
 - Cross-site deployment requires appropriate TLS, authentication, firewall, key-management, and institutional data-processing controls.
 - `data/`, `nodes/`, `.venv/`, caches, logs, and generated artifacts are runtime-local and git-ignored.

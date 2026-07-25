@@ -147,8 +147,9 @@ NPZ input remains available without that step. Python MediaPipe is not required.
 To join a hosted federation, you only run the **desktop client** — no server to stand up. On the *Node &
 coordinator* step, either enter the coordinator **URL** and **password** manually, or choose **Import
 connection config…** and paste the JSON supplied by the coordinator. The importer accepts
-`coordinator_url`, `password`, `node_id`, `display_name`, and `rounds`, then requires a fresh **Test
-connection** before training starts. Raw data never leaves your machine either way.
+`coordinator_url`, `password`, `node_id`, `display_name`, `rounds`, and — in a version 2 file — the
+signed `invitation`, then requires a fresh **Test connection** before training starts. Raw data never
+leaves your machine either way.
 
 ### Access control, request limits & cohort mode
 
@@ -174,11 +175,49 @@ FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT
 | `FED_MAX_BODY_BYTES` | Maximum POST/PUT/PATCH body size; default 32 MiB, allowed range 1 KiB–128 MiB. |
 | `FED_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated reads; default 600/minute per client address. |
 | `FED_WRITE_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated writes; default 120/minute per client address. A shared limiter is still required for multi-instance production. |
+| `FED_REQUIRE_INVITATION` | `1` additionally requires a coordinator-signed institution invitation at `/register`. Required for a pilot; default `0` for local demos. |
+| `FED_INVITATION_REGISTRY` | Path to the signed issuance/revocation ledger. Default: `<FED_STATE_DIR>/invitations.json`. |
 
 Only `/`, `/health`, `/ready`, and `/pubkey` are intentionally public. If both password variables are
 unset, all paths remain open for local development. Share runtime passwords out-of-band; do not commit
-them. This two-role password boundary is an interim pilot control, not institution-level identity:
-signed invitations and revocation remain on the release roadmap.
+them.
+
+### Institution invitations (identity, expiry, revocation)
+
+A password says only that the caller knows a token. An invitation says *which institution* is
+speaking, for how long, and lets one partner be withdrawn without rotating everyone. Issue them on
+the coordinator host with `admin_invite.py`, which signs with the coordinator's existing key:
+
+```bash
+FED_STATE_DIR=<state-dir> FED_PASSWORD=<contributor-password> \
+  uv run python admin_invite.py issue --institution-id partner_lab \
+  --name "University Lab" --coordinator-url https://federation.example.org:8055 \
+  --days 30 --include-password --out invite-partner_lab.json
+
+uv run python admin_invite.py list
+uv run python admin_invite.py revoke --invitation-id <id> --reason "pilot exit"
+```
+
+`invite-partner_lab.json` is a version 2 client configuration: URL, node id, display name, optional
+password, and the signed invitation in one file (mode `0600`). The partner imports it in the desktop
+client, or passes it to the CLI:
+
+```bash
+uv run python node.py --config invite-partner_lab.json --folder /path/to/recordings --rounds 5
+```
+
+Properties worth stating precisely:
+
+- The invitation is bound to the node's own Ed25519 key on first registration, so a leaked file
+  cannot afterwards be redeemed under a different key.
+- The coordinator re-reads the signed registry on every enrolment *and* every submission, so expiry
+  or revocation stops an already-enrolled institution without a restart or a client reinstall.
+- Invitations absent from the registry, edited registries, and unreadable registries are all refused;
+  the failure mode is denial, never open access.
+- `admin_invite.py` is deliberately a host-access tool, not an HTTP endpoint. Issuing institution
+  identity should require the coordinator host, not a bearer token.
+- An invitation is still a bearer credential until first use, and it authenticates an institution,
+  not the honesty of its counts. Distribute it over an approved channel.
 
 ### Export and verify the audit package
 
@@ -280,6 +319,9 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |
 | `bench.py` | multi-seed IID/non-IID benchmark + the ε-utility figure (`assets/epsilon_utility.png`) |
 | `coordinator.py` | FastAPI server: register / verify-signature / secure-sum / evaluate / audit / dashboard (publishes modality in `/schema`) |
+| `invitations.py` | signed institution invitations + the signed issuance/revocation registry |
+| `admin_invite.py` | host-side CLI to issue, list, and revoke institution invitations |
+| `client_config.py` | the partner connection-config format (v1 connection only, v2 with invitation) |
 | `verify_audit_bundle.py` | offline verifier for exported audit packages: bundle/chain/node signatures + model hash |
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
@@ -311,8 +353,11 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
   new key). Coordinator binds **127.0.0.1 by default** — expose deliberately and add TLS for cross-site.
 - **Explicit API boundary:** health/readiness and the coordinator public key are public; contributor
   and read/operator paths use separate constant-time token checks, request-size limits, and a
-  single-process pilot rate limiter. Institution invitations, revocation, and shared multi-instance
-  limiting remain pre-pilot work.
+  single-process pilot rate limiter. Shared multi-instance limiting remains pre-pilot work.
+- **Institution identity:** with `FED_REQUIRE_INVITATION=1`, enrolment needs a coordinator-signed
+  invitation that names the institution, expires, and is bound to the node's Ed25519 key on first
+  use. Every submission re-checks the signed registry, so revocation takes effect without a restart;
+  an edited or unreadable registry denies rather than admits.
 - **Audit evidence is persistent and portable.** The coordinator key and signed per-room state are
   written atomically with mode `0600`; `/audit/bundle` includes the chain, node signature receipts, public keys,
   privacy spend, and model hash. `verify_audit_bundle.py` verifies it offline. This is still not external

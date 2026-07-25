@@ -132,9 +132,10 @@ uv run python client_app.py
 A window opens and walks you through four steps: **① pick your data modality → ② choose your data
 folder or locally convert action videos** (with a live skeleton preview; it scans and shows how many
 recordings and the ASD/TD split) **→
-③ enter the coordinator URL, the federation password, a node id, and a display name** (a "Test
-connection" button confirms the password and that the federation matches your modality) **→ ④ Connect &
-start**, with a live view of the rounds, the running
+③ enter the coordinator URL, the federation password, a node id, and a display name — or press
+**Import connection config…** and paste the configuration file we issued you, which fills all of that
+in and carries your institution's signed invitation** (a "Test connection" button confirms the
+credentials and that the federation matches your modality) **→ ④ Connect & start**, with a live view of the rounds, the running
 global accuracy, the ε budget, and the exact **FL JSON payload sent**, split into masked counts and
 protocol metadata, beside a clear **Raw data stays local** statement. It supports English, 简体中文,
 and 繁體中文. The app runs the exact same node loop as the CLI below.
@@ -157,6 +158,13 @@ uv run python node.py \
 `--folder your_data` ingests the raw recordings from §5 (the modality is taken from the coordinator's
 `/schema`; pass `--modality eyegaze|action|neuro` to be explicit). For a pre-baked feature file, use
 `--data nodes/your_org/data.npz` instead of `--folder`.
+
+If we issued you a connection configuration file, pass it instead of the URL, password, and node id —
+it also carries your institution's signed invitation:
+
+```bash
+uv run python node.py --config invite-your_org.json --folder your_data --rounds 5
+```
 
 > **Windows (PowerShell/cmd):** the `\` line-continuations above are bash syntax — put the whole
 > command on **one line** instead (just delete the `\` and newlines). `uv run …` itself works
@@ -223,8 +231,12 @@ you are screening are themselves sensitive.
   access limited to that host.
 - **Keys:** `node_key.pem` is your identity — back it up securely, never commit or email it.
 - **Access:** contributor and read/operator passwords are separate pilot roles. Exchange them through
-  an approved out-of-band channel; institution-specific invitations and revocation are not yet
-  implemented.
+  an approved out-of-band channel.
+- **Institution identity:** we issue you a signed invitation naming your institution, with an expiry
+  date. It binds to your `node_key.pem` the first time you register, so a copied file cannot be used
+  under another key. Either side can end participation: we revoke the invitation and your node stops
+  being accepted at the next round — no reinstall, and no password change for anyone else. Treat the
+  issued configuration file as a credential.
 - **Enrolment:** a node id binds to the first key it registers (it can't be hijacked afterwards). Send
   us your node id + public key out-of-band so we can confirm it.
 - **Budget:** once your cumulative ε reaches the agreed budget, further uploads are refused (HTTP 429)
@@ -240,6 +252,8 @@ you are screening are themselves sensitive.
 | `signature verification failed` | Wrong/missing key, or payload mangled by a proxy — re-run with the original `node_key.pem`. |
 | `epsilon budget exceeded (429)` | You've spent the agreed ε budget; we raise it together if the experiment needs more rounds. |
 | `unregistered node` | Run `node.py` once to enrol, or your `node-id` differs from what we enrolled. |
+| `a signed institution invitation is required` | Import the connection configuration we issued (desktop client) or pass `--config` (CLI). |
+| `invitation: expired` / `invitation: revoked` | Contact us — expiry needs a reissue; revocation is a deliberate withdrawal we should discuss. |
 | `cohort full` | The enrolled cohort is already complete — confirm your `node-id` is on the agreed list. |
 | Round never completes / node hangs at a round | Secure aggregation needs the **whole cohort** each round — a missing or slow institution stalls it for everyone. We confirm all nodes are up before starting; restart the lagging node. |
 | Can't reach coordinator | Check the URL/port, TLS, and your firewall's outbound rules. |
