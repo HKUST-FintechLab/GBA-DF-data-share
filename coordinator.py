@@ -37,12 +37,12 @@ import secrets
 import tempfile
 import threading
 import time
-from urllib.parse import urlparse
 
 import numpy as np
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
+import client_config as cfg
 import dp
 import fed_common as fc
 import invitations as invites
@@ -50,57 +50,21 @@ import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
-CLIENT_CONFIG_FORMAT = "gba-df-client-config"
-CLIENT_CONFIG_VERSION = 1
-
-
 def client_connection_config(coordinator_url: str) -> dict:
-    """Return the desktop-client configuration for this coordinator.
+    """Return the connection-only desktop-client configuration for this coordinator.
 
     A configured shared password is included at the user's request. The exported runtime
-    file is therefore written with owner-only permissions and must never be committed.
+    file is therefore written with owner-only permissions and must never be committed. When
+    invitations are enforced, issue per-institution configs with admin_invite.py instead —
+    those also carry the signed invitation the node needs to enrol.
     """
-    url = str(coordinator_url or "").strip().rstrip("/")
-    parsed = urlparse(url)
-    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-        raise ValueError("public coordinator URL must be a full http(s) URL")
-    if parsed.username or parsed.password:
-        raise ValueError("public coordinator URL must not contain credentials")
-    if parsed.path not in {"", "/"} or parsed.params or parsed.query or parsed.fragment:
-        raise ValueError("public coordinator URL must not include a path, query, or fragment")
-    config = {
-        "format": CLIENT_CONFIG_FORMAT,
-        "version": CLIENT_CONFIG_VERSION,
-        "coordinator_url": url,
-        "password_required": bool(FED_PASSWORD),
-        "cohort": COHORT,
-        "modality": MODALITY,
-    }
-    if FED_PASSWORD:
-        config["password"] = FED_PASSWORD
-    return config
+    return cfg.build(coordinator_url, password=FED_PASSWORD, cohort=COHORT, modality=MODALITY)
 
 
 def write_client_connection_config(path: str, coordinator_url: str) -> tuple[str, dict]:
     """Atomically write a shareable desktop-client config JSON file with mode 0600."""
     config = client_connection_config(coordinator_url)
-    out = os.path.abspath(os.path.expanduser(path))
-    parent = os.path.dirname(out) or "."
-    os.makedirs(parent, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(prefix=".gba-df-client-config-", suffix=".json", dir=parent)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
-            f.write("\n")
-        os.replace(tmp, out)
-        os.chmod(out, 0o600)
-    except Exception:
-        try:
-            os.unlink(tmp)
-        except OSError:
-            pass
-        raise
-    return out, config
+    return cfg.write(path, config), config
 
 _test = np.load(os.path.join(HERE, "data", "test.npz"))
 X_TEST, Y_TEST = _test["X"], _test["y"].astype(str)
