@@ -15,6 +15,14 @@ Deployment knobs (env vars):
   FED_READ_PASSWORD
                  optional separate token for dashboard/model/audit/inference endpoints.
                  Defaults to FED_PASSWORD when unset.
+  FED_REQUIRE_INVITATION
+                 "1" = /register additionally requires a coordinator-signed institution
+                 invitation (see invitations.py and admin_invite.py), which is bound to the
+                 node's Ed25519 key on first use and re-checked for expiry/revocation on
+                 every submission. Required for a pilot; default "0" for local demos.
+  FED_INVITATION_REGISTRY
+                 path to the signed issuance/revocation ledger written by admin_invite.py.
+                 Defaults to <FED_STATE_DIR>/invitations.json.
   FED_COHORT     override the cohort published in meta.json. FED_COHORT=1 turns on
                  PER-GUEST ISOLATION: each client (keyed by its X-Fed-Session header) gets
                  its OWN private cohort-1 federation — anyone can try alone, anytime, and
@@ -37,6 +45,7 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 
 import dp
 import fed_common as fc
+import invitations as invites
 import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -118,6 +127,10 @@ FED_PASSWORD = os.environ.get("FED_PASSWORD", "")      # shared access token; ""
 FED_READ_PASSWORD = os.environ.get("FED_READ_PASSWORD", FED_PASSWORD)
 STATE_DIR = os.path.abspath(os.path.expanduser(
     os.environ.get("FED_STATE_DIR", os.path.join(HERE, "data", "coordinator_state"))))
+REQUIRE_INVITATION = os.environ.get("FED_REQUIRE_INVITATION", "0").strip().lower() in {
+    "1", "true", "yes", "on"}
+REGISTRY_PATH = os.path.abspath(os.path.expanduser(os.environ.get(
+    "FED_INVITATION_REGISTRY", os.path.join(STATE_DIR, "invitations.json"))))
 
 
 def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
@@ -146,6 +159,12 @@ if FED_PASSWORD:
     print("FED_PASSWORD set -> node endpoints require the X-Fed-Key header.")
 if FED_READ_PASSWORD:
     print("Read/model/audit/inference endpoints require the X-Fed-Key header.")
+if REQUIRE_INVITATION:
+    print(f"FED_REQUIRE_INVITATION set -> /register requires a signed institution invitation "
+          f"({REGISTRY_PATH}).")
+else:
+    print("WARNING: invitations are NOT enforced — any holder of the contributor password can "
+          "enrol. Set FED_REQUIRE_INVITATION=1 for a pilot deployment.")
 # expected masked-vector length (complete trees -> constant cell count)
 EXPECT_LEN = N_TREES * (2 ** (DEPTH + 1) - 1) * len(CLASSES)
 
@@ -187,6 +206,74 @@ COORD_KEY = _load_or_make_coordinator_key()
 COORD_PUB = COORD_KEY.public_key()
 LOCK = threading.Lock()
 
+
+class InvitationRefused(Exception):
+    """Enrolment or submission denied by the invitation layer. `status` is the HTTP code."""
+
+    def __init__(self, reason: str, status: int = 403):
+        super().__init__(reason)
+        self.reason, self.status = reason, status
+
+
+def _read_registry() -> dict:
+    """Read the signed issuance/revocation ledger fresh from disk.
+
+    Reading per request is what makes revocation take effect without a restart: the offline
+    admin CLI is the only writer, so the running coordinator never races it. A corrupt or
+    wrongly-signed ledger refuses enrolment instead of silently dropping revocations.
+    """
+    try:
+        return invites.load_registry(REGISTRY_PATH, COORD_PUB)
+    except (OSError, ValueError, RuntimeError) as e:
+        raise InvitationRefused(f"invitation registry unavailable: {e}", status=503)
+
+
+def _admit_invitation(st: dict, node_id: str, pubkey_pem: str, invitation) -> dict:
+    """Validate an invitation for `node_id` and return the binding record to persist.
+
+    First use binds the invitation to this node's Ed25519 key permanently, so a leaked
+    invitation file cannot later be redeemed under a different key.
+    """
+    if invitation is None:
+        raise InvitationRefused("a signed institution invitation is required", status=401)
+    reason = invites.verify_invitation(invitation, COORD_PUB, expected_institution=node_id,
+                                       require_role="contributor")
+    if reason:
+        raise InvitationRefused(reason, status=403)
+    registry_reason = invites.registry_status(_read_registry(), invitation["invitation_id"])
+    if registry_reason:
+        raise InvitationRefused(registry_reason, status=403)
+
+    key_hash = fc.sha256_hex(pubkey_pem.encode())
+    bindings = st["invitation_bindings"]
+    bound = bindings.get(invitation["invitation_id"])
+    if bound and (bound["node_id"] != node_id or bound["pubkey_sha256"] != key_hash):
+        raise InvitationRefused("invitation already bound to a different node key", status=409)
+    other = next((iid for iid, b in bindings.items()
+                  if b["node_id"] == node_id and iid != invitation["invitation_id"]), None)
+    if other:
+        raise InvitationRefused("node id already enrolled under another invitation", status=409)
+    return {"node_id": node_id, "pubkey_sha256": key_hash,
+            "institution_name": invitation["institution_name"],
+            "role": invitation["role"], "expires_at": float(invitation["expires_at"])}
+
+
+def _check_still_invited(st: dict, node_id: str):
+    """Re-check a registered node's invitation before accepting a round submission, so an
+    expiry or an administrator revocation stops an already-enrolled institution."""
+    if not REQUIRE_INVITATION:
+        return
+    entry = next(((iid, b) for iid, b in st["invitation_bindings"].items()
+                  if b["node_id"] == node_id), None)
+    if entry is None:
+        raise InvitationRefused("no invitation is bound to this node", status=403)
+    invitation_id, binding = entry
+    if time.time() - invites.CLOCK_SKEW_SECONDS > float(binding["expires_at"]):
+        raise InvitationRefused("invitation: expired", status=403)
+    reason = invites.registry_status(_read_registry(), invitation_id)
+    if reason:
+        raise InvitationRefused(reason, status=403)
+
 # ---- per-room state: one federation per room. Group mode uses a single "default" room;
 #      solo/isolated mode gives each guest session its own room. ----
 SESSIONS = {}          # room_id -> state dict
@@ -210,6 +297,7 @@ def _persist_state(room: str, st: dict):
         "coordinator_public_key_pem": fc.pub_pem(COORD_KEY).decode(),
         "audit_entries": st["audit"].entries,
         "participants": st["evidence_participants"],
+        "invitation_bindings": st["invitation_bindings"],
         "submission_receipts": st["submission_receipts"],
         "model": st["model"].serialize() if st["model"].n_updates() else None,
         "metrics": st["metrics"], "global_eps": st["global_eps"],
@@ -246,7 +334,7 @@ def new_state(room: str):
         "nodes": {}, "model": fc.GlobalModel(CLASSES), "audit": fc.Audit(COORD_KEY),
         "metrics": [], "round_buf": {}, "round_done": {}, "global_eps": 0.0,
         "rejected": 0, "started": time.time(), "evidence_participants": {},
-        "submission_receipts": [],
+        "submission_receipts": [], "invitation_bindings": {},
     }
     path = _state_path(room)
     if os.path.exists(path):
@@ -262,6 +350,7 @@ def new_state(room: str):
         if not st["audit"].verify(COORD_PUB, expected_len=len(st["audit"].entries)):
             raise RuntimeError(f"persisted audit chain verification failed: {path}")
         st["evidence_participants"] = saved.get("participants", {})
+        st["invitation_bindings"] = saved.get("invitation_bindings", {})
         st["submission_receipts"] = saved.get("submission_receipts", [])
         st["metrics"] = saved.get("metrics", [])
         st["global_eps"] = float(saved.get("global_eps", 0.0))
@@ -420,7 +509,7 @@ async def schema(request: Request):
             "primary_metric": PRIMARY, "cohort": COHORT, "dataset": DATASET,
             "modality": MODALITY, "modality_info": MODALITY_INFO, "isolated": ISOLATE,
             "dp": {**DP, "structure_seed": STRUCT_SEED}, "epsilon_budget": BUDGET,
-            "next_round": next_round}
+            "next_round": next_round, "invitation_required": REQUIRE_INVITATION}
 
 
 @app.get("/participants")
@@ -439,12 +528,22 @@ async def register(req: Request):
         b = await req.json()
         node_id, pub, xpub = b["node_id"], b["pubkey_pem"], b["x_pub"]
         name, samples = b.get("name", b["node_id"]), int(b.get("samples", 0))
+        invitation = b.get("invitation")
     except Exception:
         return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
     if samples <= 0:
         return JSONResponse({"ok": False, "error": "samples must be > 0"}, status_code=422)
+    if not isinstance(pub, str) or len(pub) > 4096:
+        return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
     with LOCK:
         st = get_state(room)
+        binding = None
+        if REQUIRE_INVITATION:
+            try:
+                binding = _admit_invitation(st, node_id, pub, invitation)
+            except InvitationRefused as e:
+                _append_audit(room, st, "rejected", node_id, {"reason": e.reason})
+                return JSONResponse({"ok": False, "error": e.reason}, status_code=e.status)
         cur = st["nodes"].get(node_id)
         enrolled = st["evidence_participants"].get(node_id)
         if (cur and cur["pubkey"] != pub) or (enrolled and enrolled["pubkey_pem"] != pub):
@@ -465,9 +564,14 @@ async def register(req: Request):
             st["evidence_participants"][node_id] = {
                 "pubkey_pem": pub, "name": name, "samples": samples,
             }
+            if binding:
+                st["invitation_bindings"][invitation["invitation_id"]] = binding
             _append_audit(room, st, "register", node_id,
                           {"name": name, "samples": samples,
-                           "key_fingerprint": fc.sha256_hex(pub.encode())[:16]})
+                           "key_fingerprint": fc.sha256_hex(pub.encode())[:16],
+                           **({"invitation_id": invitation["invitation_id"],
+                               "institution_name": binding["institution_name"]}
+                              if binding else {})})
     return {"ok": True, "node_id": node_id, "cohort": COHORT}
 
 
@@ -486,6 +590,12 @@ async def submit(req: Request):
         node = st["nodes"].get(node_id)
         if node is None:
             return JSONResponse({"ok": False, "error": "unregistered node"}, status_code=403)
+        try:
+            _check_still_invited(st, node_id)
+        except InvitationRefused as e:
+            st["rejected"] += 1
+            _append_audit(room, st, "rejected", node_id, {"round": rnd, "reason": e.reason})
+            return JSONResponse({"ok": False, "error": e.reason}, status_code=e.status)
         if rnd <= node["last_round"]:
             st["rejected"] += 1
             _append_audit(room, st, "rejected", node_id,
@@ -577,6 +687,8 @@ async def status(request: Request):
             "fed_primary": last[PRIMARY] if last else None,
             "audit_len": len(st["audit"].entries),
             "audit_persistent": True,
+            "invitation_required": REQUIRE_INVITATION,
+            "invited_institutions": len(st["invitation_bindings"]),
             "audit_bundle_endpoint": "/audit/bundle",
         }
 
@@ -603,9 +715,11 @@ def build_audit_bundle(room: str, st: dict) -> dict:
             "cohort": COHORT, "secure_aggregation": SECURE_COHORT,
             "dp": DP, "epsilon_budget": BUDGET,
             "global_eps": round(st["global_eps"], 4),
+            "invitation_required": REQUIRE_INVITATION,
         },
         "coordinator_public_key_pem": fc.pub_pem(COORD_KEY).decode(),
         "participants": st["evidence_participants"],
+        "invitation_bindings": st["invitation_bindings"],
         "submission_receipts": st["submission_receipts"],
         "audit_count": len(entries),
         "audit_tip": entries[-1]["hash"] if entries else "0" * 64,
