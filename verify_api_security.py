@@ -133,6 +133,35 @@ check("an unreadable registry fails closed instead of admitting everyone",
       unreadable_fails_closed)
 os.unlink(registry_path)
 
+print("== coordinator identity pinning (node side) ==")
+import node_core
+
+served_pubkey = client.get("/pubkey").text
+check("the advertised public key matches the fingerprint inside the invitation",
+      invites.coordinator_key_id(fc.load_pub(served_pubkey.encode()))
+      == invitation["coordinator_key_sha256"])
+
+pinned = node_core.coordinator_identity_result(served_pubkey, invitation,
+                                               "https://coordinator.example")
+check("a node pins a coordinator that holds the issuing key",
+      pinned["pinned"] and not pinned["warning"])
+check("a pinned but unencrypted address still warns",
+      node_core.coordinator_identity_result(served_pubkey, invitation,
+                                            "http://coordinator.example")["warning"])
+
+impostor = invites.build_invitation(fc.gen_key(), institution_id="node_1",
+                                    institution_name="Pilot Hospital")
+mismatch_refused = False
+try:
+    node_core.coordinator_identity_result(served_pubkey, impostor, "https://coordinator.example")
+except RuntimeError:
+    mismatch_refused = True
+check("a coordinator holding a different key is REFUSED before anything is uploaded",
+      mismatch_refused)
+check("a configuration with no fingerprint reports that pinning is unavailable",
+      node_core.coordinator_identity_result(served_pubkey, {}, "https://coordinator.example")
+      ["warning"] != "")
+
 coordinator._RATE_EVENTS.clear()
 first = coordinator._rate_allowed("test-client", "test", 2, 100.0)
 second = coordinator._rate_allowed("test-client", "test", 2, 100.1)

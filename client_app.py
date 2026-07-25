@@ -139,12 +139,22 @@ class Api:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
     # ---- connection ----
-    def test_connect(self, coord, modality=None, key=None):
+    def test_connect(self, coord, modality=None, key=None, invitation=None):
         try:
             sch = nc.fetch_schema(coord, key=key or None)
+            identity = {}
+            if isinstance(invitation, dict):
+                # Surface a wrong coordinator here, at "Test connection", rather than at the
+                # first upload. A mismatch is a hard failure, not a warning.
+                try:
+                    identity = nc.check_coordinator_identity(coord, invitation, key=key or None)
+                except RuntimeError as e:
+                    return {"ok": False, "error": str(e)}
             fed_mod = sch.get("modality")
             compatible = (fed_mod is None or modality is None or fed_mod == modality)
             return {"ok": True, "modality": fed_mod, "modality_info": sch.get("modality_info"),
+                    "pinned": bool(identity.get("pinned")),
+                    "pin_warning": identity.get("warning", ""),
                     "n_features": sch["n_features"], "classes": sch["classes"],
                     "cohort": sch["cohort"], "dp": sch["dp"],
                     "epsilon_budget": sch.get("epsilon_budget"),

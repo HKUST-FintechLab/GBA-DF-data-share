@@ -406,13 +406,15 @@ $("#testconn").onclick=async()=>{
   const coord=$("#coord").value.trim(); if(!coord){msg("#s3msg","bad","enter a coordinator URL");return;}
   const key=$("#passwd").value.trim();
   msg("#s3msg","warn",`<span class="spin"></span> ${t("connecting")}`);
-  const r=await api().test_connect(coord, sel.modality, key);
+  const r=await api().test_connect(coord, sel.modality, key, sel.invitation);
   if(!r.ok){ msg("#s3msg","bad",r.error); $("#s3next").disabled=true; setConn("off",""); return; }
   sel.sch=r;
   const host=coord.replace(/^https?:\/\//,"");
   const featOk = r.n_features===sel.scan.n_features;
   const info=r.modality_info?(isTraditional()?HANT_MODALITIES[r.modality_info.key]?.task:(isChinese()?r.modality_info.task_zh:r.modality_info.task_en)):r.modality;
   let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
+  if(r.pinned) lines+=`<br>${t("pin_ok")}`;
+  if(r.pin_warning) lines+=`<br>⚠ ${r.pin_warning}`;
   if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
   else if(!featOk){ msg("#s3msg","bad",`${t("mismatch_feat")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
   else if(r.invitation_required && !sel.invitation){ msg("#s3msg","bad",`${t("invitation_missing")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }

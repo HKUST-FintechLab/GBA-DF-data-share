@@ -13,6 +13,7 @@ import numpy as np
 import client_config as ccfg
 import dp as dpmod
 import fed_common as fc
+import invitations as invites
 import modalities as mods
 import secure_agg as sa
 
@@ -82,6 +83,51 @@ def fetch_schema(coord: str, key: str = None) -> dict:
             raise RuntimeError("unauthorized — check the federation password")
         r.raise_for_status()
         return r.json()
+
+
+def coordinator_identity_result(advertised_pem: str, invitation: dict, coord: str) -> dict:
+    """Compare a coordinator's advertised public key with the one named in our invitation.
+
+    The invitation records the coordinator key it was issued against, so a node holding one
+    can pin the coordinator with no separate fingerprint exchange. TLS still authenticates
+    the transport and protects the payloads; this check is what makes a redirected or
+    impersonating endpoint visible even when the transport was trusted for the wrong reason.
+
+    Returns {"pinned", "expected", "actual", "transport_encrypted", "warning"}. Raises
+    RuntimeError when the coordinator presents a different key.
+    """
+    expected = str((invitation or {}).get("coordinator_key_sha256") or "")
+    result = {"pinned": False, "expected": expected, "actual": "",
+              "transport_encrypted": str(coord).lower().startswith("https://"), "warning": ""}
+    if not expected:
+        result["warning"] = ("this configuration carries no coordinator key fingerprint — "
+                             "the coordinator's identity cannot be pinned")
+        return result
+    try:
+        result["actual"] = invites.coordinator_key_id(fc.load_pub(advertised_pem.encode()))
+    except Exception as e:
+        raise RuntimeError(f"coordinator did not return a usable public key: {e}")
+    if not secrets.compare_digest(result["actual"], expected):
+        raise RuntimeError(
+            "coordinator identity mismatch: the server at this address does not hold the key "
+            "that signed your invitation. Do not continue — confirm the address with the "
+            "federation administrator.")
+    result["pinned"] = True
+    if not result["transport_encrypted"]:
+        result["warning"] = ("the coordinator address is plain http:// — identity is pinned, but "
+                             "the connection is not encrypted; a pilot deployment must use https")
+    return result
+
+
+def check_coordinator_identity(coord: str, invitation: dict, key: str = None) -> dict:
+    """Fetch the coordinator's advertised public key and pin it against the invitation."""
+    if not (invitation or {}).get("coordinator_key_sha256"):
+        return coordinator_identity_result("", invitation, coord)
+    with httpx.Client(base_url=coord, timeout=30.0, headers=_auth_headers(key)) as c:
+        r = c.get("/pubkey")
+        r.raise_for_status()
+        advertised = r.text
+    return coordinator_identity_result(advertised, invitation, coord)
 
 
 def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
@@ -162,6 +208,15 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         return response.json()
 
     try:
+        if invitation:
+            # Pin the coordinator BEFORE anything is sent: a mismatch means this address is
+            # not the federation we were invited to, so no counts should leave the machine.
+            identity = check_coordinator_identity(coord, invitation, key=key)
+            if identity["pinned"]:
+                on_log(f"coordinator identity pinned to the key that signed your invitation "
+                       f"({identity['actual'][:16]}…).")
+            if identity["warning"]:
+                on_log(f"warning: {identity['warning']}")
         enrol = {"node_id": node_id, "name": name,
                  "pubkey_pem": fc.pub_pem(ed_key).decode(),
                  "x_pub": sa.x_pub_hex(x_key), "samples": n_samples}
