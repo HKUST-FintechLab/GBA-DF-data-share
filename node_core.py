@@ -19,6 +19,9 @@ import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+RECONNECT_ATTEMPTS = 3        # re-enrol + rebuild masks this many times before giving up
+ROUND_POLL_ATTEMPTS = 480     # ≈144 s waiting for the rest of the cohort on one round
+
 
 def load_client_config(path: str) -> dict:
     """Read an administrator-issued connection config into node settings.
@@ -231,45 +234,89 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             on_log(f"register rejected: {r.get('error')}"); return summary
         on_log(f"{name}: {n_samples} local samples registered — waiting for cohort ({sch['cohort']})…")
 
-        peers = None
-        for _ in range(480):
-            if should_stop():
-                summary.update(ok=False, error="stopped"); return summary
-            p = get_json("/participants")
-            if p["ready"]:
-                peers = {q["node_id"]: sa.load_x_pub(q["x_pub"]) for q in p["participants"]}
-                break
-            time.sleep(0.5)
+        def await_cohort():
+            """Block until the enrolled cohort is complete, then return the peer masking keys
+            and the fingerprint of the exact set those keys belong to."""
+            for _ in range(480):
+                if should_stop():
+                    return None, ""
+                p = get_json("/participants")
+                if p["ready"]:
+                    return ({q["node_id"]: sa.load_x_pub(q["x_pub"]) for q in p["participants"]},
+                            p.get("cohort_sha256", ""))
+                time.sleep(0.5)
+            return None, ""
+
+        peers, cohort_sha = await_cohort()
         if peers is None:
             summary.update(ok=False, error="cohort never completed")
             on_log("cohort never completed — aborting."); return summary
         on_log(f"cohort ready ({len(peers)} nodes); secure aggregation active.")
 
+        def rejoin():
+            """Re-enrol after the coordinator lost our registration or the cohort changed.
+
+            The masking key is ephemeral, so the coordinator adopts the new one and drops any
+            round built against the old peer set; we then rebuild this round's masks.
+            """
+            nonlocal peers, cohort_sha
+            post_json("/register", dict(enrol))
+            peers, cohort_sha = await_cohort()
+            return peers is not None
+
         start_round = int(sch.get("next_round", 1))
+        aborted = False
         for completed, rd in enumerate(range(start_round, start_round + rounds), start=1):
             if should_stop():
                 summary.update(error="stopped"); break
             trees = dpmod.build_shared_structure(struct_seed + rd, X.shape[1], bounds, depth, n_trees)
             counts = dpmod.count_on_shared(trees, X, y, classes, assign_seed=seed * 100 + rd)
             flat = dpmod.flatten_counts(counts)
-            masked = [int(v) for v in sa.mask_counts(node_id, x_key, peers, rd, flat)]
-            masked_body = fc._canon(masked)
-            phash = fc.sha256_hex(masked_body)
-            sig = ed_key.sign(f"{node_id}|{rd}|{n_samples}|{phash}".encode())
-            resp = post_json("/submit", {"node_id": node_id, "round": rd,
-                             "n_samples": n_samples, "masked": masked,
-                             "sig_hex": sig.hex()}, masked_bytes=len(masked_body))
-            if not resp.get("ok"):
-                summary.update(ok=False, error=f"round {rd}: {resp.get('error')}")
-                on_log(f"round {rd} REJECTED: {resp.get('error')}"); break
+
+            resp = None
+            for attempt in range(RECONNECT_ATTEMPTS):
+                masked = [int(v) for v in sa.mask_counts(node_id, x_key, peers, rd, flat)]
+                masked_body = fc._canon(masked)
+                phash = fc.sha256_hex(masked_body)
+                sig = ed_key.sign(f"{node_id}|{rd}|{n_samples}|{phash}".encode())
+                resp = post_json("/submit", {"node_id": node_id, "round": rd,
+                                 "n_samples": n_samples, "masked": masked,
+                                 "sig_hex": sig.hex(), "cohort_sha256": cohort_sha},
+                                 masked_bytes=len(masked_body))
+                if resp.get("ok") or resp.get("code") not in {"cohort_changed", "unregistered"}:
+                    break
+                if attempt == RECONNECT_ATTEMPTS - 1:
+                    break
+                on_log(f"round {rd}: {resp.get('error')} — re-enrolling and rebuilding masks…")
+                if not rejoin():
+                    break
+            if not resp or not resp.get("ok"):
+                summary.update(ok=False, error=f"round {rd}: {(resp or {}).get('error')}")
+                on_log(f"round {rd} REJECTED: {(resp or {}).get('error')}"); break
+
             res = resp
-            for _ in range(480):
+            for _ in range(ROUND_POLL_ATTEMPTS):
                 if should_stop():
                     break
                 rr = get_json(f"/round/{rd}")
                 if rr.get("ready"):
                     res = rr; break
+                if rr.get("aborted"):
+                    res = rr; break
                 time.sleep(0.3)
+            if not res.get("ready") and res.get("aborted"):
+                missing = ", ".join(res.get("waiting_for") or []) or "another institution"
+                summary.update(ok=False, error=f"round {rd} was discarded (waiting for {missing})")
+                on_log(f"round {rd} was discarded by the coordinator — it never received every "
+                       f"institution's submission (missing: {missing}). No epsilon was spent; "
+                       f"re-run once the cohort is back.")
+                aborted = True; break
+            if not res.get("ready"):
+                summary.update(ok=False, error=f"round {rd} did not complete in time")
+                on_log(f"round {rd} is still waiting for "
+                       f"{', '.join(res.get('waiting_for') or ['the rest of the cohort'])} — "
+                       f"stopping rather than starting another round.")
+                aborted = True; break
             val = res.get("fed_primary")
             global_eps = float(res.get("global_eps", resp.get("global_eps")) or 0.0)
             epsilon_budget = res.get("epsilon_budget", resp.get("epsilon_budget"))
@@ -284,6 +331,8 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
                    f"global {summary['primary_metric']} = {val_s}")
             if on_round:
                 on_round(dict(summary))
+        if aborted and on_round:
+            on_round(dict(summary))
     except Exception as e:                               # network/other — surface, don't crash UI
         summary.update(ok=False, error=f"{type(e).__name__}: {e}")
         on_log(f"error: {e}")

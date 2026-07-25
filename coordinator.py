@@ -23,6 +23,10 @@ Deployment knobs (env vars):
   FED_INVITATION_REGISTRY
                  path to the signed issuance/revocation ledger written by admin_invite.py.
                  Defaults to <FED_STATE_DIR>/invitations.json.
+  FED_ROUND_TIMEOUT_SECONDS
+                 how long a partially-submitted round waits for the rest of the cohort before
+                 it is discarded and its submitters may send it again (default 900). Nothing
+                 was aggregated, so an abandoned round costs no epsilon.
   FED_COHORT     override the cohort published in meta.json. FED_COHORT=1 turns on
                  PER-GUEST ISOLATION: each client (keyed by its X-Fed-Session header) gets
                  its OWN private cohort-1 federation — anyone can try alone, anytime, and
@@ -110,6 +114,7 @@ def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int
 MAX_BODY_BYTES = _bounded_env_int("FED_MAX_BODY_BYTES", 32 * 1024 * 1024,
                                   1024, 128 * 1024 * 1024)
 RATE_LIMIT_PER_MINUTE = _bounded_env_int("FED_RATE_LIMIT_PER_MINUTE", 600, 10, 10000)
+ROUND_TIMEOUT_SECONDS = _bounded_env_int("FED_ROUND_TIMEOUT_SECONDS", 900, 30, 86400)
 WRITE_RATE_LIMIT_PER_MINUTE = _bounded_env_int(
     "FED_WRITE_RATE_LIMIT_PER_MINUTE", 120, 5, 5000)
 N_FEATURES = int(X_TEST.shape[1])
@@ -265,6 +270,7 @@ def _persist_state(room: str, st: dict):
         "submission_receipts": st["submission_receipts"],
         "model": st["model"].serialize() if st["model"].n_updates() else None,
         "metrics": st["metrics"], "global_eps": st["global_eps"],
+        "epsilon_spent": st["epsilon_spent"],
         "rejected": st["rejected"], "updated_at": time.time(),
     }
     digest = fc.sha256_hex(fc._canon(payload))
@@ -296,9 +302,9 @@ def _append_audit(room: str, st: dict, event: str, node: str, detail: dict,
 def new_state(room: str):
     st = {
         "nodes": {}, "model": fc.GlobalModel(CLASSES), "audit": fc.Audit(COORD_KEY),
-        "metrics": [], "round_buf": {}, "round_done": {}, "global_eps": 0.0,
+        "metrics": [], "rounds": {}, "round_done": {}, "global_eps": 0.0,
         "rejected": 0, "started": time.time(), "evidence_participants": {},
-        "submission_receipts": [], "invitation_bindings": {},
+        "submission_receipts": [], "invitation_bindings": {}, "epsilon_spent": {},
     }
     path = _state_path(room)
     if os.path.exists(path):
@@ -317,6 +323,8 @@ def new_state(room: str):
         st["invitation_bindings"] = saved.get("invitation_bindings", {})
         st["submission_receipts"] = saved.get("submission_receipts", [])
         st["metrics"] = saved.get("metrics", [])
+        st["epsilon_spent"] = {str(k): float(v)
+                               for k, v in (saved.get("epsilon_spent") or {}).items()}
         st["global_eps"] = float(saved.get("global_eps", 0.0))
         st["rejected"] = int(saved.get("rejected", 0))
         if saved.get("model"):
@@ -330,6 +338,48 @@ def new_state(room: str):
                        "secure_aggregation": SECURE_COHORT,
                        f"centralized_{PRIMARY}": round(CENTRAL[PRIMARY], 4)})
     return st
+
+
+def cohort_fingerprint(st: dict) -> str:
+    """Fingerprint of the currently enrolled (node_id, x_pub) set."""
+    return fc.cohort_fingerprint((nid, v["x_pub"]) for nid, v in st["nodes"].items())
+
+
+def _discard_round(room: str, st: dict, rnd: int, reason: str, detail: dict = None):
+    """Drop a pending round's buffered submissions and let its submitters send it again.
+
+    Nothing was aggregated, so no epsilon was spent; rolling `last_round` back below the
+    round is what makes the retry acceptable rather than a replay.
+    """
+    record = st["rounds"].pop(rnd, None)
+    if not record:
+        return
+    submitters = sorted(record["subs"])
+    for node_id in submitters:
+        node = st["nodes"].get(node_id)
+        if node and node["last_round"] >= rnd:
+            node["last_round"] = rnd - 1
+    _append_audit(room, st, "round_discarded", "coordinator",
+                  {"round": rnd, "reason": reason, "submitted": submitters,
+                   "missing": sorted(set(st["nodes"]) - set(submitters)),
+                   "epsilon_spent": 0.0, **(detail or {})})
+
+
+def _expire_stale_rounds(room: str, st: dict):
+    """Abort rounds that never completed within the timeout, so one absent institution
+    stalls the federation for a bounded period instead of indefinitely."""
+    now = time.time()
+    for rnd in [r for r, rec in st["rounds"].items()
+                if r not in st["round_done"] and now - rec["started"] > ROUND_TIMEOUT_SECONDS]:
+        _discard_round(room, st, rnd, "round timed out waiting for the full cohort",
+                       {"timeout_seconds": ROUND_TIMEOUT_SECONDS})
+
+
+def _invalidate_changed_cohort(room: str, st: dict, fingerprint: str):
+    """Drop pending rounds whose masks were built against a different peer set."""
+    for rnd in [r for r, rec in st["rounds"].items()
+                if r not in st["round_done"] and rec["cohort"] != fingerprint]:
+        _discard_round(room, st, rnd, "cohort membership or masking keys changed")
 
 
 def get_state(room: str):
@@ -481,8 +531,10 @@ async def participants(request: Request):
     room = room_of(request)
     with LOCK:
         st = get_state(room)
+        _expire_stale_rounds(room, st)
         ps = [{"node_id": nid, "x_pub": v["x_pub"]} for nid, v in st["nodes"].items()]
-        return {"ready": len(ps) >= COHORT, "cohort": COHORT, "participants": ps}
+        return {"ready": len(ps) >= COHORT, "cohort": COHORT, "participants": ps,
+                "cohort_sha256": cohort_fingerprint(st)}
 
 
 @app.post("/register")
@@ -536,7 +588,17 @@ async def register(req: Request):
                            **({"invitation_id": invitation["invitation_id"],
                                "institution_name": binding["institution_name"]}
                               if binding else {})})
-    return {"ok": True, "node_id": node_id, "cohort": COHORT}
+        elif cur["x_pub"] != xpub:
+            # A reconnecting node brings a FRESH ephemeral masking key. Keeping the old one
+            # would leave residual masks in the pooled sum, so adopt the new key and discard
+            # any round whose masks were built against the previous peer set.
+            cur["x_pub"], cur["samples"], cur["name"] = xpub, samples, name
+            st["evidence_participants"][node_id].update(name=name, samples=samples)
+            _append_audit(room, st, "rejoin", node_id,
+                          {"name": name, "samples": samples, "reason": "masking key refreshed"})
+        _invalidate_changed_cohort(room, st, cohort_fingerprint(st))
+        fingerprint = cohort_fingerprint(st)
+    return {"ok": True, "node_id": node_id, "cohort": COHORT, "cohort_sha256": fingerprint}
 
 
 @app.post("/submit")
@@ -546,25 +608,48 @@ async def submit(req: Request):
         b = await req.json()
         node_id, rnd, n_samples = b["node_id"], int(b["round"]), int(b["n_samples"])
         masked, sig = b["masked"], bytes.fromhex(b["sig_hex"])
+        claimed_cohort = str(b.get("cohort_sha256") or "")
     except Exception:
         return JSONResponse({"ok": False, "error": "bad request"}, status_code=422)
 
     with LOCK:
         st = get_state(room)
+        _expire_stale_rounds(room, st)
         node = st["nodes"].get(node_id)
         if node is None:
-            return JSONResponse({"ok": False, "error": "unregistered node"}, status_code=403)
+            return JSONResponse({"ok": False, "error": "unregistered node",
+                                 "code": "unregistered"}, status_code=403)
         try:
             _check_still_invited(st, node_id)
         except InvitationRefused as e:
             st["rejected"] += 1
             _append_audit(room, st, "rejected", node_id, {"round": rnd, "reason": e.reason})
             return JSONResponse({"ok": False, "error": e.reason}, status_code=e.status)
-        if rnd <= node["last_round"]:
+        # Masks cancel only for the exact peer set they were built against, so a submission
+        # carrying a stale fingerprint must never be pooled with current ones.
+        fingerprint = cohort_fingerprint(st)
+        if claimed_cohort != fingerprint:
+            st["rejected"] += 1
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "cohort fingerprint mismatch"})
+            return JSONResponse({"ok": False, "code": "cohort_changed",
+                                 "error": "cohort membership or masking keys changed — "
+                                          "re-fetch /participants and rebuild the masks",
+                                 "cohort_sha256": fingerprint}, status_code=409)
+        pending = st["rounds"].get(rnd)
+        prior = (pending or {}).get("subs", {}).get(node_id)
+        if rnd in st["round_done"]:
+            st["rejected"] += 1
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "round already aggregated"})
+            return JSONResponse({"ok": False, "error": "round already completed",
+                                 "code": "stale"}, status_code=409)
+        if prior is None and rnd <= node["last_round"]:
             st["rejected"] += 1
             _append_audit(room, st, "rejected", node_id,
                           {"round": rnd, "reason": "replay/stale"})
-            return JSONResponse({"ok": False, "error": "stale or replayed round"}, status_code=409)
+            return JSONResponse({"ok": False, "error": "stale or replayed round",
+                                 "code": "stale"}, status_code=409)
         # validate masked vector: exact length, ints in range
         if (not isinstance(masked, list) or len(masked) != EXPECT_LEN
                 or not all(isinstance(x, int) and 0 <= x < sa.MOD for x in masked)):
@@ -579,45 +664,68 @@ async def submit(req: Request):
             _append_audit(room, st, "rejected", node_id,
                           {"round": rnd, "reason": "bad signature"})
             return JSONResponse({"ok": False, "error": "signature verification failed"}, status_code=401)
-        if rnd not in st["round_done"] and st["global_eps"] + EPS_ROUND > BUDGET + 1e-9:
+        if str(rnd) not in st["epsilon_spent"] and st["global_eps"] + EPS_ROUND > BUDGET + 1e-9:
             st["rejected"] += 1
             _append_audit(room, st, "rejected", node_id,
                           {"round": rnd, "reason": "global ε budget exceeded"})
             return JSONResponse({"ok": False, "error": "global epsilon budget exceeded"}, status_code=429)
 
+        if prior is not None and prior["hash"] != payload_hash:
+            # A pending round already holds a different vector from this node. Accepting it
+            # would let one institution choose its contribution after seeing the others wait.
+            st["rejected"] += 1
+            _append_audit(room, st, "rejected", node_id,
+                          {"round": rnd, "reason": "conflicting resubmission"})
+            return JSONResponse({"ok": False, "code": "conflict",
+                                 "error": "a different payload was already submitted for this "
+                                          "pending round"}, status_code=409)
+
         node["last_round"] = rnd
-        buf = st["round_buf"].setdefault(rnd, {})
-        buf[node_id] = np.asarray(masked, dtype=np.int64)
-        st["submission_receipts"].append({
-            "node_id": node_id, "round": rnd, "n_samples": n_samples,
-            "payload_sha256": payload_hash, "sig_hex": sig.hex(), "ts": time.time(),
-        })
-        _append_audit(room, st, "submit", node_id,
-                      {"round": rnd, "n_samples": n_samples,
-                       "masked_cells": len(masked)}, payload_sha256=payload_hash)
+        record = st["rounds"].setdefault(rnd, {"cohort": fingerprint, "started": time.time(),
+                                               "subs": {}})
+        record["subs"][node_id] = {"vec": np.asarray(masked, dtype=np.int64),
+                                   "hash": payload_hash}
+        if prior is None:
+            # A retry of an identical payload is idempotent: no second receipt, no second
+            # audit entry, and nothing changes in the pooled sum.
+            st["submission_receipts"].append({
+                "node_id": node_id, "round": rnd, "n_samples": n_samples,
+                "payload_sha256": payload_hash, "sig_hex": sig.hex(), "ts": time.time(),
+            })
+            _append_audit(room, st, "submit", node_id,
+                          {"round": rnd, "n_samples": n_samples,
+                           "masked_cells": len(masked)}, payload_sha256=payload_hash)
 
         # full cohort for this round -> SECURE-SUM (masks cancel only if the exact enrolled set submits)
-        if (len(buf) >= COHORT and set(buf) == set(st["nodes"]) and rnd not in st["round_done"]):
-            summed = sa.secure_sum(list(buf.values()))             # coordinator sees only the pooled sum
+        subs = record["subs"]
+        if (len(subs) >= COHORT and set(subs) == set(st["nodes"])
+                and rnd not in st["round_done"]):
+            summed = sa.secure_sum([s["vec"] for s in subs.values()])  # only the pooled sum
             trees = shared_trees(rnd)
             fd = dp.forest_from_summed_counts(trees, summed, CLASSES, EPS_ROUND)
-            weight = float(sum(st["nodes"][x]["samples"] for x in buf))
+            weight = float(sum(st["nodes"][x]["samples"] for x in subs))
             st["model"].add(fc.JsonForest(fd), weight, "secure-agg", rnd)
+            # The ledger is the authority on what a round already cost, so no retry, restart,
+            # or duplicate aggregation can charge the same round twice.
+            st["epsilon_spent"][str(rnd)] = EPS_ROUND
             st["global_eps"] += EPS_ROUND
             m = st["model"].evaluate(X_TEST, Y_TEST)
             st["metrics"].append({"seq": len(st["metrics"]), "ts": time.time(),
                                   "round": rnd, **m, "central": CENTRAL[PRIMARY]})
             st["round_done"][rnd] = {"fed_primary": m[PRIMARY], "global_trees": m["n_trees"]}
+            st["rounds"].pop(rnd, None)          # masked vectors are not kept after pooling
             _append_audit(room, st, "aggregate", "coordinator",
-                          {"round": rnd, "participants": len(buf),
+                          {"round": rnd, "participants": len(subs),
                            "global_trees": m["n_trees"], "epsilon": EPS_ROUND,
                            "global_eps": round(st["global_eps"], 4),
                            f"fed_{PRIMARY}": round(m[PRIMARY], 4)})
 
         done = st["round_done"].get(rnd)
         eps = st["global_eps"]
+        waiting = sorted(set(st["nodes"]) - set(st["rounds"].get(rnd, {}).get("subs", {})))
     return {"ok": True, "primary_metric": PRIMARY, "pending": done is None,
             "fed_primary": (done or {}).get("fed_primary"),
+            "waiting_for": waiting, "cohort_sha256": fingerprint,
             "global_eps": eps, "epsilon_budget": BUDGET}
 
 
@@ -626,8 +734,14 @@ async def round_result(rnd: int, request: Request):
     room = room_of(request)
     with LOCK:
         st = get_state(room)
+        _expire_stale_rounds(room, st)
         d = st["round_done"].get(rnd)
+        pending = st["rounds"].get(rnd)
+        # A round that is neither complete nor buffered was aborted: say so, so a node stops
+        # waiting on it instead of polling a round that will never finish.
         return {"ready": d is not None, **(d or {}), "primary_metric": PRIMARY,
+                "aborted": d is None and pending is None,
+                "waiting_for": sorted(set(st["nodes"]) - set((pending or {}).get("subs", {}))),
                 "global_eps": st["global_eps"], "epsilon_budget": BUDGET}
 
 
@@ -653,6 +767,13 @@ async def status(request: Request):
             "audit_persistent": True,
             "invitation_required": REQUIRE_INVITATION,
             "invited_institutions": len(st["invitation_bindings"]),
+            "round_timeout_seconds": ROUND_TIMEOUT_SECONDS,
+            "cohort_sha256": cohort_fingerprint(st),
+            "pending_rounds": [
+                {"round": rnd, "submitted": sorted(rec["subs"]),
+                 "waiting_for": sorted(set(st["nodes"]) - set(rec["subs"])),
+                 "waited_seconds": round(time.time() - rec["started"], 1)}
+                for rnd, rec in sorted(st["rounds"].items())],
             "audit_bundle_endpoint": "/audit/bundle",
         }
 

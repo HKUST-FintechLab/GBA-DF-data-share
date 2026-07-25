@@ -62,6 +62,17 @@ def _canon(obj) -> bytes:
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()
 
 
+def cohort_fingerprint(participants) -> str:
+    """Fingerprint of the exact (node_id, x_pub) set a round's masks were built against.
+
+    Pairwise masks cancel only for one specific peer set, so a submission built against a
+    different set would silently corrupt the pooled sum rather than fail. Both sides compute
+    this from the same canonical form and the coordinator refuses to mix fingerprints.
+    """
+    pairs = sorted([str(node_id), str(x_pub)] for node_id, x_pub in participants)
+    return sha256_hex(_canon(pairs))
+
+
 # ---------- pickle-free forest exchange ----------
 def serialize_forest(clf) -> dict:
     """Fitted ExtraTrees -> JSON-safe dict. Leaves carry normalised class

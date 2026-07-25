@@ -229,5 +229,13 @@ api_check = subprocess.run(
 check("coordinator endpoint authentication, size limits, and rate limiting",
       api_check.returncode == 0)
 
+print("== round integrity under failure ==")
+round_check = subprocess.run(
+    [sys.executable, os.path.join(os.path.dirname(__file__), "verify_round_integrity.py")],
+    check=False,
+)
+check("reconnect, cohort binding, idempotency, timeout, and single-spend epsilon",
+      round_check.returncode == 0)
+
 print("\nRESULT:", "ALL SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 sys.exit(0 if ok_all else 1)
