@@ -9,6 +9,8 @@ Demonstrates the post-audit fixes:
 """
 import base64
 import copy
+import os
+import subprocess
 import sys
 
 import numpy as np
@@ -165,6 +167,14 @@ for key in ("eyegaze", "action", "neuro"):
     map1 = m.normalize(raw); map2 = m.normalize(raw)
     check(f"{key}: normalization is a fixed public function (scale is a shipped constant)",
           np.allclose(map1, map2) and np.allclose(map1, np.tanh(0.5)))
+
+print("== coordinator API boundary ==")
+api_check = subprocess.run(
+    [sys.executable, os.path.join(os.path.dirname(__file__), "verify_api_security.py")],
+    check=False,
+)
+check("coordinator endpoint authentication, size limits, and rate limiting",
+      api_check.returncode == 0)
 
 print("\nRESULT:", "ALL SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 sys.exit(0 if ok_all else 1)
