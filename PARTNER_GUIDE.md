@@ -245,7 +245,11 @@ you are screening are themselves sensitive.
 - **Enrolment:** a node id binds to the first key it registers (it can't be hijacked afterwards). Send
   us your node id + public key out-of-band so we can confirm it.
 - **Budget:** once your cumulative ε reaches the agreed budget, further uploads are refused (HTTP 429)
-  — this is the privacy guarantee working as intended.
+  — this is the privacy guarantee working as intended. A round that is discarded before it completes
+  aggregates nothing and costs no ε, and retrying an interrupted round never charges it twice.
+- **Interruptions are safe.** If your machine or ours restarts mid-round, your node re-enrols, rebuilds
+  its masks against the current cohort, and resends that round. An identical resend is ignored as a
+  duplicate rather than counted twice.
 
 ## 9. Troubleshooting
 
@@ -260,7 +264,9 @@ you are screening are themselves sensitive.
 | `a signed institution invitation is required` | Import the connection configuration we issued (desktop client) or pass `--config` (CLI). |
 | `invitation: expired` / `invitation: revoked` | Contact us — expiry needs a reissue; revocation is a deliberate withdrawal we should discuss. |
 | `cohort full` | The enrolled cohort is already complete — confirm your `node-id` is on the agreed list. |
-| Round never completes / node hangs at a round | Secure aggregation needs the **whole cohort** each round — a missing or slow institution stalls it for everyone. We confirm all nodes are up before starting; restart the lagging node. |
+| Round never completes / node hangs at a round | Secure aggregation needs the **whole cohort** each round — a missing or slow institution stalls it for everyone. The coordinator discards a round that waits too long; your node then stops with a message naming who was missing. No ε is spent, and the round can be run again once everyone is back. |
+| `cohort membership or masking keys changed` | Another institution reconnected, so your masks were built against a stale peer set. Your node re-enrols and rebuilds them automatically; no action needed unless it repeats. |
+| `a different payload was already submitted for this pending round` | Two of your processes are submitting for the same node id. Run one node per institution. |
 | Can't reach coordinator | Check the URL/port, TLS, and your firewall's outbound rules. |
 
 ## 10. FAQ

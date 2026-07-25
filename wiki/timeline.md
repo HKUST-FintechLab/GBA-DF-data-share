@@ -38,6 +38,11 @@ If only one engineer is available, move pilot go-live to 2026-09-28 and producti
   in its invitation before registering and aborts without uploading on a mismatch; the desktop client
   runs the same check at *Test connection*; the pilot TLS topology is frozen and documented.
   Verified live against a second coordinator holding a different key.
+- **Aug 10–16 largely complete on 2026-07-26:** cohort-fingerprint binding, round timeout with
+  resubmission, idempotent retries, node reconnect, a per-round epsilon ledger, and dashboard
+  visibility of a stalled round. Building it surfaced a real corruption bug: a reconnecting node's
+  stale `x_pub` would have left residual masks in the pooled sum. Still open in this band: surviving
+  a coordinator restart *mid-round* without resubmission, and client-side offline detection.
 
 ## Six-week pilot critical path
 
@@ -45,7 +50,7 @@ If only one engineer is available, move pilot go-live to 2026-09-28 and producti
 |---|---|---|---|
 | **Jul 27–Aug 2** | ~~Invitation schema and TLS topology~~ (done 07-26); freeze threat model, endpoint permission matrix, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
 | **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
-| **Aug 10–16** | Add durable round state, idempotency, timeout, cancel/restart, reconnect, and epsilon double-spend protection | Add clear waiting/offline/retry UI and network-failure recovery | Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice |
+| **Aug 10–16** | ~~Idempotency, timeout, cancel/restart, reconnect, epsilon double-spend protection~~ (done 07-26); durable state for a coordinator restart mid-round | ~~Waiting/retry surfacing~~ (done 07-26); add offline detection and network-failure recovery | ~~Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice~~ (covered by `verify_round_integrity.py`) |
 | **Aug 17–23** | Add structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment (`/health` and `/ready` complete) | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
 | **Aug 24–30** | Add CI, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Run Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
 | **Aug 31–Sep 6** | Deploy staging and fix security/operations findings | Conduct at least three complete three-institution rehearsals and finalize partner runbook | Go/no-go checklist passes |
@@ -62,6 +67,7 @@ All items are mandatory:
 - Invitations can expire and be revoked without reinstalling the client.
 - Restart, timeout, duplicate submission, and one-node disconnect have documented outcomes.
 - No failure path can spend epsilon twice for one completed round.
+- No reconnect or dropout path can pool submissions built against different peer sets.
 - Coordinator key/state backup and restore are demonstrated on a clean host.
 - Audit bundle verification succeeds after restore.
 - Signed client packages work on the actual pilot Windows/macOS machines.

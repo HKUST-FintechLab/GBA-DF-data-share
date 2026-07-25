@@ -106,6 +106,7 @@ uv run python bench.py
 | `predict.py` | Downloaded-model local inference and optional hosted inference |
 | `verify_audit_bundle.py` | Offline audit-package signature, chain, receipt, and model-hash verifier |
 | `verify_security.py` | Security and privacy regression checks |
+| `verify_round_integrity.py` | Reconnect, cohort-binding, idempotency, timeout, and epsilon-ledger regression checks |
 | `verify_api_security.py` | Coordinator HTTP access-control, invitation-enforcement, body-limit, and rate-limit regression checks |
 | `bench.py` | IID/non-IID privacy-utility benchmark |
 | `run_demo.py` | Demo orchestration |
@@ -135,6 +136,9 @@ Do not weaken or overstate these constraints:
 - Each record contributes to one leaf per tree, giving L1 sensitivity 1 for a tree's leaf-count vector.
 - The coordinator adds Laplace noise after recovering the pooled secure sum and meters the global epsilon budget using basic composition.
 - A secure-aggregation round requires the exact enrolled cohort. Dropout recovery is not implemented.
+- Every submission carries a cohort fingerprint over the exact `(node_id, x_pub)` set its masks were built against. Never pool submissions across fingerprints, and never keep a stale `x_pub` for a reconnecting node: either would silently corrupt the pooled sum instead of failing.
+- A partially-submitted round is discarded after `FED_ROUND_TIMEOUT_SECONDS`, and a discarded round must aggregate nothing and spend no epsilon.
+- Identical resubmissions are idempotent; a conflicting payload for the same pending round must be refused. Epsilon is charged through the persisted per-round ledger, at most once per round number.
 - Meaningful pairwise-masking privacy requires at least three non-colluding nodes.
 - `FED_COHORT=1` is isolated solo-demo mode with central DP only. Never describe it as secure aggregation.
 - The trust model assumes an honest-but-curious, non-colluding coordinator and honest leaf-count construction.
@@ -161,8 +165,8 @@ Do not weaken or overstate these constraints:
 
 - `FED_PASSWORD`, `FED_READ_PASSWORD`, `FED_COHORT`, `FED_STATE_DIR`,
   `FED_MAX_BODY_BYTES`, `FED_RATE_LIMIT_PER_MINUTE`,
-  `FED_WRITE_RATE_LIMIT_PER_MINUTE`, `FED_REQUIRE_INVITATION`, and
-  `FED_INVITATION_REGISTRY` are runtime environment variables. Never hard-code credentials.
+  `FED_WRITE_RATE_LIMIT_PER_MINUTE`, `FED_REQUIRE_INVITATION`,
+  `FED_INVITATION_REGISTRY`, and `FED_ROUND_TIMEOUT_SECONDS` are runtime environment variables. Never hard-code credentials.
 - Issued invitation files and the invitation registry are runtime secrets. Never commit them.
 - Do not commit real passwords, access tokens, private keys, server addresses, or deployment-specific connection details.
 - Cross-site deployment requires appropriate TLS, authentication, firewall, key-management, and institutional data-processing controls.
@@ -181,6 +185,9 @@ uv run python verify_security.py
 uv run python modalities.py
 uv run python client_app.py --selftest
 ```
+
+`verify_security.py` runs `verify_api_security.py` and `verify_round_integrity.py` as subprocesses;
+run those directly when iterating on the coordinator protocol.
 
 - For documentation changes, verify commands and claims against current code and tracked artifacts.
 - Keep limitations visible. Do not replace technical caveats with stronger marketing language.

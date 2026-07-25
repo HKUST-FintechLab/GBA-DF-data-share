@@ -18,7 +18,7 @@ and institutional governance rather than another model feature.
 | Target | Readiness estimate | Status |
 |---|---:|---|
 | Demonstration/internal dry run | 90%+ | Available now |
-| Controlled three-institution research pilot | ~70% | Six-week hardening plan active |
+| Controlled three-institution research pilot | ~78% | Six-week hardening plan active |
 | 7×24 production research platform | ~40% | Follows the pilot |
 | Clinical screening/diagnostic deployment | <20% | Separate validation/regulatory programme |
 
@@ -28,8 +28,9 @@ These percentages are planning estimates, not formal maturity certifications.
 
 Verified on 2026-07-26:
 
-- `uv run python verify_security.py` — all 39 checks passed, including the 22-check coordinator
-  HTTP boundary and invitation-enforcement suite it runs as a subprocess.
+- `uv run python verify_security.py` — 91 checks passed: its own 40, plus the 27-check coordinator
+  HTTP boundary/invitation/pinning suite and the 24-check round-integrity suite it runs as
+  subprocesses.
 - `uv run python modalities.py` — eyegaze, action, and neuro extraction checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
 - Live three-command rehearsal: an issued invitation enrolled and trained a node, an uninvited node
@@ -41,7 +42,6 @@ Verified on 2026-07-26:
 
 | Priority | Blocker | Pilot solution |
 |---|---|---|
-| P0 | Full-cohort aggregation stalls if one node drops | Explicit round timeout, abort/restart, reconnect, and idempotent submission |
 | P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, durable round state, backup/restore, health checks, and monitoring |
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
 | P0 | Browser pose extraction depends on a public CDN | Bundled or institution-hosted MediaPipe/WASM assets with hashes and an offline path |
@@ -49,6 +49,16 @@ Verified on 2026-07-26:
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
+
+- **2026-07-26 — Round reliability, and a corruption bug found while building it:** a re-registering
+  node previously kept its stale `x_pub` at the coordinator while masking with a fresh ephemeral key,
+  so its residual masks would have silently corrupted the pooled sum on any reconnect. Rounds are now
+  bound to a fingerprint of the exact `(node_id, x_pub)` set their masks were built against; a
+  reconnect adopts the new key and discards rounds built against the old set. Partially-submitted
+  rounds are discarded after a configurable timeout and may be resubmitted, identical retries are
+  idempotent, conflicting ones are refused, and a persisted per-round ledger makes double-spending
+  epsilon structurally impossible. The node re-enrols and rebuilds masks on its own; the dashboard
+  names the institution a stalled round is waiting for.
 
 - **2026-07-26 — Institution invitations:** `FED_REQUIRE_INVITATION=1` makes enrolment require a
   coordinator-signed invitation naming the institution, with an expiry, bound to the node's Ed25519

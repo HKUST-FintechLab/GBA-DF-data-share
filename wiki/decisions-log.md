@@ -4,6 +4,24 @@ Last updated: 2026-07-26
 
 Newest decisions appear first.
 
+## 2026-07-26 — Handle dropout by discarding rounds, not by persisting masked vectors
+
+- Bind every round to a fingerprint of the exact `(node_id, x_pub)` set its masks were built against,
+  and refuse to pool submissions across fingerprints. A wrong peer set produces a *silently* wrong
+  sum, so this must fail loudly rather than degrade.
+- A reconnecting node's fresh ephemeral masking key is adopted, and rounds built against its previous
+  key are discarded. Keeping the old key would have left residual masks in the pooled sum — this was
+  a live defect, not a hypothetical.
+- Do not persist in-flight masked vectors. Discarding an incomplete round and having nodes resubmit
+  achieves the same recovery without writing participant-linkable material to disk. Coordinator
+  restart recovery is therefore reconnect-and-resubmit, and this is stated in the partner guide.
+- Bound a stall rather than waiting forever: a partially-submitted round is discarded after
+  `FED_ROUND_TIMEOUT_SECONDS` and may be sent again. Nothing was aggregated, so nothing was spent.
+- Treat an identical retry as idempotent and a conflicting payload for the same pending round as a
+  refusal, so no institution can revise its contribution after watching the others wait.
+- Make the per-round epsilon ledger the authority on what a round cost, so double-spending is
+  structurally impossible rather than merely unlikely.
+
 ## 2026-07-26 — Freeze the pilot TLS topology and coordinator pinning
 
 - Pilot topology: partner node → HTTPS → institutional reverse proxy terminating TLS → uvicorn

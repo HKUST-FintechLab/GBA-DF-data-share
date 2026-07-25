@@ -18,7 +18,8 @@ Project status and the compressed delivery schedule are maintained in the
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
 ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **28 checks**. Hardened across **four rounds** of adversarial code audit
+`verify_security.py` runs **91 checks** (its own 40 plus the API-security and round-integrity suites it
+invokes). Hardened across **four rounds** of adversarial code audit
 (security · regressions · DP correctness · secure aggregation).
 
 Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
@@ -90,7 +91,7 @@ This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`
 git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
 cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
-uv run python verify_security.py          # 28 checks, including the coordinator API security boundary
+uv run python verify_security.py          # 91 checks: privacy, API boundary, invitations, round integrity
 uv run python modalities.py               # optional: self-check all three feature extractors
 
 # one command: prepare data -> start coordinator -> run all nodes -> live dashboard
@@ -177,6 +178,7 @@ FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT
 | `FED_WRITE_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated writes; default 120/minute per client address. A shared limiter is still required for multi-instance production. |
 | `FED_REQUIRE_INVITATION` | `1` additionally requires a coordinator-signed institution invitation at `/register`. Required for a pilot; default `0` for local demos. |
 | `FED_INVITATION_REGISTRY` | Path to the signed issuance/revocation ledger. Default: `<FED_STATE_DIR>/invitations.json`. |
+| `FED_ROUND_TIMEOUT_SECONDS` | How long a partially-submitted round waits for the rest of the cohort before it is discarded and may be submitted again; default 900, allowed range 30–86400. |
 
 Only `/`, `/health`, `/ready`, and `/pubkey` are intentionally public. If both password variables are
 unset, all paths remain open for local development. Share runtime passwords out-of-band; do not commit
@@ -357,7 +359,8 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
-| `verify_api_security.py` | coordinator endpoint-authentication, request-size, downstream-body, and rate-limit regression checks |
+| `verify_api_security.py` | coordinator endpoint-authentication, invitation-enforcement, request-size, rate-limit, and identity-pinning regression checks |
+| `verify_round_integrity.py` | reconnect, cohort-fingerprint, idempotency, round-timeout, and single-spend ε regression checks |
 | `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
@@ -376,6 +379,17 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 - **Cohort integrity:** enrolment is **capped at the cohort size** (extra nodes → `409`) and a round
   aggregates only when the **exact enrolled set** has submitted — otherwise residual masks would
   silently corrupt the sum. A startup warning fires if **cohort < 3** (masking needs ≥3 to be meaningful).
+- **Rounds are bound to one peer set.** Pairwise masks cancel only for the exact `(node_id, x_pub)`
+  set they were built against, so every submission carries a **cohort fingerprint**. A node that
+  reconnects brings a fresh ephemeral masking key; the coordinator adopts it, **discards** any round
+  built against the old set, and refuses stale-fingerprint submissions with a code that tells the node
+  to rebuild. A corrupted pooled sum is therefore not reachable through reconnect or dropout.
+- **Bounded stalls, idempotent retries, single-spend ε.** A partially-submitted round is discarded
+  after `FED_ROUND_TIMEOUT_SECONDS` and its submitters may send it again — one absent institution
+  stalls the federation for a bounded time, not indefinitely. An identical retry is idempotent (no
+  second receipt, no second audit entry); a *different* payload for the same pending round is refused.
+  A persisted per-round ε ledger means no restart, retry, or duplicate aggregation can charge the
+  same round twice. A discarded round aggregates nothing and so costs nothing.
 - **Replay protection** (round must increase) and **TOFU enrolment** (`node_id` can't be rebound to a
   new key). Coordinator binds **127.0.0.1 by default** — expose deliberately and add TLS for cross-site.
 - **Explicit API boundary:** health/readiness and the coordinator public key are public; contributor
