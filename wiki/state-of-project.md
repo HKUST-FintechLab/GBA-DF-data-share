@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-07-26
+Last updated: 2026-07-27
 
 ## Executive status
 
@@ -87,6 +87,13 @@ Verified on 2026-07-26:
 - High availability, key-management integration, automated backups, restore drills, and SLA monitoring.
 - External audit anchoring and a completed penetration test with no unresolved high-severity findings.
 - Real multi-institution subject-level utility, calibration, subgroup, and device/domain-shift evaluation.
+
+## What is now blocking, honestly
+
+The remaining pilot blockers are no longer mostly code. Partner selection, institutional approvals,
+TLS certificates, code-signing identities, and an external security review all need a person and
+carry lead time; they are dated in [](human-critical-path.md). Engineering
+still owes observability, backup/restore, CI, and packaging, but none of those is the long pole.
 
 ## Scope boundary
 

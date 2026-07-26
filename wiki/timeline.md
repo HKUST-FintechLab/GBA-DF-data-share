@@ -1,6 +1,11 @@
 # Compressed Delivery Timeline
 
-Last updated: 2026-07-26
+Last updated: 2026-07-27
+
+> **Read [`human-critical-path.md`](human-critical-path.md) alongside this page.** Since 2026-07-26
+> the engineering path has run ahead of schedule, and the binding constraint on the pilot date is now
+> partner selection, institutional approvals, certificates, and an external review — none of which
+> can be accelerated by writing code.
 
 ## Targets
 
@@ -23,21 +28,27 @@ Last updated: 2026-07-26
 
 If only one engineer is available, move pilot go-live to 2026-09-28 and production to 2026-12.
 
+**Revision, 2026-07-27.** Assumptions 1 and 5 held better than planned: the Jul 27–Aug 2, Aug 3–9,
+and most of the Aug 10–16 engineering landed on 2026-07-26. Assumption 3 (institutions selected
+before 2026-08-03) is now the schedule's weakest link, together with certificate and external-review
+lead times. An earlier pilot than 2026-09-07 is achievable **only** by starting the owner-required
+items in [`human-critical-path.md`](human-critical-path.md) now; no further engineering brings the
+date forward.
+
 ## Progress
 
 - **Completed early on 2026-07-26:** explicit public/contributor/read endpoint classes; protection for
   status, audit packages, models, and hosted inference; separate contributor and read/operator
   passwords; constant-time checks; request-body limits; a per-process pilot rate limiter; `/health`
   and `/ready`; authenticated dashboard and CLI consumers; and API security regressions.
-- **Aug 3–9 gate met early on 2026-07-26:** signed institution invitations with expiry, contributor/
+- **Aug 3–9 gate complete on 2026-07-26:** signed institution invitations with expiry, contributor/
   observer roles, node-key binding on first use, a signed issuance/revocation registry re-read on
   every enrolment and submission, the host-only `admin_invite.py`, and invitation-import UX in both
-  the desktop client and `node.py --config`. Verified live: an uninvited node cannot register, and a
-  revoked institution stops being accepted without a coordinator restart.
-- **Aug 3–9 gate complete on 2026-07-26:** the node pins the coordinator against the key fingerprint
-  in its invitation before registering and aborts without uploading on a mismatch; the desktop client
-  runs the same check at *Test connection*; the pilot TLS topology is frozen and documented.
-  Verified live against a second coordinator holding a different key.
+  the desktop client and `node.py --config`. The node also pins the coordinator against the key
+  fingerprint in its invitation and aborts without uploading on a mismatch; the pilot TLS topology is
+  frozen and documented. Verified live: an uninvited node cannot register, a revoked institution
+  stops being accepted without a coordinator restart, and an invitation pointed at a second
+  coordinator holding a different key is refused.
 - **Aug 10–16 largely complete on 2026-07-26:** cohort-fingerprint binding, round timeout with
   resubmission, idempotent retries, node reconnect, a per-round epsilon ledger, and dashboard
   visibility of a stalled round. Building it surfaced a real corruption bug: a reconnecting node's
@@ -46,15 +57,19 @@ If only one engineer is available, move pilot go-live to 2026-09-28 and producti
 
 ## Six-week pilot critical path
 
+Stream A and Stream B are repository work. Items marked **[owner]** need a person and are dated in
+[`human-critical-path.md`](human-critical-path.md); they are repeated here only so the gates read
+completely.
+
 | Period | Stream A — backend/security | Stream B — client/QA | Exit gate |
 |---|---|---|---|
 | **Jul 27–Aug 2** | ~~Invitation schema and TLS topology~~ (done 07-26); freeze threat model, endpoint permission matrix, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
 | **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | ~~Idempotency, timeout, cancel/restart, reconnect, epsilon double-spend protection~~ (done 07-26); durable state for a coordinator restart mid-round | ~~Waiting/retry surfacing~~ (done 07-26); add offline detection and network-failure recovery | ~~Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice~~ (covered by `verify_round_integrity.py`) |
-| **Aug 17–23** | Add structured logs, metrics, alerts, backup and restore commands, and hardened TLS deployment (`/health` and `/ready` complete) | Produce signed pilot installers; bundle/cache MediaPipe/WASM and verify asset hashes | Fresh hospital machine installs without Python; coordinator backup restores successfully |
-| **Aug 24–30** | Add CI, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Run Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
-| **Aug 31–Sep 6** | Deploy staging and fix security/operations findings | Conduct at least three complete three-institution rehearsals and finalize partner runbook | Go/no-go checklist passes |
-| **Sep 7** | **Start monitored three-institution research pilot** | Named operator and rollback owner on duty | Pilot only; no clinical claims |
+| **Aug 17–23** | Structured logs, metrics, backup and restore commands; **[owner]** TLS certificate and coordinator host | Packaging specification and offline-asset tooling with hash verification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
+| **Aug 24–30** | CI configuration, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
+| **Aug 31–Sep 6** | Fix findings from staging | **[owner]** staging deployment, three full three-institution rehearsals, soak and restore drill on the real host; finalize partner runbook | Go/no-go checklist passes |
+| **Sep 7** | **Start monitored three-institution research pilot** | **[owner]** named operator and rollback owner on duty | Pilot only; no clinical claims |
 
 ## Pilot go/no-go checklist
 
@@ -68,13 +83,13 @@ All items are mandatory:
 - Restart, timeout, duplicate submission, and one-node disconnect have documented outcomes.
 - No failure path can spend epsilon twice for one completed round.
 - No reconnect or dropout path can pool submissions built against different peer sets.
-- Coordinator key/state backup and restore are demonstrated on a clean host.
+- Coordinator key/state backup and restore are demonstrated on a clean host. **[owner]**
 - Audit bundle verification succeeds after restore.
-- Signed client packages work on the actual pilot Windows/macOS machines.
-- Raw-video extraction works without access to a public CDN, or the pilot formally disables it.
-- At least three consecutive full-cohort rehearsals complete without manual database/file editing.
-- There are no unresolved critical/high security findings.
-- Each institution approves the data-processing purpose, retention, audit visibility, and incident contact.
+- Signed client packages work on the actual pilot Windows/macOS machines. **[owner]**
+- Raw-video extraction works without access to a public CDN, or the pilot formally disables it. **[owner]**
+- At least three consecutive full-cohort rehearsals complete without manual database/file editing. **[owner]**
+- There are no unresolved critical/high security findings. **[owner]** (external review)
+- Each institution approves the data-processing purpose, retention, audit visibility, and incident contact. **[owner]**
 
 ## Seven-week production track after pilot start
 
