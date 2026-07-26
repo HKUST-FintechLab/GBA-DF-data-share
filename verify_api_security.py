@@ -162,6 +162,27 @@ check("a configuration with no fingerprint reports that pinning is unavailable",
       node_core.coordinator_identity_result(served_pubkey, {}, "https://coordinator.example")
       ["warning"] != "")
 
+print("== operational logging carries no secrets ==")
+import contextlib
+import io as _io
+import json as _json
+
+captured = _io.StringIO()
+with contextlib.redirect_stdout(captured):
+    client.get("/status")                                   # anonymous -> a denial line
+    enrol(invitation, node_id="node_1")                     # a revoked invitation -> a denial
+lines = [_json.loads(x) for x in captured.getvalue().splitlines() if x.startswith("{")]
+check("denials are logged as structured JSON", any(l.get("event") == "denied" for l in lines))
+check("every line is machine-readable and stamped",
+      lines and all(l.get("log") == "gba-df" and "ts" in l and "event" in l for l in lines))
+blob = captured.getvalue()
+check("the operational log never contains a credential or payload material",
+      "contribute-secret" not in blob and "read-secret" not in blob
+      and "invitation_signature" not in blob and "x_pub" not in blob
+      and "pubkey_pem" not in blob and "masked" not in blob)
+check("the room is logged as a digest, not a raw session id",
+      all(len(str(l.get("room", ""))) <= 12 for l in lines))
+
 coordinator._RATE_EVENTS.clear()
 first = coordinator._rate_allowed("test-client", "test", 2, 100.0)
 second = coordinator._rate_allowed("test-client", "test", 2, 100.1)

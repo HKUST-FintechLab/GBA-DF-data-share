@@ -54,6 +54,14 @@ import secure_agg as sa
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
+# Audit-detail keys that are safe and useful to mirror into the operational log. Anything not
+# listed stays in the signed chain only, so a new detail field cannot leak by default.
+_LOGGED_DETAIL = frozenset({
+    "round", "reason", "participants", "epsilon", "global_eps", "samples", "name",
+    "invitation_id", "institution_name", "missing", "submitted", "timeout_seconds",
+    "key_fingerprint", "n_samples", "global_trees", "discarded_incomplete_rounds",
+})
+
 def client_connection_config(coordinator_url: str) -> dict:
     """Return the connection-only desktop-client configuration for this coordinator.
 
@@ -291,11 +299,28 @@ def _valid_state_seal(saved: dict) -> bool:
         return False
 
 
+def oplog(event: str, **fields):
+    """Emit one JSON operational log line to stdout for the pilot operator's log collector.
+
+    This is monitoring, not evidence — the signed audit chain remains the record of what
+    happened. It therefore carries only protocol facts: identifiers, counts, and outcomes.
+    Never put feature values, masked vectors, passwords, or invitation contents in here.
+    """
+    line = {"ts": round(time.time(), 3), "log": "gba-df", "event": event, **fields}
+    try:
+        print(json.dumps(line, ensure_ascii=False, sort_keys=True), flush=True)
+    except (TypeError, ValueError):                  # never let logging break a request
+        print(json.dumps({"ts": line["ts"], "log": "gba-df", "event": event,
+                          "error": "unserialisable log fields"}), flush=True)
+
+
 def _append_audit(room: str, st: dict, event: str, node: str, detail: dict,
                   payload_sha256: str = ""):
     entry = st["audit"].append(event, node, detail, payload_sha256=payload_sha256,
                                ts=time.time())
     _persist_state(room, st)
+    oplog(event, node=node, room=fc.sha256_hex(room.encode())[:12], seq=entry["seq"],
+          **{k: v for k, v in detail.items() if k in _LOGGED_DETAIL})
     return entry
 
 
@@ -473,12 +498,17 @@ async def _security_boundary(request: Request, call_next):
         allowed, retry_after = _rate_allowed(client, "write" if is_write else "read",
                                              limit, time.monotonic())
         if not allowed:
+            # Denials are logged because a burst of them is what an operator needs to see; the
+            # credential itself is never logged, only the access class that was demanded.
+            oplog("denied", path=path, access=access, client=client, status=429)
             return JSONResponse({"ok": False, "error": "rate limit exceeded"}, status_code=429,
                                 headers={"Retry-After": str(retry_after)})
 
     if required_key:
         supplied = request.headers.get("x-fed-key", "")
         if not secrets.compare_digest(supplied, required_key):
+            oplog("denied", path=path, access=access, status=401,
+                  client=request.client.host if request.client else "unknown")
             return JSONResponse(
                 {"ok": False, "error": f"unauthorized: {access} access required"},
                 status_code=401,
