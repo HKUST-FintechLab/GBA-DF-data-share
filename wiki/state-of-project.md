@@ -9,16 +9,17 @@ has the core ingredients for a controlled research pilot: three modalities, loca
 pairwise-masked secure aggregation, coordinator-enforced central DP, a global epsilon budget,
 signed/persistent audit evidence, real JSON-payload accounting, a desktop client, and a dashboard.
 
-It is **not yet ready for unattended exposure on a hospital network**. The remaining critical work is
-mainly identity/access control, failure recovery, production operations, installable client delivery,
-and institutional governance rather than another model feature.
+It is **not yet ready for unattended exposure on a hospital network**. Institution identity, round
+reliability, backup/restore, operational logging, and CI are now done. What remains is installable
+client delivery, offline browser assets, and institutional governance — plus the owner-required items
+in [`human-critical-path.md`](human-critical-path.md). None of it is another model feature.
 
 ## Readiness by target
 
 | Target | Readiness estimate | Status |
 |---|---:|---|
 | Demonstration/internal dry run | 90%+ | Available now |
-| Controlled three-institution research pilot | ~78% | Six-week hardening plan active |
+| Controlled three-institution research pilot | ~85% (engineering) | Remaining gap is mostly owner-required, not code |
 | 7×24 production research platform | ~40% | Follows the pilot |
 | Clinical screening/diagnostic deployment | <20% | Separate validation/regulatory programme |
 
@@ -26,7 +27,7 @@ These percentages are planning estimates, not formal maturity certifications.
 
 ## Verified baseline
 
-Verified on 2026-07-26:
+Verified on 2026-07-27:
 
 - `uv run python verify_security.py` — 107 checks passed: its own 41, plus the coordinator
   HTTP/invitation/pinning/logging suite (31), the round-integrity suite (24), and the
@@ -99,8 +100,12 @@ Verified on 2026-07-26:
 
 The remaining pilot blockers are no longer mostly code. Partner selection, institutional approvals,
 TLS certificates, code-signing identities, and an external security review all need a person and
-carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md). Engineering
-still owes observability, backup/restore, CI, and packaging, but none of those is the long pole.
+carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md).
+
+Engineering's remaining pilot list is short: the unsigned packaging specification, offline
+MediaPipe/WASM assets with hash verification, session cleanup and load limits, and surviving a
+coordinator restart mid-round without resubmission. None of these is the long pole. **The pilot date
+now moves only if the owner-required items start.**
 
 ## Scope boundary
 
