@@ -237,5 +237,13 @@ round_check = subprocess.run(
 check("reconnect, cohort binding, idempotency, timeout, and single-spend epsilon",
       round_check.returncode == 0)
 
+print("== coordinator backup and restore ==")
+restore_check = subprocess.run(
+    [sys.executable, os.path.join(os.path.dirname(__file__), "verify_backup_restore.py")],
+    check=False,
+)
+check("archive integrity, clean-host restore, and post-restore audit verification",
+      restore_check.returncode == 0)
+
 print("\nRESULT:", "ALL SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 sys.exit(0 if ok_all else 1)

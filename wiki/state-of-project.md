@@ -92,7 +92,7 @@ Verified on 2026-07-26:
 
 The remaining pilot blockers are no longer mostly code. Partner selection, institutional approvals,
 TLS certificates, code-signing identities, and an external security review all need a person and
-carry lead time; they are dated in [](human-critical-path.md). Engineering
+carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md). Engineering
 still owes observability, backup/restore, CI, and packaging, but none of those is the long pole.
 
 ## Scope boundary
