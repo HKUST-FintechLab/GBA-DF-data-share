@@ -28,9 +28,9 @@ These percentages are planning estimates, not formal maturity certifications.
 
 Verified on 2026-07-26:
 
-- `uv run python verify_security.py` — 91 checks passed: its own 40, plus the 27-check coordinator
-  HTTP boundary/invitation/pinning suite and the 24-check round-integrity suite it runs as
-  subprocesses.
+- `uv run python verify_security.py` — 107 checks passed: its own 41, plus the coordinator
+  HTTP/invitation/pinning/logging suite (31), the round-integrity suite (24), and the
+  backup/restore suite (15) it runs as subprocesses.
 - `uv run python modalities.py` — eyegaze, action, and neuro extraction checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
 - Live three-command rehearsal: an issued invitation enrolled and trained a node, an uninvited node
@@ -42,13 +42,20 @@ Verified on 2026-07-26:
 
 | Priority | Blocker | Pilot solution |
 |---|---|---|
-| P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, durable round state, backup/restore, health checks, and monitoring |
+| P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, health checks, and monitoring. Backup/restore and structured operational logs are done; a coordinator restart mid-round still requires the nodes to resubmit that round |
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
 | P0 | Browser pose extraction depends on a public CDN | Bundled or institution-hosted MediaPipe/WASM assets with hashes and an offline path |
-| P0 | No automated CI/E2E/failure suite | CI plus three-node network, restart, timeout, duplicate-submit, and restore tests |
+| P0 | Desktop/E2E coverage on the real operating systems | CI now runs the full suite, a dependency audit, and an SBOM on every push; Windows/macOS end-to-end on the pilot machines remains owner work |
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
+
+- **2026-07-27 — Pilot operations:** `admin_backup.py` backs up, verifies, and restores the
+  coordinator key, signed state, and invitation registry, with a regression proving that a clean-host
+  restore preserves the chain, the model, the privacy spend, and prior revocations. The coordinator
+  emits one JSON operational log line per event and per denial, with an allow-list so a new audit
+  field cannot leak. CI runs the whole suite plus a known-vulnerability audit and an SBOM — which
+  immediately caught 20 advisories in a transitively locked `pillow`, now upgraded.
 
 - **2026-07-26 — Round reliability, and a corruption bug found while building it:** a re-registering
   node previously kept its stale `x_pub` at the coordinator while masking with a fresh ephemeral key,

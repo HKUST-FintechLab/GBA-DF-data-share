@@ -49,6 +49,12 @@ date forward.
   frozen and documented. Verified live: an uninvited node cannot register, a revoked institution
   stops being accepted without a coordinator restart, and an invitation pointed at a second
   coordinator holding a different key is refused.
+- **Aug 17–23 backend half complete on 2026-07-27:** backup/inspect/restore for the coordinator key,
+  signed state, and invitation registry, with a regression covering a clean-host restore; structured
+  JSON operational logging with a no-secrets regression. **Aug 24–30 partly complete:** CI runs the
+  full suite, a known-vulnerability audit, and a CycloneDX SBOM. The audit immediately failed the
+  "no known high-severity dependency issue" gate on a transitively locked `pillow` (20 advisories),
+  now upgraded and clean.
 - **Aug 10–16 largely complete on 2026-07-26:** cohort-fingerprint binding, round timeout with
   resubmission, idempotent retries, node reconnect, a per-round epsilon ledger, and dashboard
   visibility of a stalled round. Building it surfaced a real corruption bug: a reconnecting node's
@@ -66,8 +72,8 @@ completely.
 | **Jul 27–Aug 2** | ~~Invitation schema and TLS topology~~ (done 07-26); freeze threat model, endpoint permission matrix, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
 | **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | ~~Idempotency, timeout, cancel/restart, reconnect, epsilon double-spend protection~~ (done 07-26); durable state for a coordinator restart mid-round | ~~Waiting/retry surfacing~~ (done 07-26); add offline detection and network-failure recovery | ~~Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice~~ (covered by `verify_round_integrity.py`) |
-| **Aug 17–23** | Structured logs, metrics, backup and restore commands; **[owner]** TLS certificate and coordinator host | Packaging specification and offline-asset tooling with hash verification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
-| **Aug 24–30** | CI configuration, protocol integration tests, load limits, session cleanup, dependency/SBOM scanning | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
+| **Aug 17–23** | ~~Structured logs, backup and restore commands~~ (done 07-27); **[owner]** TLS certificate and coordinator host | Packaging specification and offline-asset tooling with hash verification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
+| **Aug 24–30** | ~~CI configuration, dependency/SBOM scanning~~ (done 07-27); load limits and session cleanup | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
 | **Aug 31–Sep 6** | Fix findings from staging | **[owner]** staging deployment, three full three-institution rehearsals, soak and restore drill on the real host; finalize partner runbook | Go/no-go checklist passes |
 | **Sep 7** | **Start monitored three-institution research pilot** | **[owner]** named operator and rollback owner on duty | Pilot only; no clinical claims |
 

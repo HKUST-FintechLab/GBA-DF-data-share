@@ -18,8 +18,8 @@ Project status and the compressed delivery schedule are maintained in the
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
 ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **91 checks** (its own 40 plus the API-security and round-integrity suites it
-invokes). Hardened across **four rounds** of adversarial code audit
+`verify_security.py` runs **107 checks** (its own 41 plus the API-security, round-integrity, and
+backup/restore suites it invokes). Hardened across **four rounds** of adversarial code audit
 (security · regressions · DP correctness · secure aggregation).
 
 Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
@@ -91,7 +91,7 @@ This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`
 git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
 cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
-uv run python verify_security.py          # 91 checks: privacy, API boundary, invitations, round integrity
+uv run python verify_security.py          # 107 checks: privacy, API, invitations, rounds, restore
 uv run python modalities.py               # optional: self-check all three feature extractors
 
 # one command: prepare data -> start coordinator -> run all nodes -> live dashboard
@@ -248,6 +248,32 @@ no certificate authority on the partner side.
 Never expose the uvicorn process directly on a public interface; it binds `127.0.0.1` by default
 precisely so exposure is a deliberate act.
 
+### Backup, restore, and operational logs
+
+The coordinator key, the signed per-room state, and the invitation registry are the only artifacts
+that cannot be regenerated. Losing the key makes every exported audit bundle unverifiable and every
+issued invitation worthless, so back the state directory up on the same schedule as any other
+production secret:
+
+```bash
+FED_STATE_DIR=<state-dir> uv run python admin_backup.py backup --out backups/gba-df-2026-09-07.tar.gz
+uv run python admin_backup.py inspect  backups/gba-df-2026-09-07.tar.gz
+uv run python admin_backup.py restore  backups/gba-df-2026-09-07.tar.gz --state-dir /srv/gba-df
+```
+
+The archive carries a hashed manifest; `inspect` and `restore` both refuse an archive whose contents
+no longer match it, and `restore` refuses to overwrite a populated state directory without `--force`.
+After a restore, the chain keeps every pre-backup entry and continues with one linked
+`coordinator_restart` entry — `verify_backup_restore.py` asserts exactly that, plus that the model,
+the privacy spend, and prior revocations all survive. **The archive contains the private key:** store
+it where a compromise of the coordinator host would not also expose it, and never commit it.
+
+The coordinator additionally writes one **JSON line per event** to stdout — enrolments, submissions,
+aggregations, discarded rounds, and every 401/429 denial — for a log collector to alert on. It is
+monitoring, not evidence: the signed chain remains the record. Only an allow-listed set of fields is
+mirrored, and a regression asserts that no credential, key, invitation signature, or masked payload
+can appear there.
+
 ### Export and verify the audit package
 
 The dashboard's **audit package** button downloads the complete verification evidence. It can be
@@ -361,6 +387,9 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
 | `verify_api_security.py` | coordinator endpoint-authentication, invitation-enforcement, request-size, rate-limit, and identity-pinning regression checks |
 | `verify_round_integrity.py` | reconnect, cohort-fingerprint, idempotency, round-timeout, and single-spend ε regression checks |
+| `verify_backup_restore.py` | archive integrity, clean-host restore, and post-restore audit verification |
+| `admin_backup.py` | back up / inspect / restore the coordinator key, signed state, and invitation registry |
+| `.github/workflows/verify.yml` | CI: full verification suite, known-vulnerability audit, CycloneDX SBOM |
 | `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
