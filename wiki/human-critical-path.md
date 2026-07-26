@@ -31,7 +31,7 @@ likely cause of a slipped 2026-09-07 pilot.
 | **2026-08-17** | Provision the coordinator host, DNS, firewall rules, and a **real TLS certificate** on the institutional reverse proxy | Needs institutional infrastructure access and credentials | Every cross-site run; the frozen TLS topology assumes it |
 | **2026-08-17** | Procure code-signing identities: Apple Developer ID *and* a Windows certificate | Paid organisational identities with issuing lead time — often the longest single wait | Signed installers; a hospital machine may refuse unsigned software |
 | **2026-08-23** | Build, notarize, and install the client on the **actual** pilot Windows/macOS machines | Notarization needs an Apple account; validation needs the real hardware and its lockdown policy | Go/no-go checklist item |
-| **2026-08-23** | Decide the MediaPipe policy: bundle assets (with a licence review), host them institutionally, or formally disable raw-video import for the pilot | A licensing and scope decision | Go/no-go checklist item; offline operation |
+| **2026-08-23** | Decide the MediaPipe policy: the mirroring and hash-pinning tooling now exists and works offline, so what remains is the **licence review** on redistributing the assets (or a decision to host them institutionally, or to disable raw-video import for the pilot) | A licensing decision, not an engineering one | Go/no-go checklist item |
 | **2026-08-30** | Engage an independent security/protocol review or penetration test | External party, with procurement lead time | Production target; contingency date exists for its findings |
 | **2026-08-31 – 09-06** | Deploy to staging on the institutional network and run **at least three** full three-institution rehearsals with partner staff | Requires the partners' people, machines, and schedules | Go/no-go checklist item |
 | **2026-08-31 – 09-06** | Run the 72-hour soak and the backup/restore drill on the real host | Needs the production-like host and elapsed wall-clock time | Go/no-go checklist item |
@@ -42,8 +42,8 @@ likely cause of a slipped 2026-09-07 pilot.
 For clarity, the following remain ordinary engineering and are tracked in
 [`timeline.md`](timeline.md): structured logging and metrics, backup and restore commands, CI
 configuration, protocol and failure integration tests, session cleanup, dependency and SBOM
-scanning, the unsigned packaging specification, offline-asset tooling with hash verification, and
-every runbook and partner document.
+scanning, the unsigned packaging specification, and every runbook and partner document. Structured
+logging, backup/restore, CI with a dependency audit, and offline-asset tooling are already done.
 
 ## Explicitly out of scope
 

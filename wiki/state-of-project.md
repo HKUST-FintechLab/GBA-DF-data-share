@@ -45,12 +45,16 @@ Verified on 2026-07-27:
 |---|---|---|
 | P0 | Coordinator is a single-process service with in-memory live sessions | Supported single-instance pilot deployment, health checks, and monitoring. Backup/restore and structured operational logs are done; a coordinator restart mid-round still requires the nodes to resubmit that round |
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
-| P0 | Browser pose extraction depends on a public CDN | Bundled or institution-hosted MediaPipe/WASM assets with hashes and an offline path |
+| P0 | ~~Browser pose extraction depends on a public CDN~~ | Closed 2026-07-27: `fetch_offline_assets.py` mirrors and hash-pins the assets, and the client prefers the verified mirror. Whether to redistribute them is an owner licensing decision |
 | P0 | Desktop/E2E coverage on the real operating systems | CI now runs the full suite, a dependency audit, and an SBOM on every push; Windows/macOS end-to-end on the pilot machines remains owner work |
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
 
+- **2026-07-27 — Offline browser assets:** the MediaPipe release the client runs over participant
+  video is now mirrored locally and pinned by a committed SHA-256 manifest, with the loader's hash
+  checked in the browser before execution. Verified in a real browser: offline resolution, refusal of
+  a wrong pin, and full Holistic inference with no CDN access.
 - **2026-07-27 — Pilot operations:** `admin_backup.py` backs up, verifies, and restores the
   coordinator key, signed state, and invitation registry, with a regression proving that a clean-host
   restore preserves the chain, the model, the privacy spend, and prior revocations. The coordinator
@@ -102,9 +106,8 @@ The remaining pilot blockers are no longer mostly code. Partner selection, insti
 TLS certificates, code-signing identities, and an external security review all need a person and
 carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md).
 
-Engineering's remaining pilot list is short: the unsigned packaging specification, offline
-MediaPipe/WASM assets with hash verification, session cleanup and load limits, and surviving a
-coordinator restart mid-round without resubmission. None of these is the long pole. **The pilot date
+Engineering's remaining pilot list is short: the unsigned packaging specification, session cleanup
+and load limits, and surviving a coordinator restart mid-round without resubmission. None of these is the long pole. **The pilot date
 now moves only if the owner-required items start.**
 
 ## Scope boundary

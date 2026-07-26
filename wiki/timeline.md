@@ -49,6 +49,10 @@ date forward.
   frozen and documented. Verified live: an uninvited node cannot register, a revoked institution
   stops being accepted without a coordinator restart, and an invitation pointed at a second
   coordinator holding a different key is refused.
+- **Offline browser assets complete on 2026-07-27:** the MediaPipe release is mirrored and pinned by
+  a committed hash manifest, the client prefers the verified mirror and hash-checks the loader before
+  executing it. The go/no-go item "raw-video extraction works without a public CDN" is satisfied
+  technically; redistributing the assets remains an owner licensing decision.
 - **Aug 17–23 backend half complete on 2026-07-27:** backup/inspect/restore for the coordinator key,
   signed state, and invitation registry, with a regression covering a clean-host restore; structured
   JSON operational logging with a no-secrets regression. **Aug 24–30 partly complete:** CI runs the
@@ -72,7 +76,7 @@ completely.
 | **Jul 27–Aug 2** | ~~Invitation schema and TLS topology~~ (done 07-26); freeze threat model, endpoint permission matrix, and API v1 | Freeze supported OS/version matrix and installer approach; remove stale documentation claims | Scope signed off; no unresolved security architecture decision |
 | **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | ~~Idempotency, timeout, cancel/restart, reconnect, epsilon double-spend protection~~ (done 07-26); durable state for a coordinator restart mid-round | ~~Waiting/retry surfacing~~ (done 07-26); add offline detection and network-failure recovery | ~~Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice~~ (covered by `verify_round_integrity.py`) |
-| **Aug 17–23** | ~~Structured logs, backup and restore commands~~ (done 07-27); **[owner]** TLS certificate and coordinator host | Packaging specification and offline-asset tooling with hash verification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
+| **Aug 17–23** | ~~Structured logs, backup and restore commands~~ (done 07-27); **[owner]** TLS certificate and coordinator host | ~~Offline-asset tooling with hash verification~~ (done 07-27); packaging specification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
 | **Aug 24–30** | ~~CI configuration, dependency/SBOM scanning~~ (done 07-27); load limits and session cleanup | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
 | **Aug 31–Sep 6** | Fix findings from staging | **[owner]** staging deployment, three full three-institution rehearsals, soak and restore drill on the real host; finalize partner runbook | Go/no-go checklist passes |
 | **Sep 7** | **Start monitored three-institution research pilot** | **[owner]** named operator and rollback owner on duty | Pilot only; no clinical claims |
@@ -92,7 +96,7 @@ All items are mandatory:
 - Coordinator key/state backup and restore are demonstrated on a clean host. **[owner]**
 - Audit bundle verification succeeds after restore.
 - Signed client packages work on the actual pilot Windows/macOS machines. **[owner]**
-- Raw-video extraction works without access to a public CDN, or the pilot formally disables it. **[owner]**
+- Raw-video extraction works without access to a public CDN, or the pilot formally disables it. (Technically closed 07-27; the **[owner]** part is the licensing decision on redistributing the assets.)
 - At least three consecutive full-cohort rehearsals complete without manual database/file editing. **[owner]**
 - There are no unresolved critical/high security findings. **[owner]** (external review)
 - Each institution approves the data-processing purpose, retention, audit visibility, and incident contact. **[owner]**
