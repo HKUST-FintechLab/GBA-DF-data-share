@@ -142,8 +142,22 @@ For the **action** modality, step 2 has two inputs:
   feature-extraction and federation path.
 
 The CDN receives normal library/model requests but never receives the selected video or its landmarks.
-Raw-video conversion therefore needs network access the first time MediaPipe assets are loaded; direct
-NPZ input remains available without that step. Python MediaPipe is not required.
+Python MediaPipe is not required.
+
+For a network that blocks the CDN — or to keep a third party out of the trust path of code that runs
+over participant video — mirror the pinned assets once and the client will prefer them:
+
+```bash
+uv run python fetch_offline_assets.py fetch     # ~64 MiB into static/vendor/mediapipe/
+uv run python fetch_offline_assets.py status    # OFFLINE / CDN / BROKEN
+```
+
+`fetch` records a SHA-256 per file in a committed manifest and, on every later run, refuses any
+download that does not match it (`--repin` makes a version change deliberate). The binaries stay
+git-ignored. The client loads from the mirror when it verifies, checks the loader's hash in the
+browser *before* the bytes become executable script, and falls back to the CDN otherwise. Direct NPZ
+input needs none of this. Whether to redistribute the assets is a licensing decision for the project
+owner.
 
 To join a hosted federation, you only run the **desktop client** — no server to stand up. On the *Node &
 coordinator* step, either enter the coordinator **URL** and **password** manually, or choose **Import
@@ -389,6 +403,7 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `verify_round_integrity.py` | reconnect, cohort-fingerprint, idempotency, round-timeout, and single-spend ε regression checks |
 | `verify_backup_restore.py` | archive integrity, clean-host restore, and post-restore audit verification |
 | `admin_backup.py` | back up / inspect / restore the coordinator key, signed state, and invitation registry |
+| `fetch_offline_assets.py` | mirror + hash-pin the browser MediaPipe assets for offline/CDN-free operation |
 | `.github/workflows/verify.yml` | CI: full verification suite, known-vulnerability audit, CycloneDX SBOM |
 | `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |

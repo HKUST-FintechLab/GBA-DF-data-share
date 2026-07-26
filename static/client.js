@@ -3,6 +3,29 @@ let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, 
 let conn={state:"off", host:""};      // off | on | run | done
 const HOLISTIC_VERSION="0.5.1675471629";
 const HOLISTIC_CDN=`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@${HOLISTIC_VERSION}`;
+const HOLISTIC_LOCAL="vendor/mediapipe";
+// Populated by resolveAssetSource(): a mirrored copy (fetch_offline_assets.py) is preferred over
+// the public CDN, so a locked-down hospital network needs no third-party access at run time.
+const assets={base:HOLISTIC_CDN, offline:false, manifest:null};
+async function resolveAssetSource(){
+  if(assets.manifest!==null) return assets;
+  try{
+    const r=await fetch(`${HOLISTIC_LOCAL}/manifest.json`,{cache:"no-store"});
+    if(r.ok){
+      const m=await r.json();
+      if(m?.format==="gba-df-offline-assets" && m.package_version===HOLISTIC_VERSION && m.files){
+        assets.base=HOLISTIC_LOCAL; assets.offline=true; assets.manifest=m.files;
+        return assets;
+      }
+    }
+  }catch(_e){ /* no local mirror — fall back to the CDN below */ }
+  assets.manifest={}; return assets;
+}
+async function sha256Hex(buffer){
+  if(!globalThis.crypto?.subtle) return null;         // not a secure context: skip, don't block
+  const digest=await crypto.subtle.digest("SHA-256",buffer);
+  return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
 const videoImport={running:false,cancelled:false,holistic:null,ready:false,lastResults:null,activeVideo:null,
   pendingFiles:null,pendingDest:null};
 const api = () => window.pywebview.api;
@@ -183,7 +206,7 @@ function cdnFailureDetail(error){
   const raw=String(error?.message||error||"").replace(/^MediaPipeLoadError:\s*/,"");
   return raw?`${raw}. ${t("cdn_help")}`:t("cdn_help");
 }
-async function loadScript(src,onProgress){
+async function loadScript(src,onProgress,expectedSha){
   const old=document.querySelector(`script[data-src="${src}"]`);
   if(old?.dataset.loaded==="1")return;
   if(old)old.remove();
@@ -199,6 +222,11 @@ async function loadScript(src,onProgress){
     while(true){const {done,value}=await reader.read();if(done)break;chunks.push(value);received+=value.byteLength;onProgress?.(total?Math.min(1,received/total):null,received,total);}
     blob=new Blob(chunks,{type:"application/javascript"});
   }else{blob=await response.blob();received=blob.size;onProgress?.(1,received,received);}
+  if(expectedSha){
+    // Check the bytes BEFORE they become executable script.
+    const actual=await sha256Hex(await blob.arrayBuffer());
+    if(actual && actual!==expectedSha) throw new MediaPipeLoadError("MediaPipe loader failed its pinned hash check");
+  }
   const objectUrl=URL.createObjectURL(blob);
   await new Promise((resolve,reject)=>{
     const s=document.createElement("script");s.src=objectUrl;s.async=true;s.dataset.src=src;
@@ -209,15 +237,17 @@ async function loadScript(src,onProgress){
 }
 async function ensureHolistic(){
   if(videoImport.holistic) return videoImport.holistic;
-  showCdnLoad({detail:t("cdn_connecting"),indeterminate:true});setExtractProgress(0,t("video_loading"),"");
+  const src=await resolveAssetSource();
+  showCdnLoad({detail:t(src.offline?"assets_local":"cdn_connecting"),indeterminate:true});
+  setExtractProgress(0,t("video_loading"),"");
   try{
-    await loadScript(`${HOLISTIC_CDN}/holistic.js`,(fraction,received,total)=>{
+    await loadScript(`${src.base}/holistic.js`,(fraction,received,total)=>{
       const amount=total?`${humanBytes(received)} / ${humanBytes(total)}`:humanBytes(received);
-      showCdnLoad({detail:`${t("cdn_downloading")} · ${amount}`,progress:fraction,indeterminate:fraction==null});
-    });
+      showCdnLoad({detail:`${t(src.offline?"assets_local":"cdn_downloading")} · ${amount}`,progress:fraction,indeterminate:fraction==null});
+    },src.manifest?.["holistic.js"]?.sha256);
     if(!window.Holistic)throw new MediaPipeLoadError("MediaPipe Holistic did not initialize");
     showCdnLoad({detail:t("cdn_initializing"),indeterminate:true});
-    const holistic=new window.Holistic({locateFile:file=>`${HOLISTIC_CDN}/${file}`});
+    const holistic=new window.Holistic({locateFile:file=>`${src.base}/${file}`});
     holistic.setOptions({modelComplexity:1,smoothLandmarks:true,enableSegmentation:false,
       smoothSegmentation:false,refineFaceLandmarks:false,minDetectionConfidence:0.5,minTrackingConfidence:0.5});
     holistic.onResults(results=>{

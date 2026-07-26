@@ -11,3 +11,9 @@ nodes/
 *.log
 nohup.out
 .DS_Store
+
+# mirrored MediaPipe assets: the binaries are runtime-local, the hash manifest is a tracked pin
+static/vendor/*
+!static/vendor/mediapipe/
+static/vendor/mediapipe/*
+!static/vendor/mediapipe/manifest.json

@@ -109,6 +109,7 @@ uv run python bench.py
 | `verify_round_integrity.py` | Reconnect, cohort-binding, idempotency, timeout, and epsilon-ledger regression checks |
 | `verify_backup_restore.py` | Archive integrity, clean-host restore, and post-restore audit verification |
 | `admin_backup.py` | Host-side CLI to back up, inspect, and restore coordinator state |
+| `fetch_offline_assets.py` | Mirror and hash-pin the browser MediaPipe assets |
 | `verify_api_security.py` | Coordinator HTTP access-control, invitation-enforcement, body-limit, and rate-limit regression checks |
 | `bench.py` | IID/non-IID privacy-utility benchmark |
 | `run_demo.py` | Demo orchestration |
@@ -152,6 +153,7 @@ Do not weaken or overstate these constraints:
 - The signed hash chain is tamper-evident within the documented trust model. A fully compromised coordinator requires external anchoring.
 - Preserve coordinator audit persistence: state is coordinator-signed, files are atomic/mode `0600`, and corruption fails closed.
 - Backup archives contain the coordinator private key. Keep them mode `0600`, never commit them, and keep restore refusing both a manifest mismatch and an unforced overwrite of populated state.
+- Mirrored MediaPipe assets are pinned by a committed SHA-256 manifest. A fetch that does not match the pin must fail, and the client must verify the loader hash before executing it. Never commit the binaries.
 - The operational log is monitoring, not evidence. Mirror only allow-listed audit-detail keys into it; never log credentials, keys, invitation contents, or masked payloads.
 - Transfer statistics mean exact UTF-8 JSON application payload bytes. Do not present them as total network/TLS bytes.
 - Keep all wire and model formats constrained and pickle-free. Do not introduce `pickle.loads` or opaque executable payloads.
