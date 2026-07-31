@@ -55,9 +55,18 @@ Verified on 2026-07-30:
 
 ## Recently completed
 
+- **2026-07-31 — Switchable desktop interfaces and global settings:** the partner desktop client
+  now keeps one shared upload/training implementation while offering the existing blue-and-white
+  interface and the `frontendv2` full-canvas dark federation console as persistent, instantly
+  switchable visual modes. The latter retains the branch's canvas-drawn modality sketches, corner
+  chrome, scene caption, and bottom navigation instead of translating them into cards. Advanced
+  settings include both appearance and the extracted-NPZ destination. The dark mode also shows the
+  source recording beside the movement-only skeleton actually retained by the local extraction
+  pipeline.
+
 - **2026-07-31 — Single-dialog video import:** browser-extracted pose NPZ files now default to a
   private per-process temporary folder that is cleaned when the desktop app exits. Video selection
-  therefore opens only the video picker. A collapsed advanced setting allows an institution to choose
+  therefore opens only the video picker. The global advanced settings allow an institution to choose
   a permanent NPZ output folder when retention is intentional.
 
 - **2026-07-30 — Experimental CDP feature adapter:** `action_cdp` now reproduces the historical

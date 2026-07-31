@@ -1,12 +1,42 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="classic">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>GBA-DF Federated Node</title>
+<script>
+try {
+  const savedTheme = localStorage.getItem("gba-df-ui-theme");
+  if (savedTheme === "classic" || savedTheme === "console") {
+    document.documentElement.dataset.theme = savedTheme;
+  }
+} catch (_error) {}
+</script>
 <link rel="stylesheet" href="client.css"/>
+<link rel="stylesheet" href="client_console.css"/>
 </head>
 <body>
+<canvas id="themeStage" aria-hidden="true"></canvas>
+<div class="themeVignette" aria-hidden="true"></div>
+<div class="console-chrome">
+  <div class="console-wordmark"><b>GBA·DF</b><span>/</span><span data-i="console_wordmark">FEDERATED NODE</span></div>
+  <button class="console-settings" id="consoleSettings" type="button">
+    <span aria-hidden="true">⚙</span><span data-i="settings_open">Advanced settings</span>
+  </button>
+  <div class="console-caption">
+    <div class="console-index" id="consoleSceneIndex">01 / DATA TYPE</div>
+    <h1 id="consoleSceneTitle">Choose your data type</h1>
+    <div class="console-scene-sub" id="consoleSceneSub">Which kind of recordings will this node contribute? Each modality is its own federation.</div>
+  </div>
+  <div class="console-controls">
+    <button type="button" id="consoleBack" data-i="back">◁ back</button>
+    <div class="console-dots" id="consoleDots"></div>
+    <button type="button" id="consoleNext" data-i="next">next ▷</button>
+    <button type="button" id="consoleStart" class="hidden" data-i="s3_start">connect &amp; start ▷</button>
+    <button type="button" id="consoleStop" class="hidden" data-i="stop">■ stop</button>
+    <button type="button" id="consoleRestart" class="hidden" data-i="restart">⟲ run again</button>
+  </div>
+</div>
 <div class="app">
   <div class="titlebar">
     <div class="logo">DF</div>
@@ -21,6 +51,10 @@
   <div class="workspace">
     <nav class="sidebar">
       <div class="rail" id="steps"></div>
+      <button class="settings-launch" id="openSettings" type="button">
+        <span class="settings-icon" aria-hidden="true">⚙</span>
+        <span data-i="settings_open">Advanced settings</span>
+      </button>
       <div class="sidefoot">
         <span class="lk"><span class="dotk"></span><span data-i="side_local">Data stays on this machine</span></span>
       </div>
@@ -60,32 +94,26 @@
               <button class="btn stop hidden" id="cancelVideo" data-i="video_cancel">Cancel</button>
             </div>
           </div>
-          <details class="advanced" id="videoAdvanced">
-            <summary data-i="video_advanced">Advanced settings</summary>
-            <div class="outputrow">
-              <div class="outputmeta">
-                <span class="outputlabel" data-i="video_output_label">Extracted NPZ folder</span>
-                <code class="outputpath" id="videoOutputPath">—</code>
-                <span class="tempbadge" id="videoOutputBadge" data-i="video_output_temp">Temporary · removed when the app closes</span>
-              </div>
-              <div class="outputactions">
-                <button class="btn ghost" id="changeVideoOutput" data-i="video_output_change">Choose permanent folder…</button>
-                <button class="btn ghost hidden" id="resetVideoOutput" data-i="video_output_reset">Use temporary folder</button>
+          <div class="panes">
+            <div class="preview">
+              <div class="ptag" data-i="video_src">The recording · stays on this machine</div>
+              <video id="sourceVideo" muted playsinline preload="auto" class="offscreen"></video>
+              <canvas id="poseCanvas" width="640" height="360"></canvas>
+              <div class="empty" id="previewEmpty" data-i="video_empty">Choose one or more videos to see pose extraction here.</div>
+              <div class="cdnload hidden" id="cdnLoad">
+                <div class="cdncard">
+                  <div class="loadring"></div>
+                  <div class="cdntitle" id="cdnTitle">Loading MediaPipe</div>
+                  <div class="cdndetail" id="cdnDetail">Connecting to CDN…</div>
+                  <div class="cdnprogress indeterminate" id="cdnProgress"><div class="fill" id="cdnFill"></div></div>
+                  <button class="btn cdnretry hidden" id="retryCdn" data-i="cdn_retry">Retry</button>
+                </div>
               </div>
             </div>
-          </details>
-          <div class="preview">
-            <video id="sourceVideo" muted playsinline preload="auto" class="hidden"></video>
-            <canvas id="poseCanvas" width="640" height="360"></canvas>
-            <div class="empty" id="previewEmpty" data-i="video_empty">Choose one or more videos to see pose extraction here.</div>
-            <div class="cdnload hidden" id="cdnLoad">
-              <div class="cdncard">
-                <div class="loadring"></div>
-                <div class="cdntitle" id="cdnTitle">Loading MediaPipe</div>
-                <div class="cdndetail" id="cdnDetail">Connecting to CDN…</div>
-                <div class="cdnprogress indeterminate" id="cdnProgress"><div class="fill" id="cdnFill"></div></div>
-                <button class="btn cdnretry hidden" id="retryCdn" data-i="cdn_retry">Retry</button>
-              </div>
+            <div class="preview kept">
+              <div class="ptag keep" data-i="video_kept">What is kept · movement only</div>
+              <canvas id="poseSkeleton" width="640" height="360"></canvas>
+              <div class="empty" id="skeletonEmpty" data-i="video_kept_empty">No face, no pixels — only the moving geometry.</div>
             </div>
           </div>
           <div class="extractbar"><div class="extractfill" id="extractFill"></div></div>
@@ -182,6 +210,46 @@
     </div>
   </div>
 
+  <div class="configmodal settingsmodal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <div class="configcard settingscard">
+      <div class="settingshead">
+        <div>
+          <div class="vh" id="settingsModalTitle" data-i="settings_title">Advanced settings</div>
+          <div class="vs" data-i="settings_hint">Appearance and local video-extraction storage for this desktop client.</div>
+        </div>
+        <button class="iconbtn" id="closeSettings" type="button" aria-label="Close">×</button>
+      </div>
+
+      <section class="settingssection">
+        <div class="settinglabel" data-i="settings_theme">Interface style</div>
+        <div class="themechoices" role="radiogroup" aria-labelledby="settingsModalTitle">
+          <button class="themechoice" type="button" data-theme-choice="classic" role="radio">
+            <span class="themeswatch classic-swatch" aria-hidden="true"></span>
+            <span><b data-i="theme_classic">Blue & white</b><small data-i="theme_classic_hint">Current desktop interface</small></span>
+            <span class="themecheck" aria-hidden="true">✓</span>
+          </button>
+          <button class="themechoice" type="button" data-theme-choice="console" role="radio">
+            <span class="themeswatch console-swatch" aria-hidden="true"></span>
+            <span><b data-i="theme_console">Federation console</b><small data-i="theme_console_hint">Colleague's dark stage interface</small></span>
+            <span class="themecheck" aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="settingssection">
+        <div class="settinglabel" data-i="video_output_label">Extracted NPZ folder</div>
+        <div class="outputmeta">
+          <code class="outputpath" id="videoOutputPath">—</code>
+          <span class="tempbadge" id="videoOutputBadge" data-i="video_output_temp">Temporary · removed when the app closes</span>
+        </div>
+        <div class="outputactions">
+          <button class="btn ghost" id="changeVideoOutput" data-i="video_output_change">Choose permanent folder…</button>
+          <button class="btn ghost hidden" id="resetVideoOutput" data-i="video_output_reset">Use temporary folder</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
   <div class="statusbar">
     <span class="stdot" id="stDot"></span><span id="stConn"></span>
     <span class="spacer"></span>
@@ -192,5 +260,6 @@
 
 <script src="i18n.js"></script>
 <script src="client.js"></script>
+<script src="client_theme.js"></script>
 </body>
 </html>

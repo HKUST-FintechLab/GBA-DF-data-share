@@ -1,0 +1,411 @@
+/* frontendv2-inspired federation console.
+   The business DOM stays shared with the classic client; only this scoped visual layer and
+   the optional canvas stage change when the user selects the console in Advanced settings. */
+html[data-theme="console"]{
+  --bg:#0d1a2e;--panel:#1a2c4a;--panel2:#112039;--sidebar:transparent;
+  --line:rgba(122,168,235,.22);--line2:rgba(122,168,235,.11);
+  --ink:#eaf1fc;--head:#f3f7ff;--mut:#91a9ca;--accent:#4ea8ff;--accent-h:#7fc0ff;
+  --blue:#4ea8ff;--ok:#56d6a4;--warn:#fbbf24;--bad:#ff6b6b;
+  --ui:'Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+  --serif:Georgia,'Songti SC','SimSun',serif;
+  --mono:'SF Mono','Cascadia Code',Consolas,ui-monospace,monospace;
+}
+html[data-theme="console"] body{
+  color:var(--ink);background:#0d1a2e;font-family:var(--serif);
+}
+#themeStage,.themeVignette{display:none}
+html[data-theme="console"] #themeStage{
+  position:fixed;inset:0;z-index:0;display:block;width:100vw;height:100vh;
+}
+html[data-theme="console"] .themeVignette{
+  position:fixed;inset:0;z-index:1;display:block;pointer-events:none;
+  background:radial-gradient(118% 96% at 50% 44%,transparent 40%,rgba(3,9,20,.64) 100%);
+}
+html[data-theme="console"] .app{position:relative;z-index:2;background:transparent}
+
+/* corner chrome */
+html[data-theme="console"] .titlebar{
+  position:relative;z-index:8;height:74px;padding:0 34px;background:transparent;border:0;
+}
+html[data-theme="console"] .logo{
+  width:34px;height:34px;border:1px solid rgba(78,168,255,.42);border-radius:7px;
+  background:rgba(13,26,46,.64);color:var(--accent);box-shadow:0 0 18px rgba(78,168,255,.14);
+  font-family:var(--mono);letter-spacing:.06em;
+}
+html[data-theme="console"] .tname{
+  color:var(--head);font:500 11px var(--mono);letter-spacing:.24em;text-transform:uppercase;
+}
+html[data-theme="console"] .tsub{
+  color:#66809f;font:9.5px var(--mono);letter-spacing:.08em;margin-top:5px;
+}
+html[data-theme="console"] .titlebar .lang{
+  position:fixed;left:50%;top:24px;z-index:12;transform:translateX(-50%);
+  border:0;border-radius:0;background:transparent;overflow:visible;gap:3px;
+}
+html[data-theme="console"] .lang button{
+  min-width:0;padding:6px 9px;background:transparent!important;box-shadow:none!important;
+  color:#66809f;font:10px var(--mono);letter-spacing:.16em;
+}
+html[data-theme="console"] .lang button:hover{color:#a3b9d8}
+html[data-theme="console"] .lang button.on{color:var(--accent);font-weight:500}
+
+/* the sidebar becomes the lower-corner console chrome */
+html[data-theme="console"] .workspace{position:relative;background:transparent}
+html[data-theme="console"] .sidebar{
+  position:fixed;inset:0;z-index:7;width:auto;padding:0;border:0;background:transparent;
+  backdrop-filter:none;pointer-events:none;
+}
+html[data-theme="console"] .rail{
+  position:absolute;left:50%;bottom:35px;transform:translateX(-50%);
+  display:flex;flex-direction:row;align-items:center;gap:16px;pointer-events:auto;
+}
+html[data-theme="console"] .stepdot{
+  position:relative;width:7px;height:7px;padding:0;border-radius:50%;background:#66809f;
+  color:transparent;font-size:0;opacity:.45;box-shadow:none;cursor:default;transition:.3s;
+}
+html[data-theme="console"] .stepdot .n{display:none}
+html[data-theme="console"] .stepdot.active{
+  width:8px;height:8px;background:var(--accent);opacity:1;box-shadow:0 0 10px rgba(78,168,255,.7);
+}
+html[data-theme="console"] .stepdot.done{background:#9bbce5;opacity:.85}
+html[data-theme="console"] .settings-launch{
+  position:absolute;left:30px;bottom:28px;width:auto;margin:0;padding:8px 10px;
+  border:1px solid rgba(122,168,235,.16);border-radius:6px;background:rgba(13,26,46,.46);
+  color:#66809f;font:9.5px var(--mono);letter-spacing:.14em;text-transform:uppercase;
+  backdrop-filter:blur(7px);pointer-events:auto;
+}
+html[data-theme="console"] .settings-launch:hover{
+  border-color:rgba(78,168,255,.55);background:rgba(17,32,57,.8);color:var(--accent);
+}
+html[data-theme="console"] .settings-icon{
+  width:auto;height:auto;border:0;border-radius:0;background:transparent;color:var(--accent);font-size:12px;
+}
+html[data-theme="console"] .sidefoot{display:none}
+
+html[data-theme="console"] .content{
+  position:relative;z-index:3;width:100%;padding:0 34px 82px;overflow:auto;
+}
+html[data-theme="console"] .pane{
+  position:relative;min-height:calc(100vh - 156px);max-width:none;animation:consoleFade .45s ease;
+}
+@keyframes consoleFade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+html[data-theme="console"] .pane h2{
+  position:fixed;left:34px;bottom:114px;z-index:4;width:min(540px,43vw);
+  margin:0;color:var(--head);font:300 clamp(27px,3.2vw,43px)/1.16 var(--serif);letter-spacing:.01em;
+}
+html[data-theme="console"] .pane > .hint{
+  position:fixed;left:34px;bottom:78px;z-index:4;width:min(540px,43vw);
+  margin:0;color:#91a9ca;font:10.5px/1.7 var(--mono);letter-spacing:.025em;
+}
+
+/* modality scene */
+html[data-theme="console"] .mods{
+  width:min(100%,1040px);max-width:none;margin:12vh auto 0;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:18px;
+}
+html[data-theme="console"] .mod{
+  position:relative;min-height:245px;padding:28px 22px;border:1px solid rgba(122,168,235,.15);
+  border-radius:7px;background:rgba(13,26,46,.3);backdrop-filter:blur(3px);
+  box-shadow:none;color:var(--ink);transition:.22s;
+}
+html[data-theme="console"] .mod::before,html[data-theme="console"] .mod::after{
+  content:"";position:absolute;width:12px;height:12px;border-color:transparent;transition:.22s;
+}
+html[data-theme="console"] .mod::before{left:-1px;top:-1px;border-left:1px solid;border-top:1px solid}
+html[data-theme="console"] .mod::after{right:-1px;bottom:-1px;border-right:1px solid;border-bottom:1px solid}
+html[data-theme="console"] .mod:hover{
+  transform:translateY(-3px);border-color:rgba(78,168,255,.42);background:rgba(20,39,68,.58);
+  box-shadow:0 18px 40px rgba(0,0,0,.24);
+}
+html[data-theme="console"] .mod.sel{
+  border-color:rgba(78,168,255,.52);background:rgba(18,58,102,.35);
+  box-shadow:0 0 24px rgba(78,168,255,.12);
+}
+html[data-theme="console"] .mod.sel::before,html[data-theme="console"] .mod.sel::after{border-color:var(--accent)}
+html[data-theme="console"] .mod .ic{
+  height:80px;font-size:42px;display:grid;place-items:center;filter:saturate(.75);
+}
+html[data-theme="console"] .mod .nm{margin-top:20px;color:var(--head);font:300 20px var(--serif)}
+html[data-theme="console"] .mod .tk{margin-top:8px;color:#91a9ca;font:10px/1.65 var(--mono)}
+html[data-theme="console"] .mod .dim{
+  margin-top:14px;color:var(--accent);font:9px var(--mono);letter-spacing:.18em;text-transform:uppercase;
+}
+
+/* folder and connection scenes float on the right, as in frontendv2 */
+html[data-theme="console"] [data-step="2"] > .row,
+html[data-theme="console"] [data-step="2"] > .foldbox,
+html[data-theme="console"] [data-step="2"] > #s2msg,
+html[data-theme="console"] [data-step="2"] > .note{
+  position:relative;margin-left:auto;width:min(430px,39vw);max-width:none;
+}
+html[data-theme="console"] [data-step="2"] > .row{padding-top:45px}
+html[data-theme="console"] [data-step="2"] > .note{margin-top:15px}
+html[data-theme="console"] [data-step="2"] > .nav{position:fixed;right:34px;bottom:30px;width:320px}
+html[data-theme="console"] [data-step="3"]{
+  width:min(460px,42vw);margin-left:auto;padding-top:28px;
+}
+html[data-theme="console"] [data-step="3"] h2,
+html[data-theme="console"] [data-step="3"] > .hint{left:34px}
+html[data-theme="console"] .grid2{grid-template-columns:1fr 1fr;max-width:none;gap:5px 18px}
+html[data-theme="console"] label.fld{
+  color:#66809f;font:9px var(--mono);letter-spacing:.2em;margin:12px 0 6px;
+}
+html[data-theme="console"] input[type=text],
+html[data-theme="console"] input[type=number],
+html[data-theme="console"] input[type=password]{
+  padding:9px 2px;border:0;border-bottom:1px solid rgba(122,168,235,.22);border-radius:0;
+  background:transparent;color:var(--ink);box-shadow:none;font:12px var(--mono);
+}
+html[data-theme="console"] input:focus{
+  border-bottom-color:var(--accent);background:transparent;box-shadow:none;
+}
+html[data-theme="console"] select{
+  border-color:rgba(122,168,235,.22);border-radius:6px;background:#1a2c4a;color:var(--ink);
+  box-shadow:none;font:10.5px var(--mono);
+}
+html[data-theme="console"] button.btn{
+  border:1px solid rgba(122,168,235,.22);border-radius:6px;background:rgba(13,26,46,.38);
+  color:#a3b9d8;box-shadow:none;font:10.5px var(--mono);letter-spacing:.07em;
+}
+html[data-theme="console"] button.btn:hover:not(:disabled){
+  border-color:var(--accent);background:rgba(78,168,255,.07);color:var(--accent);box-shadow:none;
+}
+html[data-theme="console"] .btn.primary{border-color:#3c6fa8;color:var(--accent)}
+html[data-theme="console"] .btn.stop{border-color:rgba(255,107,107,.4);color:var(--bad)}
+html[data-theme="console"] .foldbox{
+  border:0;border-left:1px solid #3c6fa8;border-radius:0;background:transparent;box-shadow:none;
+}
+html[data-theme="console"] .foldbox .path{color:var(--ink)}
+html[data-theme="console"] .kv,html[data-theme="console"] .note{color:#66809f;font:10px/1.7 var(--mono)}
+html[data-theme="console"] .tag{border:1px solid rgba(78,168,255,.3);border-radius:999px;background:transparent!important}
+html[data-theme="console"] .tag.asd{color:#ffa95c;border-color:rgba(255,169,92,.35)}
+html[data-theme="console"] .tag.td{color:#4ea8ff}
+html[data-theme="console"] .msg{
+  border:0;border-left:1px solid;border-radius:0;background:transparent!important;
+  color:var(--mut);font:10px/1.7 var(--mono);
+}
+
+/* frontendv2's central argument: recording on the left, retained movement on the right */
+html[data-theme="console"] .videoimport{
+  position:fixed;left:34px;right:34px;top:182px;bottom:82px;z-index:5;
+  max-width:none;margin:0;padding:0;border:0;border-radius:0;background:transparent;
+  box-shadow:none;backdrop-filter:none;display:flex;flex-direction:column;
+}
+html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > h2{
+  top:88px;bottom:auto;font-size:27px;
+}
+html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > .hint{display:none}
+html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > .row{
+  position:fixed;right:34px;top:88px;padding:0;width:auto;
+}
+html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > .foldbox,
+html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > .note{display:none}
+html[data-theme="console"] .videohead{justify-content:flex-end;margin-bottom:27px}
+html[data-theme="console"] .videohead .grow{display:none}
+html[data-theme="console"] .videoopts label{color:#66809f;font:9px var(--mono);letter-spacing:.15em;text-transform:uppercase}
+html[data-theme="console"] .panes{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+html[data-theme="console"] .preview.kept{display:grid;background:#060e1b}
+html[data-theme="console"] .preview{
+  min-height:0;overflow:visible;border:1px solid rgba(122,168,235,.2);border-radius:0;background:#060e1b;
+  box-shadow:none;
+}
+html[data-theme="console"] .preview::before,html[data-theme="console"] .preview::after{
+  content:"";position:absolute;width:11px;height:11px;border:1px solid #3c6fa8;z-index:2;
+}
+html[data-theme="console"] .preview::before{left:-1px;top:-1px;border-right:0;border-bottom:0}
+html[data-theme="console"] .preview::after{right:-1px;bottom:-1px;border-left:0;border-top:0}
+html[data-theme="console"] .preview canvas{width:100%;height:100%;max-height:none;border-radius:0;object-fit:contain}
+html[data-theme="console"] .ptag{
+  display:block;position:absolute;left:0;top:-23px;color:#9a6636;font:9px var(--mono);
+  letter-spacing:.16em;text-transform:uppercase;
+}
+html[data-theme="console"] .ptag.keep{color:#3c6fa8}
+html[data-theme="console"] .preview .empty{color:#66809f;font:9px var(--mono);letter-spacing:.14em;text-transform:uppercase}
+html[data-theme="console"] .cdnload{background:rgba(6,14,26,.9)}
+html[data-theme="console"] .extractbar{height:2px;margin-top:13px;background:rgba(255,255,255,.07)}
+html[data-theme="console"] .extractfill{background:var(--accent);box-shadow:0 0 10px rgba(78,168,255,.6)}
+html[data-theme="console"] .extractmeta,html[data-theme="console"] .extractlog{
+  color:#66809f;font:9.5px/1.7 var(--mono);letter-spacing:.06em;
+}
+
+/* training scene */
+html[data-theme="console"] [data-step="4"] .banner{display:none}
+html[data-theme="console"] [data-step="4"] .runstats{
+  position:fixed;right:34px;top:92px;width:min(330px,31vw);max-width:none;display:block;margin:0;
+}
+html[data-theme="console"] [data-step="4"] .rs{
+  min-width:0;padding:12px 0;border:0;border-bottom:1px solid rgba(122,168,235,.11);
+  border-radius:0;background:transparent;box-shadow:none;
+}
+html[data-theme="console"] [data-step="4"] .rs .l{
+  color:#66809f;font:9px/1.5 var(--mono);letter-spacing:.18em;
+}
+html[data-theme="console"] [data-step="4"] .rs .v{color:var(--ink);font:500 21px var(--mono)}
+html[data-theme="console"] [data-step="4"] .rs.hero .v{
+  color:var(--accent);font-size:38px;text-shadow:0 0 22px rgba(78,168,255,.28);
+}
+html[data-theme="console"] [data-step="4"] .log{
+  position:fixed;left:34px;bottom:104px;width:min(550px,45vw);max-height:160px;max-width:none;
+  padding:0;border:0;border-radius:0;background:transparent;color:#66809f;box-shadow:none;
+  font:10px/1.8 var(--mono);
+}
+html[data-theme="console"] [data-step="4"] > .nav{position:fixed;left:50%;bottom:23px;transform:translateX(-50%)}
+html[data-theme="console"] [data-step="4"] > .note{display:none}
+html[data-theme="console"] [data-step="4"] > #s4msg{position:fixed;left:34px;bottom:70px;width:min(550px,45vw)}
+html[data-theme="console"] [data-step="4"] h2{top:92px;bottom:auto}
+html[data-theme="console"] [data-step="4"] > .hint{display:none}
+
+/* status and privacy line */
+html[data-theme="console"] .statusbar{
+  position:fixed;right:34px;top:26px;z-index:10;width:auto;height:auto;padding:0;border:0;
+  background:transparent;backdrop-filter:none;color:#66809f;font:9.5px var(--mono);letter-spacing:.13em;
+  text-transform:uppercase;
+}
+html[data-theme="console"] .stdot{width:6px;height:6px;background:#66809f}
+html[data-theme="console"] .stdot.on{background:var(--accent);box-shadow:0 0 10px rgba(78,168,255,.7)}
+html[data-theme="console"] .stdot.busy{background:#ffa95c;box-shadow:0 0 10px rgba(255,169,92,.6)}
+html[data-theme="console"] .statusbar > .spacer{display:none}
+html[data-theme="console"] .stlock{
+  position:fixed;right:34px;bottom:30px;color:#56d6a4;font:9px var(--mono);
+  letter-spacing:.12em;text-align:right;
+}
+html[data-theme="console"] .stshared{display:block;margin:5px 0 0;color:#66809f;font-weight:400}
+
+/* both modals adapt to the console, including the global settings panel */
+html[data-theme="console"] .configmodal{background:rgba(6,14,26,.84);backdrop-filter:blur(6px)}
+html[data-theme="console"] .configcard{
+  border:1px solid rgba(122,168,235,.22);border-radius:0;background:#132340;color:var(--ink);
+  box-shadow:0 18px 50px rgba(0,0,0,.5);
+}
+html[data-theme="console"] .configcard .vh{color:var(--head);font:300 23px var(--serif)}
+html[data-theme="console"] .configcard .vs{color:#91a9ca;font:10px/1.8 var(--mono)}
+html[data-theme="console"] .configjson{border-color:rgba(122,168,235,.22);border-radius:0;background:#060e1b;color:var(--ink)}
+html[data-theme="console"] .iconbtn{background:transparent;color:#66809f}
+html[data-theme="console"] .settingssection{border-color:rgba(122,168,235,.16)}
+html[data-theme="console"] .settinglabel{color:#66809f;font-family:var(--mono)}
+html[data-theme="console"] .themechoice{
+  border-color:rgba(122,168,235,.18);border-radius:6px;background:#112039;color:var(--ink);
+}
+html[data-theme="console"] .themechoice.on{
+  border-color:var(--accent);background:#123a66;box-shadow:0 0 16px rgba(78,168,255,.12);
+}
+html[data-theme="console"] .themechoice small{color:#91a9ca}
+html[data-theme="console"] .outputpath{color:#dce9fb}
+html[data-theme="console"] .tempbadge{color:#56d6a4}
+
+@media (max-width:1050px){
+  html[data-theme="console"] .mods{grid-template-columns:repeat(2,1fr);margin-top:4vh}
+  html[data-theme="console"] .mod{min-height:190px}
+  html[data-theme="console"] .pane h2{width:42vw}
+  html[data-theme="console"] .pane > .hint{width:42vw}
+}
+@media (max-width:760px){
+  html[data-theme="console"] .content{padding-left:20px;padding-right:20px}
+  html[data-theme="console"] .titlebar{padding:0 20px}
+  html[data-theme="console"] .mods{gap:10px}
+  html[data-theme="console"] .panes{grid-template-columns:1fr}
+  html[data-theme="console"] .preview.kept{display:none}
+  html[data-theme="console"] .settings-launch{left:18px}
+  html[data-theme="console"] .stlock{right:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  html[data-theme="console"] *,html[data-theme="console"] *::before,html[data-theme="console"] *::after{
+    animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;
+  }
+}
+
+/* Faithful frontendv2 shell -------------------------------------------------
+   These final rules intentionally replace the card adaptation above. The canvas owns the first
+   scene; DOM modality elements are only invisible, keyboard-reachable hit areas, matching the
+   colleague branch instead of merely borrowing its palette. */
+html[data-theme="console"] .console-chrome{
+  position:fixed;inset:0;z-index:6;display:block;pointer-events:none;
+}
+html[data-theme="console"] .console-chrome > *{pointer-events:auto}
+html[data-theme="console"] .console-wordmark{
+  position:absolute;left:34px;top:29px;display:flex;gap:27px;align-items:center;
+  color:#66809f;font:500 10.5px var(--mono);letter-spacing:.4em;text-transform:uppercase;
+}
+html[data-theme="console"] .console-wordmark b{color:#4ea8ff}
+html[data-theme="console"] .console-caption{
+  position:absolute;left:34px;bottom:108px;width:min(560px,42vw);animation:consoleFade .6s ease;
+}
+html[data-theme="console"] .console-index{
+  margin-bottom:15px;color:#4b8ed1;font:10px var(--mono);letter-spacing:.34em;text-transform:uppercase;
+}
+html[data-theme="console"] .console-caption h1{
+  margin:0 0 13px;color:#eaf1fc;font:300 clamp(25px,3.2vw,42px)/1.2 var(--serif);letter-spacing:.01em;
+}
+html[data-theme="console"] .console-scene-sub{
+  max-width:46ch;color:#a3b9d8;font:11.5px/1.8 var(--mono);letter-spacing:.02em;
+}
+html[data-theme="console"] .console-controls{
+  position:absolute;left:50%;bottom:34px;transform:translateX(-50%);
+  display:flex;align-items:center;gap:22px;
+}
+html[data-theme="console"] .console-controls button{
+  padding:7px 4px;border:0;background:none;color:#66809f;cursor:pointer;
+  font:11px var(--mono);letter-spacing:.12em;white-space:nowrap;
+}
+html[data-theme="console"] .console-controls button:hover:not(:disabled){color:#4ea8ff}
+html[data-theme="console"] .console-controls button:disabled{opacity:.3;cursor:not-allowed}
+html[data-theme="console"] .console-controls #consoleStart{color:#4ea8ff}
+html[data-theme="console"] .console-controls #consoleStop{color:#ff6b6b}
+html[data-theme="console"] .console-dots{display:flex;gap:10px}
+html[data-theme="console"] .console-dots i{
+  display:block;width:5px;height:5px;border-radius:50%;background:#66809f;opacity:.5;transition:.3s;
+}
+html[data-theme="console"] .console-dots i.done{opacity:1}
+html[data-theme="console"] .console-dots i.on{
+  background:#4ea8ff;opacity:1;transform:scale(1.35);box-shadow:0 0 10px rgba(78,168,255,.7);
+}
+
+html[data-theme="console"] .titlebar .logo,
+html[data-theme="console"] .titlebar .tname,
+html[data-theme="console"] .titlebar .tsub{display:none}
+html[data-theme="console"] .titlebar{pointer-events:none}
+html[data-theme="console"] .titlebar .lang{pointer-events:auto}
+html[data-theme="console"] .sidebar .rail{display:none}
+html[data-theme="console"] .settings-launch{display:none}
+html[data-theme="console"] .console-settings{
+  position:absolute;left:34px;top:57px;display:flex;align-items:center;gap:8px;padding:5px 0;
+  border:0;background:none;color:#66809f;cursor:pointer;font:9px var(--mono);
+  letter-spacing:.16em;text-transform:uppercase;opacity:.72;transition:color .2s,opacity .2s;
+}
+html[data-theme="console"] .console-settings span:first-child{color:#4ea8ff;font-size:11px}
+html[data-theme="console"] .console-settings:hover{color:#a3b9d8;opacity:1}
+
+html[data-theme="console"] [data-step="1"] > h2,
+html[data-theme="console"] [data-step="1"] > .hint{display:none}
+html[data-theme="console"] [data-step="1"] .mods{
+  position:fixed;inset:0;z-index:5;width:auto;max-width:none;margin:0;display:block;pointer-events:none;
+}
+html[data-theme="console"] [data-step="1"] .mod{
+  position:absolute;min-height:0;padding:0;border:0;border-radius:0;background:none!important;
+  box-shadow:none!important;backdrop-filter:none;transform:none!important;pointer-events:auto;
+}
+html[data-theme="console"] [data-step="1"] .mod::before,
+html[data-theme="console"] [data-step="1"] .mod::after,
+html[data-theme="console"] [data-step="1"] .mod > *{display:none}
+html[data-theme="console"] [data-step="1"] .mod:focus-visible{
+  outline:1px solid #4ea8ff;outline-offset:6px;
+}
+html[data-theme="console"] [data-step="1"] .mod:hover{background:rgba(78,168,255,.018)!important}
+
+/* The shared DOM still contains the classic per-pane headings/navigation. In console mode the
+   global scene caption and bottom strip above are authoritative. */
+html[data-theme="console"] .pane > h2,
+html[data-theme="console"] .pane > .hint{display:none}
+html[data-theme="console"] .pane > .nav{display:none}
+
+/* Match the reference's unobstructed first scene exactly; later scenes keep frontendv2's right-side
+   controls and video-stage layouts already defined above. */
+html[data-theme="console"] [data-step="1"]{position:fixed;inset:0;min-height:0}
+html[data-theme="console"] [data-step="2"],
+html[data-theme="console"] [data-step="3"],
+html[data-theme="console"] [data-step="4"]{padding-top:28px}
+
+@media (max-height:760px){
+  html[data-theme="console"] .console-caption{bottom:96px}
+  html[data-theme="console"] .console-caption h1{font-size:clamp(21px,2.5vw,32px)}
+}
