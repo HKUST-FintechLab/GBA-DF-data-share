@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--trees", type=int, default=40)
     ap.add_argument("--port", type=int, default=8055)
     ap.add_argument("--modality", default=None,
-                    help="eyegaze | action | neuro (default: HAR benchmark)")
+                    help="eyegaze | action | action_cdp (experimental) | neuro (default: HAR benchmark)")
     ap.add_argument("--noniid", action="store_true", help="skew label mix across nodes")
     ap.add_argument("--prepare", action="store_true", help="force re-prepare the dataset")
     args = ap.parse_args()

@@ -152,7 +152,7 @@ check("a missing node corrupts the sum (full cohort required)",
 
 print("== multi-modal front end (public, participant-independent normalization) ==")
 import modalities as mods
-for key in ("eyegaze", "action", "neuro"):
+for key in ("eyegaze", "action", "action_cdp", "neuro"):
     m = mods.get(key)
     # extract two DIFFERENT synthetic partner folders through the SAME public scale
     with tempfile.TemporaryDirectory() as da, tempfile.TemporaryDirectory() as db:
@@ -228,6 +228,22 @@ api_check = subprocess.run(
 )
 check("coordinator endpoint authentication, size limits, and rate limiting",
       api_check.returncode == 0)
+
+print("== explicitly shared one-node mode ==")
+solo_shared_check = subprocess.run(
+    [sys.executable, os.path.join(os.path.dirname(__file__), "verify_solo_shared.py")],
+    check=False,
+)
+check("shared cohort-1 model is visible through ordinary dashboard/model endpoints",
+      solo_shared_check.returncode == 0)
+
+print("== experimental CDP adapter boundary ==")
+cdp_check = subprocess.run(
+    [sys.executable, os.path.join(os.path.dirname(__file__), "verify_cdp_adapter.py")],
+    check=False,
+)
+check("CDP feature parity, schema pin, JSON allow-list, and modality ingestion",
+      cdp_check.returncode == 0)
 
 print("== round integrity under failure ==")
 round_check = subprocess.run(

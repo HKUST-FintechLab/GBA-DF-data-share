@@ -222,6 +222,12 @@ def _gaze_synth(out, n_per_class, seed, classes=None):
 # Body-pose windows in the project's native format: .npz with key 'body' (T,33,4).
 # Reuses the engineered kinematic extractor (features.py) -> 174-dim.
 from features import extract_features as _pose_features        # noqa: E402
+from cdp_features import (                                      # noqa: E402
+    CDP_OUTPUT_DIM,
+    MIN_CDP_FRAMES,
+    extract_selected_features as _cdp_features,
+    load_adapter as _load_cdp_adapter,
+)
 
 ACTION_DIM = 174
 ACTION_CLASSES = ["TD", "ASD"]
@@ -281,6 +287,49 @@ def _action_synth(out, n_per_class, seed, classes=None):
             np.savez_compressed(os.path.join(d, f"{c.lower()}_{seed}_{k:03d}.npz"), body=body)
             made += 1
     return made
+
+
+# ===================================================== ACTION / CDP EXPERIMENT
+# Parallel experimental front end. It faithfully maps MediaPipe 33-point windows
+# to the historical CDP 17-point, two-branch representation, then applies only
+# the frozen scaler + 40/64 selectors from the pinned data-only JSON adapter.
+# The historical pickle and ExtraTrees objects are never loaded here.
+ACTION_CDP_DIM = CDP_OUTPUT_DIM
+
+
+def _action_cdp_extract(path):
+    files = _list(path, [".npz"])
+    adapter = _load_cdp_adapter()
+    X, y, g = [], [], []
+    for fp in files:
+        try:
+            z = np.load(fp)
+            body = z["body"] if "body" in z else z[z.files[0]]
+        except Exception:
+            continue
+        body = np.asarray(body)
+        if body.ndim == 3:                                # single window (T,33,4)
+            body = body[None]
+        lab = _label_of(fp, path, ACTION_CLASSES)
+        gid = os.path.relpath(fp, path)
+        for window in body:
+            if (
+                window.ndim != 3
+                or window.shape[1:] != (33, 4)
+                or window.shape[0] < MIN_CDP_FRAMES
+            ):
+                continue
+            X.append(_cdp_features(window, adapter))
+            y.append(lab)
+            g.append(gid)
+    if not X:
+        return np.zeros((0, ACTION_CDP_DIM), np.float32), np.array([], object), np.array([], object)
+    return np.vstack(X).astype(np.float32), np.array(y, object), np.array(g, object)
+
+
+def _action_cdp_synth(out, n_per_class, seed, classes=None):
+    # Same public synthetic recordings as `action`; only the feature front end differs.
+    return _action_synth(out, n_per_class, seed, classes)
 
 
 # ==================================================================== NEURO
@@ -445,6 +494,12 @@ MODALITIES = {
         ACTION_DIM, ACTION_CLASSES,
         "选择现有 body:(T,33,4) NPZ，或在桌面客户端本地转换原始视频 · choose existing body:(T,33,4) NPZ files or convert raw video locally in the desktop client",
         _action_extract, _action_synth),
+    "action_cdp": Modality(
+        "action_cdp", "动作/姿态数据（CDP 实验）", "Body action / pose (CDP experiment)",
+        "CDP 联邦适配实验 (ASD/TD)", "CDP federated adaptation experiment (ASD/TD)",
+        ACTION_CDP_DIM, ACTION_CLASSES,
+        "使用固定 CDP 40+64 特征适配器；输入仍为 body:(T,33,4) NPZ，或在桌面客户端本地转换视频 · uses the pinned CDP 40+64 feature adapter; input remains body:(T,33,4) NPZ or locally converted video",
+        _action_cdp_extract, _action_cdp_synth),
     "neuro": Modality(
         "neuro", "EEG / fMRI 神经影像", "EEG / fMRI",
         "神经影像筛查 (ASD/TD)", "Neuroimaging screening (ASD/TD)",

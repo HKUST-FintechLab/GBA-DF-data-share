@@ -75,7 +75,7 @@ def main():
     ap.add_argument("--dataset", choices=["har", "pose"], default="har",
                     help="benchmark dataset (ignored if --modality is given)")
     ap.add_argument("--modality", choices=list(modalities.MODALITIES), default=None,
-                    help="signal modality: eyegaze | action | neuro (synthesizes a demo cohort)")
+                    help="signal modality: eyegaze | action | action_cdp (experimental) | neuro (synthesizes a demo cohort)")
     ap.add_argument("--demo-n", type=int, default=150, help="synth recordings per class (modality)")
     ap.add_argument("--nodes", type=int, default=3)
     ap.add_argument("--test-frac", type=float, default=0.25)
