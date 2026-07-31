@@ -1,8 +1,23 @@
 # Decisions Log
 
-Last updated: 2026-07-26
+Last updated: 2026-07-30
 
 Newest decisions appear first.
+
+## 2026-07-30 — Keep CDP federation as a parallel experiment, outside the pilot path
+
+- Add `action_cdp` as an explicitly experimental front end; do not replace the existing `action`
+  schema or add it to the September pilot critical path.
+- Reuse only the historical champion's pose mapping, feature definitions, frozen scaler parameters,
+  and 40/64 selected indices. Train the shared data-independent DP forest on that 104-dimensional
+  representation; do not describe this as averaging or continuing the original ExtraTrees model.
+- Never load the historical pickle in a node or coordinator. A one-time local migration requires an
+  exact source SHA-256 and explicit risk acknowledgement, exports only allow-listed numeric metadata,
+  strips sample IDs/groups/reports/classifier trees, and pins the resulting JSON to the
+  `action_cdp` v1 schema.
+- Treat the existing CDP locked-test result as historical evidence only. Any improvement claim
+  requires grouped, institution-held-out comparison of frozen CDP, existing `action`, `action_cdp`,
+  and a future calibration/residual design.
 
 ## 2026-07-26 — Handle dropout by discarding rounds, not by persisting masked vectors
 

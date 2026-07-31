@@ -281,6 +281,14 @@
     <div class="sec">Members · local records</div>
     <div class="block"><div id="ledgerRows"></div></div>
 
+    <div class="hidden" id="soloSessionsCard">
+      <div class="sec">Single-node sessions · operator visibility only</div>
+      <div class="block">
+        <div id="soloSessions"></div>
+        <div class="eps-note">metadata only · no models merged, no raw data, no masked vectors</div>
+      </div>
+    </div>
+
     <div class="sec">Federated vs pooled · per round</div>
     <div class="block">
       <svg id="spark" viewBox="0 0 360 104" preserveAspectRatio="none"></svg>
@@ -610,7 +618,7 @@ async function poll(){
 function ingestStatus(s){
   S.dataset=s.dataset; S.metric=s.primary_metric; S.classes=s.classes||[];
   S.cohort=s.cohort; S.secure=!!s.secure_aggregation; S.secureCohort=s.secure_cohort!==false;
-  S.isolated=!!s.isolated; S.testWindows=s.test_windows;
+  S.isolated=!!s.isolated; S.testWindows=s.test_windows; S.solo=s.solo_sessions||[];
   S.central=(s.centralized||{})[s.primary_metric];
   S.ceiling=(s.centralized_nonprivate||{})[s.primary_metric];
   S.epsBudget=s.epsilon_budget;
@@ -720,6 +728,24 @@ function renderLedger(){
   bar.innerHTML=Array.from({length:total},(_,i)=>`<i class="${i<spent?"on":""}"></i>`).join("");
   $("epsNote").textContent=frac>=1 ? "exhausted · further rounds refused"
     : `${total-spent} of ${total} rounds left · ε ${per} each`;
+
+  // In cohort-1 mode this console is in its own room. The coordinator returns read/operator-only,
+  // metadata-only summaries so an operator can see whether a partner's isolated run trained,
+  // without joining or exposing that room. Kept from origin/main, restyled for this rail.
+  const soloCard=$("soloSessionsCard"), solo=$("soloSessions"), sessions=S.solo||[];
+  soloCard.classList.toggle("hidden", !S.isolated || !sessions.length);
+  if(S.isolated && sessions.length){
+    solo.innerHTML=sessions.map(x=>{
+      const who=(x.nodes||[]).map(n=>esc(n.name||n.node_id)).join(", ")||"pending registration";
+      const samples=(x.nodes||[]).reduce((sum,n)=>sum+Number(n.samples||0),0);
+      const metric=x.fed_primary==null?"—":Number(x.fed_primary).toFixed(3);
+      return `<div class="lrow">
+        <span class="nm"><span>${who}</span><b>${esc(samples)}</b></span>
+        <span class="nm"><span>r${esc(x.rounds)} · ${esc(x.global_trees)} trees · ${esc(metric)}</span>
+          <b>ε ${esc(x.global_eps)}/${esc(S.epsBudget)}</b></span>
+      </div>`;
+    }).join("");
+  }
 
   const max=Math.max(1,...S.nodes.map(n=>n.samples||0));
   $("ledgerRows").innerHTML=S.nodes.map(n=>

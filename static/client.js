@@ -36,6 +36,7 @@ const isTraditional = () => LANG === "zh-Hant";
 const HANT_MODALITIES = {
   eyegaze:{name:"眼動資料", task:"社交注意力篩查 (ASD/TD)", hint:"每段錄製一個 CSV（欄位含 x、y[, pupil]），置於 asd/ 與 td/ 子資料夾"},
   action:{name:"動作／姿態資料", task:"行為動作篩查 (ASD/TD)", hint:"選擇現有 body:(T,33,4) NPZ，或在桌面客戶端本地轉換原始影片"},
+  action_cdp:{name:"動作／姿態資料（CDP 實驗）", task:"CDP 聯邦適配實驗 (ASD/TD)", hint:"使用固定 CDP 40+64 特徵適配器；選擇 body:(T,33,4) NPZ，或在本機轉換原始影片"},
   neuro:{name:"EEG／fMRI 神經影像", task:"神經影像篩查 (ASD/TD)", hint:"每次掃描一個 .npz（鍵 'ts'，通道×時間）或 CSV，置於 asd/ 與 td/ 子資料夾"}
 };
 
@@ -333,6 +334,9 @@ function stageStart(){
 }
 window.addEventListener("resize",stageLayout);
 
+// ICONS is gone: each modality is drawn by MOD_SKETCH instead of carrying an emoji.
+// action_cdp is the same pose data through a fixed adapter, so it reuses that skeleton.
+MOD_SKETCH.action_cdp = MOD_SKETCH.action;
 function renderMods(){
   const box=$("#mods"); box.innerHTML="";
   MODS.forEach(m=>{
@@ -350,15 +354,19 @@ function renderMods(){
 }
 function sceneHintForModality(){
   if(!sel.mInfo) return t("s2_note");
-  return isTraditional()?HANT_MODALITIES[sel.mInfo.key].hint:
+  // keep origin/main's fallback: a modality without a Traditional entry must not throw
+  return isTraditional()?(HANT_MODALITIES[sel.mInfo.key]?.hint||sel.mInfo.file_hint):
     (isChinese()?sel.mInfo.file_hint.split("·")[0]:sel.mInfo.file_hint.split("·")[1]||sel.mInfo.file_hint);
 }
 function updateS2Hint(){ if(curStep===2) renderScene(); }
 function updateActionControls(){
-  const action=sel.modality==="action";
+  const action=sel.modality==="action"||sel.modality==="action_cdp";
+  const cdp=sel.modality==="action_cdp";
   $("#pickvideo").classList.toggle("hidden",!action);
   $("#videoImport").classList.toggle("hidden",!action);
   $("#pick").textContent=action?t("pick_npz"):t("pick");
+  if(cdp) $("#videoFps").value="4";
+  $("#videoFps").disabled=cdp||videoImport.running;
 }
 
 const CONNECTION_CONFIG_FORMAT="gba-df-client-config";
@@ -437,6 +445,7 @@ function setExtractProgress(fraction, status, count){
 function setVideoBusy(busy){
   videoImport.running=busy;
   ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps"].forEach(s=>$(s).disabled=busy);
+  if(sel.modality==="action_cdp") $("#videoFps").disabled=true;
   $("#cancelVideo").classList.toggle("hidden",!busy);
   $("#s2next").disabled=busy||!sel.scan;
 }

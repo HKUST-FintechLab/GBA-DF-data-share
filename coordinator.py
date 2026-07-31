@@ -28,10 +28,11 @@ Deployment knobs (env vars):
                  it is discarded and its submitters may send it again (default 900). Nothing
                  was aggregated, so an abandoned round costs no epsilon.
   FED_COHORT     override the cohort published in meta.json. FED_COHORT=1 turns on
-                 PER-GUEST ISOLATION: each client (keyed by its X-Fed-Session header) gets
-                 its OWN private cohort-1 federation — anyone can try alone, anytime, and
-                 never sees another guest's data or model. (cohort=1 => no masking, so the
-                 privacy story there is central DP only, not secure aggregation.)
+                 PER-GUEST ISOLATION by default: each client (keyed by its X-Fed-Session
+                 header) gets its OWN private federation. Set FED_SOLO_SHARED=1 together
+                 with FED_COHORT=1 for a single shared one-node room whose model is visible
+                 through the ordinary dashboard/model endpoints. (cohort=1 => no masking,
+                 so the privacy story is central DP only, not secure aggregation.)
 """
 import base64
 from collections import deque
@@ -98,7 +99,10 @@ STRUCT_SEED = int(DP.get("structure_seed", 2024))
 # cohort can be overridden at deploy time (e.g. FED_COHORT=1 for the public "try it solo" server)
 COHORT = int(os.environ.get("FED_COHORT", META.get("cohort", len(META.get("nodes", []))) or 1))
 SECURE_COHORT = COHORT >= 3        # masking gives meaningful privacy only with >=3 non-colluding nodes
-ISOLATE = COHORT == 1              # per-guest private federations (multi-tenant), keyed by session
+SOLO_SHARED = os.environ.get("FED_SOLO_SHARED", "0").strip().lower() in {"1", "true", "yes", "on"}
+if SOLO_SHARED and COHORT != 1:
+    raise RuntimeError("FED_SOLO_SHARED requires FED_COHORT=1")
+ISOLATE = COHORT == 1 and not SOLO_SHARED  # private solo rooms unless the owner explicitly shares one
 FED_PASSWORD = os.environ.get("FED_PASSWORD", "")      # shared access token; "" = open (local dev)
 FED_READ_PASSWORD = os.environ.get("FED_READ_PASSWORD", FED_PASSWORD)
 STATE_DIR = os.path.abspath(os.path.expanduser(
@@ -132,6 +136,8 @@ if not SECURE_COHORT:
           f"secure-aggregation guarantee.")
 if ISOLATE:
     print("cohort=1 -> PER-GUEST ISOLATION on: each X-Fed-Session gets its own private federation.")
+elif SOLO_SHARED:
+    print("FED_SOLO_SHARED=1 -> one shared cohort-1 room: dashboard/model endpoints show its model.")
 if FED_PASSWORD:
     print("FED_PASSWORD set -> node endpoints require the X-Fed-Key header.")
 if FED_READ_PASSWORD:
@@ -783,11 +789,40 @@ async def status(request: Request):
         nodes = [{"node_id": nid, "name": v["name"], "samples": v["samples"],
                   "rounds_submitted": v["last_round"]} for nid, v in st["nodes"].items()]
         last = st["metrics"][-1] if st["metrics"] else None
+        # Cohort-1 rooms deliberately keep their models and audit trails isolated.  The
+        # authenticated operator dashboard may still need to see whether a partner run
+        # completed, so expose a metadata-only summary for populated rooms.  Never expose
+        # the raw session id, masked vectors, model JSON, or audit entries from another room.
+        solo_sessions = []
+        if ISOLATE:
+            for session_room, session_state in SESSIONS.items():
+                if not session_state["nodes"] and not session_state["metrics"]:
+                    continue
+                session_last = session_state["metrics"][-1] if session_state["metrics"] else None
+                session_nodes = [
+                    {"node_id": nid, "name": v["name"], "samples": v["samples"],
+                     "rounds_submitted": v["last_round"]}
+                    for nid, v in session_state["nodes"].items()
+                ]
+                solo_sessions.append({
+                    "room": fc.sha256_hex(session_room.encode())[:12],
+                    "nodes": session_nodes,
+                    "rounds": len(session_state["metrics"]),
+                    "global_trees": session_last["n_trees"] if session_last else 0,
+                    "fed_primary": session_last[PRIMARY] if session_last else None,
+                    "global_eps": round(session_state["global_eps"], 3),
+                    "rejected_payloads": session_state["rejected"],
+                    "last_activity": (session_last or {}).get(
+                        "ts", session_state["audit"].entries[-1].get("ts", 0)),
+                })
+            solo_sessions.sort(key=lambda s: s["last_activity"], reverse=True)
         return {
             "dataset": DATASET, "modality": MODALITY, "modality_info": MODALITY_INFO,
             "classes": CLASSES, "primary_metric": PRIMARY,
             "secure_aggregation": SECURE_COHORT, "cohort": COHORT, "secure_cohort": SECURE_COHORT,
-            "isolated": ISOLATE, "active_sessions": len(SESSIONS), "nodes": nodes,
+            "isolated": ISOLATE, "solo_shared": SOLO_SHARED,
+            "active_sessions": len(SESSIONS), "nodes": nodes,
+            "solo_sessions": solo_sessions,
             "metrics": st["metrics"], "centralized": CENTRAL, "centralized_nonprivate": CEILING,
             "dp": DP, "epsilon_budget": BUDGET, "global_eps": round(st["global_eps"], 3),
             "test_windows": int(len(Y_TEST)), "rejected_payloads": st["rejected"],

@@ -2,8 +2,9 @@
 
 A **working** federated-learning proof-of-concept for the Greater Bay Area Data Federation.
 It demonstrates, end-to-end and recordable, the four claims the federation rests on — across
-**three data modalities** (eye-tracking, body-action/pose, EEG/fMRI), with a **desktop node
-client** a partner runs on their own machine (pick modality → pick folder → connect):
+**three data modalities** (eye-tracking, body-action/pose, EEG/fMRI), plus a parallel experimental
+CDP action front end, with a **desktop node client** a partner runs on their own machine
+(pick modality → pick folder → connect):
 
 Project status and the compressed delivery schedule are maintained in the
 [`wiki/`](wiki/README.md).
@@ -18,8 +19,8 @@ Project status and the compressed delivery schedule are maintained in the
 Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
 0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
 ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **107 checks** (its own 41 plus the API-security, round-integrity, and
-backup/restore suites it invokes). Hardened across **four rounds** of adversarial code audit
+`verify_security.py` runs **136 assertions** across the core, API-security, shared-solo, CDP-adapter,
+round-integrity, and backup/restore suites. Hardened across **four rounds** of adversarial code audit
 (security · regressions · DP correctness · secure aggregation).
 
 Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
@@ -67,6 +68,7 @@ every modality runs end-to-end through the **same** extractor a real folder woul
 |---|---|---|---|
 | **`eyegaze`** | one gaze CSV per recording (`x, y[, pupil]`), under `asd/` `td/` | fixation / saccade / spatial-attention summary → ASD/TD | 32 |
 | **`action`** | raw video converted locally by the desktop client, or one MediaPipe-pose `.npz` (key `body`, `(T,33,4)`) per clip | kinematic pose features (`features.py`) → ASD/TD | 174 |
+| **`action_cdp`** *(experimental)* | the same local MediaPipe-pose `.npz` as `action` | historical CDP 17-point mapping → 230/1150 branches → frozen 40+64 selected representation → ASD/TD | 104 |
 | **`neuro`** | one EEG/fMRI `.npz` (key `ts`, channels×time) or CSV per scan | spectral band-power + functional-connectivity summary → ASD/TD | 48 |
 
 Features are squashed into the **public** `[-1,1]` DP range by `tanh(raw / scale)`, where `scale` is a
@@ -74,6 +76,35 @@ Features are squashed into the **public** `[-1,1]` DP range by `tanh(raw / scale
 cohort — **never** from participant data (`verify_security.py` proves it stays public and participant-
 independent). `tanh` is monotone, so tree accuracy is unchanged while the DP forest gets a genuinely
 public range to draw thresholds from.
+
+### Experimental CDP adapter
+
+`action_cdp` is a parallel research path and does not replace `action` or enter the September pilot
+critical path. It reproduces the historical CDP-TreeFusion feature front end: MediaPipe 33-point
+`(T,33,4)` input is mapped to 17 `x/y/visibility` points; the 230-dimensional engineered and
+1150-dimensional segment-bag branches are computed with the champion's 32-frame window / 16-frame
+stride; clips require at least 24 sampled frames and are uniformly capped at 64; and the frozen
+StandardScaler plus 40/64 selectors yield 104 features for the existing
+data-independent federated DP forest.
+
+The shipped [`assets/cdp_adapter_v1.json`](assets/cdp_adapter_v1.json) is a data-only, hash-pinned
+adapter. It contains no sample IDs, groups, reports, sklearn objects, classifiers, or tree nodes.
+The historical `final_model.pkl` is never loaded by a node or coordinator. If an authorized model
+owner deliberately replaces the historical model, regenerate the adapter in an isolated local
+conversion step using the source model's sklearn version:
+
+```bash
+uv run --with scikit-learn==1.8.0 python export_cdp_adapter.py \
+  --input /trusted/path/final_model.pkl \
+  --output assets/cdp_adapter_v1.json \
+  --trusted-sha256 <exact-source-sha256> \
+  --acknowledge-pickle-risk
+```
+
+Loading pickle can execute code; the hash pin confirms identity, not safety. Only run that conversion
+for a model whose provenance has already been independently trusted. A changed adapter also requires
+an intentional schema-version/hash-pin change in `cdp_features.py`, preventing different nodes from
+silently assigning different meanings to the same 104 columns.
 
 **Benchmark datasets** (for the strong-signal numbers, no modality front end):
 
@@ -91,12 +122,13 @@ This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`
 git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
 cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
-uv run python verify_security.py          # 107 checks: privacy, API, invitations, rounds, restore
-uv run python modalities.py               # optional: self-check all three feature extractors
+uv run python verify_security.py          # 136 assertions across the complete security/regression suite
+uv run python modalities.py               # optional: self-check three modalities + CDP action variant
 
 # one command: prepare data -> start coordinator -> run all nodes -> live dashboard
 uv run python run_demo.py --nodes 3 --rounds 5                 # HAR benchmark
 uv run python run_demo.py --modality eyegaze --prepare         # eye-tracking federation
+uv run python run_demo.py --modality action_cdp --prepare      # experimental CDP adapter
 uv run python run_demo.py --modality neuro --noniid --prepare  # EEG/fMRI, skewed cohort
 # open the dashboard URL it prints (http://localhost:8055), then start your screen recorder
 ```
@@ -110,6 +142,7 @@ Re-prepare / change dataset or modality:
 ```bash
 uv run python prepare_data.py --modality eyegaze --nodes 3     # eye-tracking (synth demo cohort)
 uv run python prepare_data.py --modality action  --nodes 3     # body-pose action
+uv run python prepare_data.py --modality action_cdp --nodes 3  # CDP adapter experiment
 uv run python prepare_data.py --modality neuro   --nodes 3     # EEG/fMRI
 uv run python prepare_data.py --dataset  har     --nodes 3 --total-trees 600   # benchmark
 uv run python run_demo.py --prepare --modality eyegaze --nodes 3 --rounds 5
@@ -130,7 +163,7 @@ uv run python client_app.py --selftest    # headless API smoke test (no GUI)
 No data of your own? The client's **"Generate a demo folder"** button writes a synthetic cohort (clearly
 labelled) in the right format so a partner can walk the whole flow before wiring up real recordings.
 
-For the **action** modality, step 2 has two inputs:
+For the **`action` and experimental `action_cdp`** front ends, step 2 has two inputs:
 
 - **Choose NPZ folder** — use existing `body: (T,33,4)` files under `asd/` and `td/` as before.
 - **Extract raw video** — choose one or more local videos, assign the batch to ASD or TD, and select a
@@ -140,6 +173,9 @@ For the **action** modality, step 2 has two inputs:
   local Python bridge; the existing NumPy dependency atomically writes a compressed compatible NPZ into
   the selected dataset folder. The app then scans that folder and continues through the unchanged
   feature-extraction and federation path.
+
+The CDP experiment locks browser extraction to the champion's 4 fps setting. Its local feature
+adapter rejects clips with fewer than 24 sampled frames and uniformly caps longer clips at 64.
 
 The CDN receives normal library/model requests but never receives the selected video or its landmarks.
 Python MediaPipe is not required.
@@ -176,6 +212,10 @@ separate contributor and read/operator passwords:
 FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT=1 \
     uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
 
+# protected shared one-node federation — dashboard and /model use the same room
+FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT=1 FED_SOLO_SHARED=1 \
+    uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
+
 # protected real 3-node secure-aggregation federation
 FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT=3 \
     uv run uvicorn coordinator:app --host 0.0.0.0 --port <port>
@@ -185,7 +225,8 @@ FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT
 |---|---|
 | `FED_PASSWORD` | Protects contributor calls: `/schema`, `/register`, `/participants`, `/submit`, and `/round`. The desktop client sends it from its **Password** field; the node CLI and `make_node_data.py` use `--password`. |
 | `FED_READ_PASSWORD` | Protects `/status`, `/audit` (including `/audit/bundle`), `/model`, and `/predict`. It defaults to `FED_PASSWORD` for compatibility. The dashboard prompts for it and keeps it only in tab-scoped `sessionStorage`; `predict.py` uses `--password`. |
-| `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
+| `FED_COHORT` | Overrides the cohort in `meta.json`. **`FED_COHORT=1`** turns on **per-guest isolation**: each client (keyed by a private session id) gets its *own* cohort-1 federation, so independent testers never collide or see each other's model — connect **alone, anytime** (privacy = central DP, no masking with one node). The authenticated operator dashboard shows metadata-only summaries of populated solo sessions (node name, sample count, rounds, metric, trees, ε); it never exposes their session IDs, raw data, masked vectors, audit entries, or model JSON. **`FED_COHORT=3`** is a real **secure-aggregation** run: **3 clients must be connected together**; masks cancel so the coordinator only recovers the pooled sum, never any node's own counts. |
+| `FED_SOLO_SHARED` | Set to `1` **only with `FED_COHORT=1`** to use one shared one-node room rather than private per-guest rooms. The trained model, audit, and status then appear in the ordinary authenticated dashboard and `/model` endpoint. This does not enable secure aggregation or multi-node model pooling: only the single enrolled node can contribute in that room. |
 | `FED_STATE_DIR` | Directory for the persistent coordinator signing key and per-room audit state. Default: `data/coordinator_state/`. State is coordinator-signed; key/state files are atomically written with owner-only mode `0600`. Back this directory up and never commit it. |
 | `FED_MAX_BODY_BYTES` | Maximum POST/PUT/PATCH body size; default 32 MiB, allowed range 1 KiB–128 MiB. |
 | `FED_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated reads; default 600/minute per client address. |
@@ -378,10 +419,13 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 
 | File | Role |
 |---|---|
-| `modalities.py` | **modality registry** — eyegaze / action / neuro: raw-folder feature extractors + synthetic demo generators + public normalization |
+| `modalities.py` | **modality registry** — eyegaze / action / experimental action_cdp / neuro: raw-folder feature extractors + synthetic demo generators + public normalization |
 | `public_scales.json` | shipped **public** per-feature normalization constants (from a fixed-seed reference cohort, not participant data) |
 | `data_loaders.py` | `har` / `pose` benchmark dataset loaders |
 | `features.py` | pose-window → engineered feature vector (for `action` / `pose`) |
+| `cdp_features.py` | pure-NumPy CDP 33→17 mapping, 230/1150 branch features, pinned JSON validation, and 104-feature transform |
+| `assets/cdp_adapter_v1.json` | allow-listed, hash-pinned CDP scaler/selector metadata; no participant IDs, executable model, or classifier trees |
+| `export_cdp_adapter.py` | explicit hash-pinned, local-only migration tool from a trusted historical pickle to the data-only adapter |
 | `prepare_data.py` | split off coordinator test set, partition train across nodes, train centralized baseline (`--modality` or `--dataset`) |
 | `fed_common.py` | Ed25519 signing, signature-verified hash-chained `Audit`, multiclass `GlobalModel` (forest merge) |
 | `dp.py` | DP random forest: data-independent splits, leaf counts, shared-forest + curator noise |
@@ -399,6 +443,7 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
+| `verify_cdp_adapter.py` | CDP mapping/dimensions, adapter pin/tamper, exporter allow-list, and folder-ingestion regression checks |
 | `verify_api_security.py` | coordinator endpoint-authentication, invitation-enforcement, request-size, rate-limit, and identity-pinning regression checks |
 | `verify_round_integrity.py` | reconnect, cohort-fingerprint, idempotency, round-timeout, and single-spend ε regression checks |
 | `verify_backup_restore.py` | archive integrity, clean-host restore, and post-restore audit verification |
@@ -471,9 +516,17 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
 - **HAR uses a window-level stratified, IID, single-seed split** (the OpenML variant has no subject
   ids). Absolute ~0.96/0.97 is optimistic; the federated-vs-centralized *gap* is the honest result.
   The optional `pose` loader uses a subject-level split when you supply seed data.
-- **The eyegaze / action / neuro demo cohorts are SYNTHETIC** — recordings generated with class-dependent
+- **The eyegaze / action / action_cdp / neuro demo cohorts are SYNTHETIC** — recordings generated with class-dependent
   statistics (graded, *overlapping* severities so accuracy is realistic, not trivially separable). They
   validate the pipeline and the privacy mechanism **end-to-end on each modality**; they are **not** a
   claim of clinical accuracy on real patients. The feature extractors are standard, literature-shaped
   summaries (fixation/saccade; pose kinematics; band-power + connectivity), not tuned biomarkers. Point
   the client at real recordings in the documented format and the identical path runs on real data.
+- **The historical CDP locked-test AUC does not transfer to `action_cdp`.** The experiment reuses its
+  representation but trains a different data-independent DP forest. Any improvement claim needs a
+  grouped, institution-held-out comparison against the frozen CDP model; more data or federation alone
+  does not guarantee higher AUC.
+- **The frozen CDP scaler/selector values are historical training-derived model parameters**, not
+  statistics estimated from current federation participants. Their redistribution still needs
+  source-data/model-owner governance approval; `public_scales.json` remains the separate fixed-seed
+  synthetic normalization used for the DP split bounds.

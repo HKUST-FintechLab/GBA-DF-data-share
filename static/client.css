@@ -65,7 +65,9 @@
   .caption{position:absolute;left:34px;bottom:108px;max-width:min(560px,42vw);
     animation:fadein .8s ease}
   .caption .idx{font-family:var(--mono);font-size:10px;letter-spacing:.34em;color:var(--azure-soft);
-    text-transform:uppercase;margin-bottom:15px}
+    text-transform:uppercase;margin-bottom:15px;
+    /* a long modality name (e.g. the CDP variant) must not wrap and push the title down */
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .caption .idx b{color:var(--azure);font-weight:500}
   .caption h1{font-weight:300;font-size:clamp(25px,3.2vw,42px);line-height:1.2;letter-spacing:.01em;
     margin:0 0 13px;color:var(--ink)}

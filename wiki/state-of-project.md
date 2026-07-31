@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-07-27
+Last updated: 2026-07-30
 
 ## Executive status
 
@@ -27,13 +27,17 @@ These percentages are planning estimates, not formal maturity certifications.
 
 ## Verified baseline
 
-Verified on 2026-07-27:
+Verified on 2026-07-30:
 
-- `uv run python verify_security.py` — 107 checks passed: its own 41, plus the coordinator
-  HTTP/invitation/pinning/logging suite (31), the round-integrity suite (24), and the
-  backup/restore suite (15) it runs as subprocesses.
-- `uv run python modalities.py` — eyegaze, action, and neuro extraction checks passed.
+- `uv run python verify_security.py` — 136 assertions passed across its core checks and the
+  coordinator HTTP/invitation/pinning/logging, shared-solo, CDP-adapter, round-integrity, and
+  backup/restore subprocess suites.
+- `uv run python modalities.py` — eyegaze, action, experimental action_cdp, and neuro extraction
+  checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
+- Live `action_cdp` rehearsal: three nodes completed a full secure-aggregation round over the
+  104-feature schema and produced a downloadable DP JSON forest; this synthetic dry run verifies the
+  integration path, not screening utility.
 - Live three-command rehearsal: an issued invitation enrolled and trained a node, an uninvited node
   was refused, and a revocation stopped the enrolled node without restarting the coordinator.
 - Live pinning rehearsal against two coordinators: the node trained against the one holding the
@@ -50,6 +54,12 @@ Verified on 2026-07-27:
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
+
+- **2026-07-30 — Experimental CDP feature adapter:** `action_cdp` now reproduces the historical
+  CDP-TreeFusion 33→17 pose mapping and 230/1150-dimensional feature branches, then applies a
+  hash-pinned, data-only 40+64 selector/scaler adapter before entering the existing federated DP
+  forest. The node and coordinator never load the historical pickle. This is a parallel model
+  experiment and does not alter the frozen September pilot scope or establish a clinical result.
 
 - **2026-07-27 — Offline browser assets:** the MediaPipe release the client runs over participant
   video is now mirrored locally and pinned by a committed SHA-256 manifest, with the loader's hash

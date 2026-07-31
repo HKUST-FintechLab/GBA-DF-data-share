@@ -11,6 +11,7 @@ os.environ["FED_MAX_BODY_BYTES"] = "4096"
 os.environ["FED_RATE_LIMIT_PER_MINUTE"] = "600"
 os.environ["FED_WRITE_RATE_LIMIT_PER_MINUTE"] = "120"
 os.environ["FED_REQUIRE_INVITATION"] = "1"
+os.environ["FED_COHORT"] = "1"
 
 from fastapi.testclient import TestClient
 
@@ -90,6 +91,11 @@ check("a signed invitation that was never issued cannot enrol",
 registry = invites.record_issue(invites.new_registry(coordinator.COORD_PUB), invitation)
 invites.save_registry(registry_path, registry, coordinator.COORD_KEY)
 check("an issued invitation enrols its own institution", enrol(invitation).status_code == 200)
+solo_status = client.get("/status", headers=read).json()
+check("operator status summarizes populated isolated sessions without raw session ids",
+      solo_status.get("isolated") and len(solo_status.get("solo_sessions", [])) == 1
+      and solo_status["solo_sessions"][0]["nodes"][0]["node_id"] == "node_1"
+      and len(solo_status["solo_sessions"][0]["room"]) == 12)
 check("the same invitation cannot be re-bound to another node key",
       enrol(invitation, pubkey_pem=fc.pub_pem(fc.gen_key()).decode()).status_code == 409)
 
