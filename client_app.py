@@ -93,10 +93,13 @@ class Api:
                 return {"ok": False, "error": "no usable recordings found — check the file "
                         "format and that recordings sit under asd/ and td/ subfolders"}
             y = np.asarray(y).astype(str)
+            g = np.asarray(g).astype(str)
             labels, counts = np.unique(y, return_counts=True)
+            label_files = {str(label): int(len(np.unique(g[y == label]))) for label in labels}
             return {"ok": True, "path": path, "n_files": len(set(g.tolist())),
                     "n_samples": int(X.shape[0]), "n_features": int(X.shape[1]),
-                    "labels": dict(zip(labels.tolist(), counts.tolist()))}
+                    "labels": dict(zip(labels.tolist(), counts.tolist())),
+                    "label_files": label_files}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
@@ -181,6 +184,9 @@ class Api:
                     "pin_warning": identity.get("warning", ""),
                     "n_features": sch["n_features"], "classes": sch["classes"],
                     "cohort": sch["cohort"], "dp": sch["dp"],
+                    "secure_aggregation": bool(sch.get("secure_aggregation")),
+                    "privacy_mode": sch.get("privacy_mode"),
+                    "solo_shared": bool(sch.get("solo_shared")),
                     "epsilon_budget": sch.get("epsilon_budget"),
                     "primary_metric": sch.get("primary_metric"),
                     "next_round": sch.get("next_round", 1), "compatible": compatible,

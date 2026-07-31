@@ -103,6 +103,7 @@ SOLO_SHARED = os.environ.get("FED_SOLO_SHARED", "0").strip().lower() in {"1", "t
 if SOLO_SHARED and COHORT != 1:
     raise RuntimeError("FED_SOLO_SHARED requires FED_COHORT=1")
 ISOLATE = COHORT == 1 and not SOLO_SHARED  # private solo rooms unless the owner explicitly shares one
+PRIVACY_MODE = "secure_aggregation" if SECURE_COHORT else "central_dp_solo"
 FED_PASSWORD = os.environ.get("FED_PASSWORD", "")      # shared access token; "" = open (local dev)
 FED_READ_PASSWORD = os.environ.get("FED_READ_PASSWORD", FED_PASSWORD)
 STATE_DIR = os.path.abspath(os.path.expanduser(
@@ -558,6 +559,8 @@ async def schema(request: Request):
     return {"classes": CLASSES, "feature_bounds": BOUNDS.tolist(), "n_features": N_FEATURES,
             "primary_metric": PRIMARY, "cohort": COHORT, "dataset": DATASET,
             "modality": MODALITY, "modality_info": MODALITY_INFO, "isolated": ISOLATE,
+            "solo_shared": SOLO_SHARED, "secure_aggregation": SECURE_COHORT,
+            "privacy_mode": PRIVACY_MODE,
             "dp": {**DP, "structure_seed": STRUCT_SEED}, "epsilon_budget": BUDGET,
             "next_round": next_round, "invitation_required": REQUIRE_INVITATION}
 
@@ -740,7 +743,8 @@ async def submit(req: Request):
             trees = shared_trees(rnd)
             fd = dp.forest_from_summed_counts(trees, summed, CLASSES, EPS_ROUND)
             weight = float(sum(st["nodes"][x]["samples"] for x in subs))
-            st["model"].add(fc.JsonForest(fd), weight, "secure-agg", rnd)
+            model_source = "secure-agg" if SECURE_COHORT else "central-dp-solo"
+            st["model"].add(fc.JsonForest(fd), weight, model_source, rnd)
             # The ledger is the authority on what a round already cost, so no retry, restart,
             # or duplicate aggregation can charge the same round twice.
             st["epsilon_spent"][str(rnd)] = EPS_ROUND
@@ -748,13 +752,21 @@ async def submit(req: Request):
             m = st["model"].evaluate(X_TEST, Y_TEST)
             st["metrics"].append({"seq": len(st["metrics"]), "ts": time.time(),
                                   "round": rnd, **m, "central": CENTRAL[PRIMARY]})
-            st["round_done"][rnd] = {"fed_primary": m[PRIMARY], "global_trees": m["n_trees"]}
+            st["round_done"][rnd] = {"fed_primary": m[PRIMARY],
+                                     "global_trees": m["n_trees"], "metrics": m}
             st["rounds"].pop(rnd, None)          # masked vectors are not kept after pooling
             _append_audit(room, st, "aggregate", "coordinator",
                           {"round": rnd, "participants": len(subs),
                            "global_trees": m["n_trees"], "epsilon": EPS_ROUND,
                            "global_eps": round(st["global_eps"], 4),
-                           f"fed_{PRIMARY}": round(m[PRIMARY], 4)})
+                           f"fed_{PRIMARY}": round(m[PRIMARY], 4),
+                           "auc": round(m["auc"], 4) if m.get("auc") is not None else None,
+                           "balanced_accuracy": round(m["bacc"], 4),
+                           "sensitivity": (round(m["sensitivity"], 4)
+                                           if m.get("sensitivity") is not None else None),
+                           "specificity": (round(m["specificity"], 4)
+                                           if m.get("specificity") is not None else None),
+                           "privacy_mode": PRIVACY_MODE})
 
         done = st["round_done"].get(rnd)
         eps = st["global_eps"]
@@ -821,6 +833,9 @@ async def status(request: Request):
             "classes": CLASSES, "primary_metric": PRIMARY,
             "secure_aggregation": SECURE_COHORT, "cohort": COHORT, "secure_cohort": SECURE_COHORT,
             "isolated": ISOLATE, "solo_shared": SOLO_SHARED,
+            "privacy_mode": PRIVACY_MODE,
+            "transmission_label": ("pairwise-masked integer leaf counts"
+                                   if SECURE_COHORT else "integer leaf counts to central-DP curator"),
             "active_sessions": len(SESSIONS), "nodes": nodes,
             "solo_sessions": solo_sessions,
             "metrics": st["metrics"], "centralized": CENTRAL, "centralized_nonprivate": CEILING,
@@ -828,6 +843,8 @@ async def status(request: Request):
             "test_windows": int(len(Y_TEST)), "rejected_payloads": st["rejected"],
             "global_trees": last["n_trees"] if last else 0,
             "fed_primary": last[PRIMARY] if last else None,
+            "latest_metrics": last,
+            "total_samples": sum(n["samples"] for n in nodes),
             "audit_len": len(st["audit"].entries),
             "audit_persistent": True,
             "invitation_required": REQUIRE_INVITATION,

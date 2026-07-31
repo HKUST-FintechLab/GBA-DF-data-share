@@ -58,6 +58,15 @@ status = client.get("/status").json()
 check("ordinary dashboard status contains the shared node and model",
       not status["isolated"] and status["solo_shared"]
       and status["nodes"][0]["node_id"] == node_id and status["global_trees"] > 0)
+check("status labels cohort-1 as central DP rather than secure aggregation",
+      status["privacy_mode"] == "central_dp_solo" and not status["secure_aggregation"]
+      and "central-DP" in status["transmission_label"])
+diagnostics = status.get("latest_metrics") or {}
+check("dashboard receives binary diagnostics and compact ROC points",
+      diagnostics.get("positive_class") == "ASD"
+      and {"sensitivity", "specificity", "f1", "mcc", "brier", "ece",
+           "confusion", "roc"}.issubset(diagnostics)
+      and len(diagnostics["roc"]["fpr"]) <= 32)
 check("a caller's session header does not hide the shared model",
       client.get("/status", headers={"X-Fed-Session": "another-browser"}).json()["global_trees"]
       == status["global_trees"])

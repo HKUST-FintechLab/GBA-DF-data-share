@@ -169,8 +169,9 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
              key_dir=None, on_log=print, on_round=None, should_stop=lambda: False,
              key=None, session=None, invitation=None):
     """Register (Ed25519 + ephemeral X25519), wait for the cohort, then each round build the
-    SHARED data-independent trees, count LOCAL data, upload a MASKED count vector, and poll
-    for the securely-aggregated global metric. Returns a summary dict.
+    SHARED data-independent trees, count LOCAL data, upload a count vector, and poll for the
+    global metric. With a cohort of three or more the vector is pairwise-masked; cohort-1 is
+    explicitly central-DP-only and has no masking peer. Returns a summary dict.
 
     key         shared access token (X-Fed-Key) if the federation is password-protected.
     session     private session id (X-Fed-Session); auto-generated so a solo/isolated
@@ -181,6 +182,8 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
     session = session or secrets.token_hex(8)
     bounds = np.asarray(sch["feature_bounds"], dtype=float)
     dpc = sch["dp"]
+    secure_mode = bool(sch.get("secure_aggregation", int(sch.get("cohort", 1)) >= 3))
+    count_label = "pairwise-masked vector" if secure_mode else "unmasked count vector"
     struct_seed, n_trees, depth = dpc["structure_seed"], dpc["trees_per_round"], dpc["depth"]
     n_samples = int(X.shape[0])
     key_dir = key_dir or os.path.join(HERE, "nodes", node_id)
@@ -251,7 +254,10 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         if peers is None:
             summary.update(ok=False, error="cohort never completed")
             on_log("cohort never completed — aborting."); return summary
-        on_log(f"cohort ready ({len(peers)} nodes); secure aggregation active.")
+        if secure_mode:
+            on_log(f"cohort ready ({len(peers)} nodes); pairwise secure aggregation active.")
+        else:
+            on_log("single-node cohort ready; central DP active, secure aggregation inactive.")
 
         def rejoin():
             """Re-enrol after the coordinator lost our registration or the cohort changed.
@@ -321,12 +327,13 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             global_eps = float(res.get("global_eps", resp.get("global_eps")) or 0.0)
             epsilon_budget = res.get("epsilon_budget", resp.get("epsilon_budget"))
             summary.update(rounds_done=completed, current_round=rd,
-                           global_eps=global_eps, fed_primary=val)
+                           global_eps=global_eps, fed_primary=val,
+                           metrics=res.get("metrics"))
             val_s = f"{val:.3f}" if isinstance(val, (int, float)) else "n/a"
             total_kb = summary["application_bytes_sent"] / 1024
             masked_kb = summary["masked_payload_bytes_sent"] / 1024
             on_log(f"round {rd}: raw sent = 0 bytes · JSON payload sent {total_kb:.1f} KB "
-                   f"(masked vector {masked_kb:.1f} KB) · "
+                   f"({count_label} {masked_kb:.1f} KB) · "
                    f"global ε {global_eps:.2f}/{epsilon_budget} · "
                    f"global {summary['primary_metric']} = {val_s}")
             if on_round:
@@ -338,5 +345,6 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         on_log(f"error: {e}")
     finally:
         cli.close()
-    on_log("done — no raw data left this machine; only masked counts and protocol metadata were sent.")
+    sent = "pairwise-masked counts" if secure_mode else "integer leaf counts to the central-DP curator"
+    on_log(f"done — no raw data left this machine; only {sent} and protocol metadata were sent.")
     return summary

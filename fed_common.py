@@ -17,7 +17,17 @@ import json
 import numpy as np
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
-from sklearn.metrics import accuracy_score, balanced_accuracy_score, roc_auc_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    brier_score_loss,
+    confusion_matrix,
+    f1_score,
+    matthews_corrcoef,
+    precision_score,
+    roc_auc_score,
+    roc_curve,
+)
 
 TREE_LEAF = -1
 
@@ -326,9 +336,54 @@ class GlobalModel:
             return {}
         y = np.asarray(y).astype(str)
         pred = np.array([self.classes[i] for i in proba.argmax(1)])
+        result = {"acc": float(accuracy_score(y, pred)),
+                  "bacc": float(balanced_accuracy_score(y, pred)),
+                  "n_trees": self.n_trees(), "n_updates": self.n_updates()}
         try:
             if len(self.classes) == 2:
-                auc = float(roc_auc_score((y == self.classes[1]).astype(int), proba[:, 1]))
+                # ASD is the clinically meaningful positive class when it is present.  The
+                # explicit label also prevents a dashboard from silently calling TD recall
+                # "sensitivity" merely because of alphabetic class ordering.
+                positive = next((c for c in self.classes if c.upper() == "ASD"), self.classes[1])
+                negative = next(c for c in self.classes if c != positive)
+                positive_i = self._idx[positive]
+                y_binary = (y == positive).astype(int)
+                pred_binary = (pred == positive).astype(int)
+                auc = float(roc_auc_score(y_binary, proba[:, positive_i]))
+                tn, fp, fn, tp = confusion_matrix(
+                    y, pred, labels=[negative, positive]).ravel().astype(int).tolist()
+                sensitivity = tp / max(tp + fn, 1)
+                specificity = tn / max(tn + fp, 1)
+                fpr, tpr, _ = roc_curve(y_binary, proba[:, positive_i])
+                # Status is polled every second, so keep the diagnostic curve compact.
+                if len(fpr) > 32:
+                    keep = np.unique(np.linspace(0, len(fpr) - 1, 32).round().astype(int))
+                    fpr, tpr = fpr[keep], tpr[keep]
+                confidence = proba[:, positive_i]
+                ece = 0.0
+                for lo, hi in zip(np.linspace(0.0, 1.0, 11)[:-1],
+                                  np.linspace(0.0, 1.0, 11)[1:]):
+                    in_bin = (confidence >= lo) & (confidence < hi)
+                    if hi == 1.0:
+                        in_bin |= confidence == 1.0
+                    if in_bin.any():
+                        ece += float(in_bin.mean()) * abs(
+                            float(y_binary[in_bin].mean()) - float(confidence[in_bin].mean()))
+                result.update({
+                    "positive_class": positive,
+                    "negative_class": negative,
+                    "sensitivity": float(sensitivity),
+                    "specificity": float(specificity),
+                    "precision": float(precision_score(
+                        y_binary, pred_binary, zero_division=0)),
+                    "f1": float(f1_score(y_binary, pred_binary, zero_division=0)),
+                    "mcc": float(matthews_corrcoef(y_binary, pred_binary)),
+                    "brier": float(brier_score_loss(y_binary, confidence)),
+                    "ece": float(ece),
+                    "confusion": {"tn": tn, "fp": fp, "fn": fn, "tp": tp},
+                    "roc": {"fpr": np.round(fpr, 5).tolist(),
+                            "tpr": np.round(tpr, 5).tolist()},
+                })
             else:
                 auc = float(roc_auc_score(y, proba, multi_class="ovr",
                                           average="macro", labels=self.classes))
@@ -336,6 +391,5 @@ class GlobalModel:
                 auc = None
         except Exception:
             auc = None                       # None is JSON-safe; NaN is not
-        return {"acc": float(accuracy_score(y, pred)),
-                "bacc": float(balanced_accuracy_score(y, pred)),
-                "auc": auc, "n_trees": self.n_trees(), "n_updates": self.n_updates()}
+        result["auc"] = auc
+        return result

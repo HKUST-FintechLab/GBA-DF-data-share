@@ -3,292 +3,871 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>GBA-DF · Federated Learning POC</title>
+<title>GBA-DF · Federation Console</title>
 <style>
+  /* ==========================================================================
+     GBA-DF coordinator console — deep-navy, same grammar as the partner client
+     No header bar, no cards, no panels. One full-bleed stage; the chrome sits in
+     the corners in wide-tracked mono and the caption is the only heading.
+
+     The token block below is duplicated verbatim at the top of static/client.css.
+     This page is served as a single self-contained file (no static mount on the
+     coordinator), so the tokens live here too. Change one, change the other.
+
+     Colour carries meaning:
+       warm  = raw / identity-bearing material. It never crosses a boundary.
+       azure = derived, masked, abstract. This is the only thing that moves.
+       bone  = the shared model that comes back to every member.
+     ========================================================================== */
   :root{
-    --bg:#faf9f5; --panel:#fff; --panel2:#fbf7f0; --line:#e8e2d4; --line2:#e6ebf1;
-    --ink:#3a3733; --head:#2f2d29; --mut:#867f74; --accent:#d97757; --accent-h:#c2683f;
-    --blue:#6a9ccd; --ok:#2e7d6b; --warn:#b06a2e;
-    --ui:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; --serif:Cambria,Georgia,serif;
+    --bg:#0D1A2E; --bg2:#132340; --panel:#1A2C4A; --panel2:#112039; --raise:#21385C;
+    --line:rgba(122,168,235,.20); --line-soft:rgba(122,168,235,.10);
+    --ink:#EAF1FC; --ink-soft:#A3B9D8; --ink-faint:#66809F;
+    --azure:#4EA8FF; --azure-soft:#3C6FA8; --azure-deep:#123A66;
+    --warm:#FFA95C; --warm-soft:#9A6636;
+    --red:#FF6B6B; --amber:#FBBF24; --bone:#EAF2FF;
+    --ui:'Inter','Segoe UI','PingFang SC','Microsoft YaHei',system-ui,sans-serif;
+    --serif:'Newsreader','Noto Serif SC',Georgia,'Songti SC','SimSun',serif;
+    --mono:'IBM Plex Mono','SF Mono','Cascadia Code',Consolas,ui-monospace,monospace;
+    --glow:0 0 10px rgba(78,168,255,.5);
+    --sh2:0 12px 34px rgba(0,0,0,.45);
+    --r-sm:6px; --r-md:8px;
+    --track:.22em;
   }
-  *{box-sizing:border-box} html,body{margin:0;height:100%}
+  *{box-sizing:border-box}
+  *{scrollbar-width:thin;scrollbar-color:rgba(122,168,235,.22) transparent}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-thumb{background:rgba(122,168,235,.18);border-radius:4px}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}
+  body{font-family:var(--serif);color:var(--ink);-webkit-font-smoothing:antialiased}
+  #field{position:fixed;inset:0;display:block;width:100vw;height:100vh}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(118% 96% at 46% 44%,transparent 40%,rgba(3,9,20,.62) 100%)}
   .hidden{display:none!important}
-  body{font-family:var(--ui);background:radial-gradient(1100px 520px at 88% -12%,#f4ece0,var(--bg) 58%);
-    color:var(--ink);min-height:100vh}
-  header{padding:16px 26px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;
-    background:linear-gradient(90deg,rgba(217,119,87,.06),transparent)}
-  .logo{width:40px;height:40px;border-radius:11px;background:linear-gradient(135deg,var(--accent),#e0a07f);
-    display:grid;place-items:center;font-weight:700;color:#fffdf9;font-size:14px;box-shadow:0 2px 6px rgba(194,104,63,.25)}
-  h1{margin:0;font-size:17px;color:var(--head);font-family:var(--serif)}
-  .sub{font-size:12.5px;color:var(--mut);margin-top:2px}
-  .spacer{flex:1}
-  .badge{font-size:12px;padding:6px 12px;border-radius:999px;border:1px solid var(--line);color:var(--mut);background:#fff}
-  button.badge{font-family:var(--ui);cursor:pointer}
-  .badge.ok{color:var(--ok);border-color:#bcdccd;background:#eef5f1;font-weight:600}
-  main{padding:22px 26px;max-width:1280px;margin:0 auto;display:grid;grid-template-columns:1.2fr .8fr;gap:18px}
-  .full{grid-column:1 / -1}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;
-    box-shadow:0 1px 3px rgba(74,58,42,.05)}
-  .card h2{margin:0 0 12px;font-size:12px;letter-spacing:.7px;text-transform:uppercase;color:var(--accent-h);font-weight:700}
-  .stat-row{display:flex;gap:14px;flex-wrap:wrap}
-  .stat{flex:1;min-width:150px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
-  .stat .label{font-size:11.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
-  .stat .val{font-size:30px;font-weight:700;color:var(--head);margin-top:4px;font-variant-numeric:tabular-nums}
-  .stat .val.small{font-size:20px}
-  .stat .sub{font-size:12px;color:var(--mut);margin-top:2px}
-  .stat.hero{background:linear-gradient(135deg,#fef3ec,#fdece1);border-color:#f0cdb8}
-  .stat.hero .val{color:var(--accent-h)}
-  .stat.zero .val{color:var(--ok)}
-  .nodes{display:flex;flex-direction:column;gap:10px}
-  .node{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--panel2)}
-  .node .nm{font-weight:600;color:var(--head);font-family:var(--serif);font-size:14px}
-  .node .row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--mut);margin-top:6px}
-  .node .row b{color:var(--ink);font-weight:600}
-  .pill-local{display:inline-block;font-size:10.5px;color:var(--ok);background:#eef5f1;border:1px solid #bcdccd;
-    border-radius:6px;padding:1px 7px;margin-left:6px}
-  .epsbar{height:5px;background:var(--line);border-radius:3px;margin-top:6px;overflow:hidden}
-  .epsfill{height:100%;background:linear-gradient(90deg,var(--ok),var(--accent));border-radius:3px}
-  .chart-wrap{position:relative}
-  svg{width:100%;height:300px;display:block}
-  .legend{display:flex;gap:18px;font-size:12.5px;color:var(--mut);margin-top:6px}
-  .legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:6px;vertical-align:middle}
-  .audit{max-height:340px;overflow:auto;font-family:ui-monospace,Menlo,monospace;font-size:11.5px}
-  .a-entry{display:flex;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)}
-  .a-ev{font-weight:700;padding:1px 7px;border-radius:5px;font-size:10.5px;white-space:nowrap}
-  .ev-submit{color:var(--blue);background:#eef3fa}
-  .ev-aggregate{color:var(--accent-h);background:#fdeee6}
-  .ev-register{color:var(--ok);background:#eef5f1}
-  .ev-genesis{color:var(--mut);background:#f1efe9}
-  .ev-rejected{color:var(--warn);background:#fbf0e2}
-  .a-hash{color:var(--mut);margin-left:auto}
-  .note{font-size:11.5px;color:var(--mut);margin-top:10px;line-height:1.5;border-left:2px solid var(--line);padding-left:10px}
-  .foot{text-align:center;color:var(--mut);font-size:11.5px;padding:14px}
-  .auth-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:20px;
-    background:rgba(43,48,56,.28);backdrop-filter:blur(8px)}
-  .auth-card{width:min(390px,100%);padding:24px;background:#fff;border:1px solid var(--line);
-    border-radius:18px;box-shadow:0 20px 60px rgba(35,41,49,.18)}
-  .auth-card h2{margin:0;color:var(--head);font:700 20px var(--serif)}
-  .auth-card p{margin:8px 0 16px;color:var(--mut);font-size:13px;line-height:1.5}
-  .auth-card input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;
-    font:14px var(--ui);outline:none}
-  .auth-card input:focus{border-color:var(--blue);box-shadow:0 0 0 3px rgba(106,156,205,.15)}
-  .auth-actions{display:flex;align-items:center;gap:10px;margin-top:14px}
-  .auth-actions button{border:0;border-radius:10px;padding:10px 15px;background:var(--accent);color:#fff;
-    font:600 13px var(--ui);cursor:pointer}
-  .auth-error{font-size:12px;color:var(--warn);min-height:18px;margin-top:10px}
-  .header-msg{font-size:11px;color:var(--warn);max-width:180px}
+  :focus-visible{outline:1px solid var(--azure);outline-offset:3px}
+  @keyframes fadein{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes fin{to{opacity:1}}
+
+  /* ---- corner chrome ---- */
+  .ui{position:fixed;inset:0;z-index:4;pointer-events:none}
+  .ui > *{pointer-events:auto}
+  .wordmark{position:absolute;left:34px;top:30px;font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.4em;color:var(--ink-faint);font-weight:500;text-transform:uppercase}
+  .wordmark b{color:var(--azure)}
+
+  /* status + actions, stacked in the top right */
+  .topright{position:absolute;right:34px;top:26px;text-align:right;display:flex;
+    flex-direction:column;align-items:flex-end;gap:11px}
+  .statusline{font-family:var(--mono);font-size:10px;letter-spacing:.16em;color:var(--ink-faint);
+    text-transform:uppercase;line-height:1.9}
+  .statusline .ok{color:var(--azure)}
+  .statusline .bad{color:var(--red)}
+  .statusline .warn{color:var(--amber);text-transform:none;letter-spacing:.04em}
+  .tools{display:flex;gap:16px}
+  .tools button,.tools a{background:none;border:0;padding:0;font-family:var(--mono);font-size:10px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);cursor:pointer;
+    text-decoration:none;transition:color .25s}
+  .tools button:hover,.tools a:hover{color:var(--azure)}
+  .tools .dl:hover{color:var(--warm)}
+
+  /* ---- caption: the only heading on the page ----
+     It sits under the wordmark rather than in the lower left, because down there it
+     collides with the topology's bottom nodes. The client's training scene moves its
+     caption up for exactly the same reason. */
+  .caption{position:absolute;left:34px;top:96px;max-width:min(470px,34vw);animation:fadein .8s ease}
+  .caption .idx{font-family:var(--mono);font-size:10px;letter-spacing:.34em;color:var(--azure-soft);
+    text-transform:uppercase;margin-bottom:15px}
+  .caption .idx b{color:var(--azure);font-weight:500}
+  .caption h1{font-weight:300;font-size:clamp(24px,3vw,40px);line-height:1.2;letter-spacing:.01em;
+    margin:0 0 13px;color:var(--ink)}
+  .caption .sub{font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--ink-soft);
+    letter-spacing:.02em;max-width:46ch}
+  .caption .sub b{color:var(--amber);font-weight:500}
+
+  /* ---- the headline figure ---- */
+  .hud{position:absolute;right:min(430px,34vw);top:96px;text-align:right;pointer-events:none;
+    animation:fadein .8s ease}
+  .hud .auc{font-family:var(--mono);font-size:clamp(46px,5.4vw,74px);font-weight:700;color:var(--azure);
+    line-height:.95;letter-spacing:-.03em;text-shadow:0 0 30px rgba(78,168,255,.32)}
+  /* a 74px em dash reads as a grey bar on a projector — shrink the empty state instead */
+  .hud .auc.dim{color:var(--ink-faint);text-shadow:none;font-size:clamp(26px,2.6vw,36px)}
+  .hud .k{font-family:var(--mono);font-size:9.5px;letter-spacing:var(--track);text-transform:uppercase;
+    color:var(--ink-soft);margin-top:10px}
+  .hud .cmp{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:14px;
+    letter-spacing:.04em}
+  .hud .cmp b{color:var(--warm);font-weight:500}
+  .hud .cmp .gap{color:var(--azure)}
+
+  /* ---- floating rail: no border, no fill, hairlines only ---- */
+  .rail{position:absolute;right:34px;top:104px;bottom:96px;width:min(360px,30vw);
+    display:flex;flex-direction:column;min-height:0;animation:fadein .8s ease}
+  .sec{font-family:var(--mono);font-size:9px;letter-spacing:var(--track);text-transform:uppercase;
+    color:var(--warm-soft);padding:0 0 10px;flex:none}
+  .sec .n{color:var(--ink-faint)}
+  .block{flex:none;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line-soft)}
+
+  .eps-top{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);color:var(--ink-faint);
+    font-size:11px;letter-spacing:.04em}
+  .eps-top b{font-size:30px;color:var(--ink);font-weight:500;letter-spacing:-.02em}
+  /* one segment per affordable round: how much privacy is left is a shape, not a sentence */
+  .segs{display:flex;gap:3px;margin-top:12px}
+  .segs i{flex:1;height:14px;background:rgba(255,255,255,.06);transition:background .4s}
+  .segs i.on{background:var(--azure);box-shadow:var(--glow)}
+  .segs.warn i.on{background:var(--amber);box-shadow:none}
+  .segs.deny i.on{background:var(--red);box-shadow:none}
+  .eps-note{font-family:var(--mono);font-size:9px;color:var(--ink-faint);margin-top:10px;
+    letter-spacing:.1em;text-transform:uppercase}
+  /* members: a bar per institution, warm because it is their raw material */
+  .lrow{margin-top:13px;font-family:var(--mono);font-size:10.5px;letter-spacing:.03em}
+  .lrow .nm{display:flex;justify-content:space-between;gap:10px;color:var(--ink-soft)}
+  .lrow .nm span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lrow .nm b{color:var(--warm);font-weight:500}
+  .lrow .track{height:3px;background:rgba(255,255,255,.06);margin-top:6px}
+  .lrow .track i{display:block;height:100%;background:var(--warm-soft);transition:width .5s ease}
+  .lrow.live .track i{background:var(--warm)}
+
+  #spark{width:100%;height:104px;display:block}
+  .logwrap{min-height:96px}
+  .spark-k{font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:.1em;
+    text-transform:uppercase;margin-top:8px;line-height:1.8}
+  .diaggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px 8px}
+  .diag{min-width:0}
+  .diag .v{font:600 17px var(--mono);color:var(--ink);letter-spacing:-.03em}
+  .diag .v.azure{color:var(--azure)} .diag .v.warm{color:var(--warm)}
+  .diag .k{font:8px var(--mono);color:var(--ink-faint);letter-spacing:.12em;
+    text-transform:uppercase;margin-top:3px;white-space:nowrap}
+  .impact{margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);
+    font:9px/1.7 var(--mono);letter-spacing:.06em;color:var(--ink-faint);text-transform:uppercase}
+  .impact b{color:var(--azure);font-weight:500}
+  .matrix{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:10px}
+  .matrix span{padding:5px 2px;text-align:center;background:rgba(78,168,255,.06);
+    font:8px var(--mono);color:var(--ink-faint)}
+  .matrix b{display:block;color:var(--ink-soft);font-size:11px;margin-bottom:2px}
+
+  .logwrap{flex:1;min-height:0;display:flex;flex-direction:column}
+  .log{flex:1;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.7;min-height:0;
+    padding-right:6px}
+  .e{display:flex;gap:9px;align-items:baseline;padding:2px 0;opacity:0;animation:fin .3s forwards;
+    letter-spacing:.02em}
+  .e .seq{color:var(--ink-faint);min-width:22px}
+  .e .ev{font-weight:700;min-width:70px}
+  .e .tx{color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .e .h{color:var(--ink-faint)}
+  .ev-submit{color:var(--azure)} .ev-aggregate{color:var(--warm)} .ev-register{color:#A78BFA}
+  .ev-genesis{color:var(--ink-soft)} .ev-rejected{color:var(--red)}
+
+  /* ---- bottom strip: legend, figures, honesty ---- */
+  .legend{display:flex;gap:16px;font-family:var(--mono);font-size:9px;color:var(--ink-faint);
+    letter-spacing:.1em;text-transform:uppercase;flex-wrap:wrap}
+  .legend i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:6px}
+
+  .figs{position:absolute;left:34px;right:calc(min(360px,30vw) + 58px);bottom:20px;display:flex;
+    gap:28px;align-items:baseline;font-family:var(--mono);flex-wrap:wrap;row-gap:10px}
+  .fig{display:flex;align-items:baseline;gap:9px}
+  .fig .k{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-faint)}
+  .fig .v{font-size:15px;font-weight:500;color:var(--ink);letter-spacing:-.01em}
+  .fig .v.azure{color:var(--azure)} .fig .v.bone{color:var(--bone)} .fig .v.red{color:var(--red)}
+  .figs .spacer{flex:1;min-width:20px}
+  .honesty{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);
+    text-align:right;line-height:1.8}
+  .honesty button{background:none;border:0;padding:0;font:inherit;color:var(--ink-soft);cursor:pointer;
+    border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.12em}
+  .honesty button:hover{color:var(--azure)}
+
+  /* ---- sheets ---- */
+  .overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;padding:24px;
+    background:rgba(6,14,26,.82);backdrop-filter:blur(5px)}
+  .sheet{width:min(720px,100%);max-height:80vh;overflow:auto;padding:30px;background:var(--bg2);
+    border:1px solid var(--line);box-shadow:var(--sh2);animation:fadein .3s ease;position:relative}
+  .sheet::before,.sheet::after{content:"";position:absolute;width:11px;height:11px;
+    border:1px solid var(--azure-soft)}
+  .sheet::before{left:-1px;top:-1px;border-right:0;border-bottom:0}
+  .sheet::after{right:-1px;bottom:-1px;border-left:0;border-top:0}
+  .sheet h2{margin:0;font:300 26px var(--serif);letter-spacing:.01em;color:var(--ink)}
+  .sheet p{margin:15px 0 0;font-family:var(--mono);font-size:10.5px;line-height:1.95;color:var(--ink-soft);
+    letter-spacing:.02em}
+  .sheet p b{color:var(--ink);font-weight:500}
+  .sheet input{width:100%;margin-top:20px;padding:9px 2px;border:0;border-bottom:1px solid var(--line);
+    background:none;font:13px var(--mono);color:var(--ink);outline:none;transition:border-color .25s}
+  .sheet input::placeholder{color:var(--ink-faint)}
+  .sheet input:focus{border-bottom-color:var(--azure)}
+  .acts{display:flex;align-items:center;gap:18px;margin-top:20px}
+  .acts button{background:none;border:0;padding:0;font-family:var(--mono);font-size:11px;
+    letter-spacing:.14em;text-transform:uppercase;color:var(--azure);cursor:pointer}
+  .acts button:hover{text-shadow:var(--glow)}
+  .acts button.ghost{color:var(--ink-faint)}
+  .acts button.ghost:hover{color:var(--ink-soft);text-shadow:none}
+  .err{font-family:var(--mono);font-size:10.5px;color:var(--red);min-height:16px;margin-top:14px;
+    letter-spacing:.02em}
+
+  @media (max-width:1240px){
+    .rail{width:min(310px,32vw)}
+    .figs{right:calc(min(310px,32vw) + 58px)}
+    .hud{right:min(370px,36vw);top:90px}
+    .caption{max-width:min(400px,40vw)}
+    .figs{gap:20px}
+  }
+  /* short viewports: the caption, the headline figure and the rail all give ground before
+     anything is allowed to overlap. The canvas reads the result rather than assuming it. */
+  @media (max-height:820px){
+    .caption{top:84px}
+    .caption h1{font-size:clamp(21px,2.4vw,30px);margin-bottom:10px}
+    .caption .idx{margin-bottom:11px}
+    .hud{top:84px}
+    .hud .auc{font-size:clamp(38px,4.4vw,58px)}
+    .rail{top:92px;bottom:78px}
+    .sec{padding-bottom:7px}
+    .block{padding-bottom:13px;margin-bottom:13px}
+    #spark{height:80px}
+  }
+  @media (max-height:700px){
+    .wordmark,.topright{top:20px}
+    .caption{top:96px;max-width:min(340px,30vw)}
+    .caption .sub{display:none}
+    .hud{top:96px}
+    .hud .auc{font-size:clamp(32px,3.8vw,46px)}
+    .hud .cmp{margin-top:9px}
+    .rail{top:96px;bottom:62px}
+    .spark-k{display:none}
+    #spark{height:64px}
+    .figs{bottom:14px;gap:16px}
+    .fig .v{font-size:13px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+  }
 </style>
 </head>
 <body>
-<header>
-  <div class="logo">DF</div>
-  <div>
-    <h1>Federated Learning POC <span style="color:var(--mut);font-weight:400;font-family:var(--ui)">· GBA-DF</span></h1>
-    <div class="sub" id="sub">Greater Bay Area Data Federation · HKUST</div>
+<canvas id="field"></canvas>
+<div class="vignette"></div>
+
+<div class="ui">
+  <div class="wordmark"><b>GBA·DF</b> &nbsp;/&nbsp; FEDERATION CONSOLE</div>
+
+  <div class="topright">
+    <div class="statusline">
+      <span id="datasetBadge">—</span><br>
+      <span class="ok" id="saBadge">secure-agg ✓</span> &nbsp;
+      <span class="ok" id="chainBadge">chain ✓</span>
+      <span class="warn" id="headerMsg"></span>
+      <span id="sub" class="hidden"></span>
+    </div>
+    <div class="tools">
+      <button id="replayBtn" type="button" title="Replay the recorded audit stream as an animation">⟲ replay</button>
+      <button id="accessLink" type="button" title="Set or change dashboard access password">access</button>
+      <a class="dl" id="modelLink" href="#"
+         title="Download the aggregated global model (JSON) — consume it with predict.py">⬇ model</a>
+      <a class="dl" id="auditBundleLink" href="#"
+         title="Download a self-contained, offline-verifiable audit evidence package">⬇ audit package</a>
+    </div>
   </div>
-  <div class="spacer"></div>
-  <span class="badge" id="datasetBadge">—</span>
-  <span class="badge ok" id="saBadge">secure-agg ✓</span>
-  <span class="badge ok" id="chainBadge">audit chain ✓</span>
-  <span class="header-msg" id="headerMsg"></span>
-  <button class="badge" id="accessLink" type="button" title="Set or change dashboard access password">🔑 access</button>
-  <a class="badge" id="modelLink" href="#"
-     style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
-     title="Download the aggregated global model (JSON) — consume it with predict.py">⬇ model</a>
-  <a class="badge" id="auditBundleLink" href="#"
-     style="text-decoration:none;color:var(--accent-h);border-color:#f0cdb8"
-     title="Download a self-contained, offline-verifiable audit evidence package">⬇ audit package</a>
-</header>
 
-<main>
-  <section class="card full">
-    <h2>Federated vs centralized — the headline claim</h2>
-    <div class="stat-row">
-      <div class="stat hero"><div class="label">Federated-DP <span id="m1">accuracy</span></div>
-        <div class="val" id="fedVal">—</div><div class="sub" id="fedSub">across nodes · data-local</div></div>
-      <div class="stat"><div class="label">Centralized-DP (ε=1 ref)</div>
-        <div class="val" id="cenVal">—</div><div class="sub">same mechanism, pooled</div></div>
-      <div class="stat"><div class="label">Non-private ceiling</div>
-        <div class="val small" id="ceilVal">—</div><div class="sub">ExtraTrees — DP utility cost</div></div>
-      <div class="stat zero"><div class="label">DP guarantee</div>
-        <div class="val small" id="epsVal">—</div><div class="sub" id="rawSub">Laplace leaf histograms · raw arrays: none</div></div>
+  <div class="caption">
+    <div class="idx" id="scenK">federation</div>
+    <h1 id="scenT">Waiting for the coordinator</h1>
+    <div class="sub" id="scenD"></div>
+  </div>
+
+  <div class="hud">
+    <div class="auc dim" id="auc">—</div>
+    <div class="k" id="aucK">federated AUC · locked test set</div>
+    <div class="cmp" id="cmp">pooled centralized —</div>
+  </div>
+
+  <div class="rail">
+    <div class="sec">Privacy budget · central (ε,0)-DP</div>
+    <div class="block">
+      <div class="eps-top"><b id="epsNow">—</b><span id="epsBud">/ —</span></div>
+      <div class="segs" id="epsBar"></div>
+      <div class="eps-note" id="epsNote"></div>
     </div>
-    <div class="note" id="caveat"></div>
-  </section>
 
-  <section class="card">
-    <h2>Global model accuracy vs cumulative ensemble size</h2>
-    <div class="chart-wrap"><svg id="chart" viewBox="0 0 700 300" preserveAspectRatio="none"></svg></div>
+    <div class="sec">Members · local records</div>
+    <div class="block"><div id="ledgerRows"></div></div>
+
+    <div class="sec">Model diagnostics · positive <span class="n" id="positiveClass">ASD</span></div>
+    <div class="block">
+      <div class="diaggrid" id="diagGrid"></div>
+      <div class="matrix" id="matrix"></div>
+      <div class="impact" id="impact">Waiting for the first aggregation round</div>
+    </div>
+
+    <div class="hidden" id="soloSessionsCard">
+      <div class="sec">Single-node sessions · operator visibility only</div>
+      <div class="block">
+        <div id="soloSessions"></div>
+        <div class="eps-note">metadata only · no models merged, no raw data, no masked vectors</div>
+      </div>
+    </div>
+
+    <div class="sec">Federated vs pooled · per round</div>
+    <div class="block">
+      <svg id="spark" viewBox="0 0 360 104" preserveAspectRatio="none"></svg>
+      <div class="spark-k" id="sparkK"></div>
+    </div>
+
+    <div class="sec">Audit event stream <span class="n" id="auditCount"></span></div>
+    <div class="logwrap"><div class="log" id="log"></div></div>
+  </div>
+
+  <div class="figs">
     <div class="legend">
-      <span><i style="background:var(--accent)"></i>Federated global ensemble</span>
-      <span><i style="background:var(--blue);height:0;border-top:2px dashed var(--blue)"></i>Centralized baseline</span>
+      <span><i style="background:#FFA95C"></i>raw · never moves</span>
+      <span><i style="background:#4EA8FF"></i><span id="sentLegend">masked counts · the only thing sent</span></span>
+      <span><i style="background:#EAF2FF"></i>model · returned to all</span>
     </div>
-    <div class="note">Tree-merge federation has no round-over-round learning; the curve reflects ensemble-size variance reduction, not iterative training.</div>
-  </section>
+    <div class="fig"><span class="k">Institutions</span><span class="v" id="fNodes">—</span></div>
+    <div class="fig"><span class="k">Raw records transferred</span><span class="v bone" id="fRaw">0</span></div>
+    <div class="fig"><span class="k" id="fCellsK">Masked cells / round</span><span class="v azure" id="fCells">—</span></div>
+    <div class="fig"><span class="k">Non-private ceiling</span><span class="v" id="fCeil">—</span></div>
+    <div class="fig"><span class="k">Rejected</span><span class="v" id="fRej">—</span></div>
+    <div class="spacer"></div>
+    <div class="honesty">
+      <span id="footLine">Held-out engineering evaluation — not clinical validation</span><br>
+      <button id="caveatBtn" type="button">what this does and does not prove</button>
+    </div>
+  </div>
+</div>
 
-  <section class="card">
-    <h2>Participating nodes — each trains on its OWN local data</h2>
-    <div class="note" id="roundWait" style="display:none"></div>
-    <div class="nodes" id="nodes"></div>
-  </section>
+<div class="overlay hidden" id="caveatSheet">
+  <div class="sheet">
+    <h2>What this console does, and does not, prove</h2>
+    <p id="caveatText"></p>
+    <div class="acts"><button class="ghost" id="caveatClose" type="button">Close</button></div>
+  </div>
+</div>
 
-  <section class="card full hidden" id="soloSessionsCard">
-    <h2>Single-node sessions — operator visibility only</h2>
-    <div class="note">Each session remains isolated: this is a metadata-only operator view. It does not merge models, reveal raw data, masked vectors, session identifiers, or another participant's model artifact.</div>
-    <div class="nodes" id="soloSessions" style="margin-top:12px"></div>
-  </section>
-
-  <section class="card full">
-    <h2>Signed, hash-chained audit log <span id="auditCount" style="color:var(--mut);font-weight:400"></span></h2>
-    <div class="audit" id="audit"></div>
-  </section>
-</main>
-<div class="foot">Secure aggregation — under a non-colluding coordinator + full cohort (n≥3) it recovers only the pooled sum, never an individual node's data (hides inputs, does not verify them) · central (ε)-DP on the aggregate, global ε-budget · persistent Ed25519-signed audit, independently verifiable from the exported package</div>
-
-<div class="auth-overlay hidden" id="authOverlay">
-  <form class="auth-card" id="authForm">
+<div class="overlay hidden" id="authOverlay">
+  <form class="sheet" id="authForm" style="width:min(430px,100%)">
     <h2>Coordinator access</h2>
-    <p>Enter the read/operator password to view institution status, models, and audit evidence.
+    <p>Enter the read or operator password to view institution status, models and audit evidence.
       It is kept only for this browser tab.</p>
     <input id="authPassword" type="password" autocomplete="current-password"
-           placeholder="Read/operator password" aria-label="Read/operator password"/>
-    <div class="auth-error" id="authError"></div>
-    <div class="auth-actions">
-      <button type="submit">Unlock dashboard</button>
-    </div>
+           placeholder="read/operator password" aria-label="Read or operator password"/>
+    <div class="err" id="authError"></div>
+    <div class="acts"><button type="submit">Unlock console</button></div>
   </form>
 </div>
 
 <script>
+"use strict";
 const $=id=>document.getElementById(id);
-const fmtBytes=b=>b===0?"0 B":(b<1024?b+" B":b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(1)+" MB");
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+const easeOut=t=>1-Math.pow(1-t,3);
 let readKey=sessionStorage.getItem("gba-df-read-key")||"";
 
-function accessHeaders(){
-  return readKey?{"X-Fed-Key":readKey}:{};
+/* ============================ stage ============================ */
+const cv=$("field"), ctx=cv.getContext("2d");
+let W=0,H=0,DPR=1,hub={x:0,y:0},HUBR=52,NODER=42;
+
+// pre-blurred glow sprites: drawImage of a cached gradient is far cheaper than shadowBlur
+function makeGlow(r,g,b){
+  const S=64,c=document.createElement("canvas"); c.width=c.height=S;
+  const x=c.getContext("2d"), gr=x.createRadialGradient(S/2,S/2,0,S/2,S/2,S/2);
+  gr.addColorStop(0,"rgba(255,255,255,.92)");
+  gr.addColorStop(.18,`rgba(${r},${g},${b},.85)`);
+  gr.addColorStop(.5,`rgba(${r},${g},${b},.2)`);
+  gr.addColorStop(1,`rgba(${r},${g},${b},0)`);
+  x.fillStyle=gr; x.fillRect(0,0,S,S); return c;
+}
+const SPR_AZURE=makeGlow(78,168,255), SPR_CLAY=makeGlow(255,169,92), SPR_BONE=makeGlow(234,242,255);
+function blit(spr,x,y,size,alpha){ ctx.globalAlpha=alpha; ctx.drawImage(spr,x-size/2,y-size/2,size,size); ctx.globalAlpha=1; }
+
+/* federation state driven by /status + the audit stream */
+const S={
+  nodes:[],              // [{id,name,samples,rounds,x,y,state,flash,dots:[]}]
+  cohort:0, round:0, fedAuc:null, central:null, ceiling:null,
+  eps:0, epsBudget:0, epsPerRound:null, cells:null, rejected:0,
+  metrics:[], latest:null, secure:true, secureCohort:true, isolated:false, soloShared:false,
+  privacyMode:"", transmissionLabel:"", dataset:"", metric:"auc", totalSamples:0,
+  waiting:null, chainOk:true, testWindows:0, classes:[]
+};
+let particles=[], pulses=[], edgeFlash={}, CLOCK=0, lastFrame=0, R=160;
+
+function layout(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=cv.clientWidth; H=cv.clientHeight;
+  cv.width=Math.max(1,Math.round(W*DPR)); cv.height=Math.max(1,Math.round(H*DPR));
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  // centre the topology in the space the rail leaves free, not in the whole viewport,
+  // otherwise the hub sits visibly off-centre behind the audit column
+  const railEl=document.querySelector(".rail"), capEl=document.querySelector(".caption");
+  const hudEl=document.querySelector(".hud"), figEl=document.querySelector(".figs");
+  const railLeft=railEl?railEl.getBoundingClientRect().left:W*0.72;
+  const areaW=Math.max(200,railLeft-34-24);
+  // measure what the chrome actually occupies: guessing fixed offsets is what broke this at 1024x640
+  const capB=capEl?capEl.getBoundingClientRect().bottom:H*0.30;
+  const hudB=hudEl?hudEl.getBoundingClientRect().bottom:H*0.30;
+  const top=Math.max(capB,hudB)+18;
+  const bottom=(figEl?figEl.getBoundingClientRect().top:H-40)-14;
+  const band=Math.max(140,bottom-top);
+  hub={x:34+areaW/2,y:top+band/2};
+  // size the ring to the band first, then derive the discs from it, so a node's two label
+  // lines always clear both the hub and the neighbouring text
+  R=clamp(Math.min(areaW*0.34,band*0.34),58,240);
+  // keep a clear gap of at least two label lines between a node disc and the hub disc
+  NODER=clamp(R*0.26,13,50);
+  HUBR=clamp(R*0.30,20,62);
+  S.nodes.forEach((n,i)=>{
+    const a=-Math.PI/2 + i*2*Math.PI/Math.max(1,S.nodes.length);
+    n.x=hub.x+Math.cos(a)*R; n.y=hub.y+Math.sin(a)*R;
+  });
+}
+window.addEventListener("resize",layout);
+// the caption and the figure strip change height with their content (more members, a wrapped
+// figure row); the ring is fitted to what they actually occupy, so watch them rather than
+// re-measuring every frame
+if(window.ResizeObserver){
+  const ro=new ResizeObserver(()=>layout());
+  [".caption",".figs",".hud",".rail"].forEach(sel=>{
+    const el=document.querySelector(sel); if(el) ro.observe(el);
+  });
+}
+
+// a node's local recordings, drawn as a fixed warm cluster that never leaves the ring
+function seedDots(n){
+  const k=clamp(Math.round((n.samples||0)/6),5,22);
+  n.dots=Array.from({length:k},(_,i)=>{
+    const a=i*2.399963, r=Math.sqrt(i/k)*0.72;     // phyllotaxis — even, non-gridded
+    return {dx:Math.cos(a)*r, dy:Math.sin(a)*r, ph:i*0.7};
+  });
+}
+
+function spawnUpload(node){
+  edgeFlash[node.id]=1;
+  for(let k=0;k<14;k++) particles.push({from:node,to:hub,t:-k*0.055,sp:0.011+Math.random()*0.005,kind:"up"});
+}
+function spawnReturn(){
+  pulses.push({t:0,kind:"agg"});
+  S.nodes.forEach(n=>{ for(let k=0;k<7;k++)
+    particles.push({from:hub,to:n,t:-0.35-k*0.06,sp:0.009+Math.random()*0.004,kind:"down"}); });
+}
+
+function draw(ts){
+  const dt=lastFrame?Math.min(0.05,(ts-lastFrame)/1000):0.016; lastFrame=ts; CLOCK+=dt;
+  if(!W||!H) layout();
+  ctx.clearRect(0,0,W,H);
+
+  // edges
+  S.nodes.forEach(n=>{
+    const f=edgeFlash[n.id]||0;
+    ctx.strokeStyle=`rgba(122,168,235,${0.07+f*0.42})`;
+    ctx.lineWidth=1+f*0.8;
+    ctx.beginPath(); ctx.moveTo(n.x,n.y); ctx.lineTo(hub.x,hub.y); ctx.stroke();
+    if(f>0.05){
+      // offset perpendicular to the edge: on the midpoint the label sits on the node's own
+      // "N raw recordings" caption, and the two lower edges stack on each other near the hub
+      const dx=hub.x-n.x, dy=hub.y-n.y, len=Math.hypot(dx,dy)||1;
+      const mx=n.x+dx*0.5-(dy/len)*15, my=n.y+dy*0.5+(dx/len)*15;
+      ctx.font="9px 'IBM Plex Mono',Consolas,monospace"; ctx.textAlign="center";
+      ctx.fillStyle=`rgba(78,168,255,${f})`;
+      ctx.fillText(S.secure?"P A I R W I S E   M A S K E D":"L O C A L   L E A F   C O U N T S",mx,my);
+    }
+    edgeFlash[n.id]=Math.max(0,f-dt*0.55);
+  });
+
+  // hub
+  const pulse=pulses.length?1:0;
+  ctx.beginPath(); ctx.arc(hub.x,hub.y,HUBR,0,Math.PI*2);
+  ctx.fillStyle="rgba(22,36,60,.9)"; ctx.fill();
+  ctx.strokeStyle=`rgba(78,168,255,${0.45+pulse*0.4})`; ctx.lineWidth=1.5; ctx.stroke();
+  blit(SPR_AZURE,hub.x,hub.y,HUBR*2.9,0.1+pulse*0.12);
+  ctx.textAlign="center"; ctx.fillStyle="#EAF1FC";
+  ctx.font="600 11px 'IBM Plex Mono',Consolas,monospace";
+  ctx.fillText("COORDINATOR",hub.x,hub.y-2);
+  ctx.font="9px 'IBM Plex Mono',Consolas,monospace"; ctx.fillStyle="#A3B9D8";
+  ctx.fillText(S.secure?"pooled sum only":"central DP curator",hub.x,hub.y+13);
+
+  // pulses (aggregate ring)
+  pulses=pulses.filter(p=>{
+    p.t+=dt*0.55; if(p.t>=1) return false;
+    const r=HUBR+easeOut(p.t)*Math.max(W,H)*0.42;
+    ctx.beginPath(); ctx.arc(hub.x,hub.y,r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(234,242,255,${(1-p.t)*0.3})`; ctx.lineWidth=1; ctx.stroke();
+    return true;
+  });
+
+  // nodes
+  S.nodes.forEach(n=>{
+    const active=n.state==="active", rej=n.flash>0;
+    if(n.flash>0) n.flash=Math.max(0,n.flash-dt*0.8);
+    if(active) blit(SPR_AZURE,n.x,n.y,NODER*3.1,0.13);
+    ctx.beginPath(); ctx.arc(n.x,n.y,NODER,0,Math.PI*2);
+    ctx.fillStyle="rgba(14,26,45,.92)"; ctx.fill();
+    ctx.strokeStyle=rej?`rgba(255,107,107,${0.4+n.flash*0.6})`
+      :(active?"rgba(78,168,255,.75)":"rgba(122,168,235,.28)");
+    ctx.lineWidth=1.4; ctx.stroke();
+
+    // the local recordings: warm, gently breathing, and permanently inside the ring
+    n.dots.forEach(d=>{
+      const b=1+Math.sin(CLOCK*1.1+d.ph)*0.05;
+      blit(SPR_CLAY,n.x+d.dx*NODER*b,n.y+d.dy*NODER*b,7.5,0.85);
+    });
+
+    ctx.textAlign="center";
+    ctx.font="600 11px 'IBM Plex Mono',Consolas,monospace"; ctx.fillStyle="#EAF1FC";
+    ctx.fillText(n.name.length>26?n.name.slice(0,25)+"…":n.name,n.x,n.y+NODER+20);
+    if(NODER>=18){
+      // the long form runs into the neighbouring node once the ring gets small
+      const wide=R>=150;
+      ctx.font="9px 'IBM Plex Mono',Consolas,monospace"; ctx.fillStyle="#9A6636";
+      ctx.fillText(wide?`${n.samples} LOCAL SAMPLES · STAY HERE`:`${n.samples} LOCAL`,
+        n.x,n.y+NODER+35);
+    }
+  });
+
+  // particles
+  particles=particles.filter(p=>{
+    p.t+=p.sp*(dt/0.016)*0.9;
+    if(p.t>=1) return false;
+    if(p.t<0) return true;
+    const e=easeOut(p.t);
+    const x=p.from.x+(p.to.x-p.from.x)*e, y=p.from.y+(p.to.y-p.from.y)*e;
+    const fade=Math.sin(Math.PI*clamp(p.t,0,1));
+    if(p.kind==="up") blit(SPR_AZURE,x,y,15,0.75*fade);
+    else blit(SPR_BONE,x,y,17,0.5*fade);
+    return true;
+  });
+
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* ============================ audit stream ============================ */
+let seen=new Set(), booted=false, replaying=false, replayTimer=null;
+
+function evText(e){
+  const d=e.detail||{};
+  if(e.event==="submit")    return `r${d.round} · ${d.masked_cells} count cells · ${d.n_samples} local`;
+  if(e.event==="aggregate") return `r${d.round} · ${d.participants} members · ε=${d.epsilon} · AUC ${d.auc??d.fed_auc??"—"}`;
+  if(e.event==="register")  return `${d.name} · key ${d.key_fingerprint}`;
+  if(e.event==="genesis")   return `${d.dataset} · cohort ${d.cohort} · pooled ${d.centralized_auc}`;
+  return Object.entries(d).map(([k,v])=>`${k}=${v}`).join(" ").slice(0,72);
+}
+function logEvent(e){
+  const el=$("log"), row=document.createElement("div");
+  row.className="e";
+  row.innerHTML=`<span class="seq">${esc(e.seq)}</span>
+    <span class="ev ev-${esc(e.event)}">${esc(e.event)}</span>
+    <span class="tx">${esc(evText(e))}</span>
+    <span class="h">${esc(String(e.hash).slice(0,8))}</span>`;
+  el.appendChild(row);
+  while(el.childElementCount>240) el.removeChild(el.firstElementChild);
+  el.scrollTop=el.scrollHeight;
+}
+function applyEvent(e,animate){
+  logEvent(e);
+  const d=e.detail||{}, node=S.nodes.find(n=>n.id===e.node);
+  if(e.event==="submit"){
+    if(node){ node.state="active"; if(animate) spawnUpload(node); }
+    if(d.masked_cells) S.cells=d.masked_cells;
+  }else if(e.event==="aggregate"){
+    S.round=d.round??S.round;
+    if(d.fed_auc!=null) S.fedAuc=d.fed_auc;
+    S.latest={...(S.latest||{}),auc:d.auc??d.fed_auc,bacc:d.balanced_accuracy,
+      sensitivity:d.sensitivity,specificity:d.specificity,n_trees:d.global_trees};
+    if(d.global_eps!=null) S.eps=d.global_eps;
+    if(animate) spawnReturn();
+    S.nodes.forEach(n=>n.state="idle");
+  }else if(e.event==="rejected"){
+    if(node){ node.flash=1; node.state="idle"; }
+  }
+  renderHud(); renderLedger();
+}
+
+/* replay: re-run the recorded chain as an animation — for "show me that again" in the room */
+async function replay(){
+  if(replaying) return;
+  const a=await fetchJSON("/audit"); if(!a) return;
+  replaying=true; $("replayBtn").textContent="⟲ replaying";
+  $("log").innerHTML=""; particles=[]; pulses=[];
+  S.nodes.forEach(n=>{n.state="idle";n.flash=0;});
+  S.fedAuc=null; S.eps=0; S.round=0; renderHud(); renderLedger();
+  const list=a.entries.slice(-40);
+  let i=0;
+  clearInterval(replayTimer);
+  replayTimer=setInterval(()=>{
+    if(i>=list.length){
+      clearInterval(replayTimer); replaying=false;
+      $("replayBtn").textContent="⟲ replay";
+      seen=new Set(a.entries.map(x=>x.seq));
+      return;
+    }
+    applyEvent(list[i++],true);
+  },420);
+}
+
+/* ============================ polling ============================ */
+function accessHeaders(){ return readKey?{"X-Fed-Key":readKey}:{}; }
+async function apiFetch(path,options={}){
+  return fetch(path,{...options,headers:{...accessHeaders(),...(options.headers||{})}});
+}
+async function fetchJSON(path){
+  try{ const r=await apiFetch(path); if(!r.ok) return null; return await r.json(); }catch(_e){ return null; }
 }
 function showAuth(message=""){
   $("authError").textContent=message;
   $("authOverlay").classList.remove("hidden");
   setTimeout(()=>$("authPassword").focus(),0);
 }
-function hideAuth(){
-  $("authOverlay").classList.add("hidden");
-  $("authError").textContent="";
-}
-async function apiFetch(path, options={}){
-  const headers={...accessHeaders(),...(options.headers||{})};
-  return fetch(path,{...options,headers});
-}
+function hideAuth(){ $("authOverlay").classList.add("hidden"); $("authError").textContent=""; }
 
 async function poll(){
   let sr,ar,s,a;
   try{
-    [sr,ar]=await Promise.all([apiFetch('/status'),apiFetch('/audit')]);
-    if(sr.status===401||ar.status===401){showAuth("A valid read/operator password is required.");return false;}
-    if(!sr.ok||!ar.ok)throw new Error(`coordinator returned ${sr.status}/${ar.status}`);
+    [sr,ar]=await Promise.all([apiFetch("/status"),apiFetch("/audit")]);
+    if(sr.status===401||ar.status===401){ showAuth("A valid read or operator password is required."); return false; }
+    if(!sr.ok||!ar.ok) throw new Error("coordinator error");
     [s,a]=await Promise.all([sr.json(),ar.json()]);
-  }catch(e){
+  }catch(_e){
     $("headerMsg").textContent="Coordinator unavailable";
     return false;
   }
-  hideAuth();
-  $("headerMsg").textContent="";
-  const pm=s.primary_metric, ML={acc:'accuracy',auc:'AUC'}[pm]||pm;
-  $('sub').textContent=`Greater Bay Area Data Federation · dataset: ${s.dataset} · ${s.classes.length} classes · ${s.test_windows} held-out test samples`;
-  $('datasetBadge').textContent=`${s.dataset.toUpperCase()} · ${s.global_trees} trees`;
-  if($('saBadge')) $('saBadge').textContent = s.secure_aggregation ? 'secure-agg ✓' : 'no secure-agg';
-  $('m1').textContent=ML;
-
-  const cen=s.centralized[pm], fed=s.fed_primary, ceil=(s.centralized_nonprivate||{})[pm];
-  const eR=s.dp?s.dp.epsilon_per_round:'?';
-  $('cenVal').textContent=cen!=null?cen.toFixed(3):'—';
-  $('fedVal').textContent=fed!=null?fed.toFixed(3):'—';
-  $('ceilVal').textContent=ceil!=null?ceil.toFixed(3):'—';
-  $('epsVal').textContent='ε='+eR+'/rnd';
-  if(fed!=null&&cen!=null){
-    const gap=Math.abs(cen-fed);
-    $('fedSub').textContent=`tracks centralized-DP (gap −${gap.toFixed(3)}) · cumulative ε up to budget ${s.epsilon_budget}`;
-    $('fedSub').style.color=gap<0.06?'var(--ok)':'var(--mut)';
-  }
-  const ge = (s.global_eps!=null)?s.global_eps:0;
-  $('rawSub').textContent=`secure-agg · global ε ${ge}/${s.epsilon_budget} · raw arrays: none · rejected: ${s.rejected_payloads}`;
-  const warn = (s.secure_cohort===false) ? "⚠ cohort<3: masking gives weak/no privacy here. " : "";
-  $('caveat').textContent = `${warn}Secure aggregation: nodes upload PAIRWISE-MASKED leaf counts of a shared data-independent forest; under an honest-but-curious, non-colluding coordinator with the full cohort (n≥3) it recovers ONLY the pooled sum — not any node's data — then adds Laplace at ε=${eR}/round (central DP), global budget ${s.epsilon_budget}. It HIDES inputs but does NOT verify them — a malicious node could skew the model (input-robustness = future work). Utility cost ≈${ceil?ceil.toFixed(2):'?'}→${fed?fed.toFixed(2):'?'} is the price of data-independent splits; secure-agg matches centralized-DP even under non-IID. ${s.dataset.toUpperCase()}, single-seed, window-level.`;
-
-  // chain badge
-  $('chainBadge').textContent = a.verified ? `${s.audit_persistent?'persistent · ':''}chain + signatures verified ✓ (${a.entries.length})` : 'CHAIN/SIG BROKEN ✕';
-  $('chainBadge').className = 'badge '+(a.verified?'ok':'');
-  if(!a.verified){ $('chainBadge').style.color='var(--warn)'; $('chainBadge').style.borderColor='#e8c39a'; }
-
-  // a stalled round names the institution the cohort is waiting on, and when it expires
-  const pending=(s.pending_rounds||[]).filter(r=>(r.waiting_for||[]).length);
-  const wait=$('roundWait');
-  wait.style.display = pending.length ? 'block' : 'none';
-  wait.innerHTML = pending.map(r=>{
-    const left=Math.max(0, Math.round((s.round_timeout_seconds||0)-r.waited_seconds));
-    return `Round ${esc(r.round)} is waiting for <b>${esc((r.waiting_for||[]).join(', '))}</b>
-      — ${esc(Math.round(r.waited_seconds))}s elapsed; discarded in ${esc(left)}s if the cohort
-      does not complete. A discarded round spends no ε and may be submitted again.`;
-  }).join('<br>');
-
-  // nodes
-  $('nodes').innerHTML = s.nodes.map(n=>`
-    <div class="node"><div class="nm">${esc(n.name)}<span class="pill-local">masked uploads only</span></div>
-      <div class="row"><span>local samples (kept local)</span><b>${esc(n.samples)}</b></div>
-      <div class="row"><span>rounds submitted</span><b>${esc(n.rounds_submitted)}</b></div>
-      <div class="row"><span>coordinator sees</span><b style="color:var(--ok)">masked sum only</b></div>
-    </div>`).join('');
-
-  // In cohort-1 mode the dashboard itself is in its own room.  The coordinator returns
-  // read/operator-only, metadata-only summaries so the operator can still see whether a
-  // partner's isolated run trained successfully without joining or exposing that room.
-  const soloCard=$('soloSessionsCard'), solo=$('soloSessions');
-  const sessions=s.solo_sessions||[];
-  soloCard.classList.toggle('hidden', !s.isolated || !sessions.length);
-  if(s.isolated && sessions.length){
-    solo.innerHTML=sessions.map(x=>{
-      const participant=(x.nodes||[]).map(n=>esc(n.name||n.node_id)).join(', ')||'pending registration';
-      const metric=x.fed_primary==null?'—':Number(x.fed_primary).toFixed(3);
-      return `<div class="node"><div class="nm">${participant}<span class="pill-local">isolated session</span></div>
-        <div class="row"><span>local samples / rounds</span><b>${esc((x.nodes||[]).reduce((sum,n)=>sum+Number(n.samples||0),0))} / ${esc(x.rounds)}</b></div>
-        <div class="row"><span>global trees / ${esc(pm)}</span><b>${esc(x.global_trees)} / ${esc(metric)}</b></div>
-        <div class="row"><span>privacy ε / rejected requests</span><b>${esc(x.global_eps)}/${esc(s.epsilon_budget)} / ${esc(x.rejected_payloads)}</b></div>
-      </div>`;
-    }).join('');
-  }
-
-  drawChart(s.metrics, cen, pm);
-
-  // audit (newest first)
-  const ev=a.entries.slice(-14).reverse();
-  $('auditCount').textContent=`— ${a.entries.length} entries`;
-  $('audit').innerHTML=ev.map(e=>{
-    const d=Object.entries(e.detail||{}).map(([k,v])=>`${k}=${v}`).join(' ').slice(0,60);
-    return `<div class="a-entry"><span class="a-ev ev-${esc(e.event)}">${esc(e.event)}</span>
-      <span>#${esc(e.seq)}</span><span style="color:var(--ink)">${esc(e.node)}</span>
-      <span style="color:var(--mut)">${esc(d)}</span>
-      <span class="a-hash">${esc(String(e.hash).slice(0,12))}…</span></div>`;
-  }).join('');
+  hideAuth(); $("headerMsg").textContent="";
+  ingestStatus(s); ingestAudit(a);
   return true;
 }
 
+function ingestStatus(s){
+  S.dataset=s.dataset; S.metric=s.primary_metric; S.classes=s.classes||[];
+  S.cohort=s.cohort; S.secure=!!s.secure_aggregation; S.secureCohort=s.secure_cohort!==false;
+  S.isolated=!!s.isolated; S.soloShared=!!s.solo_shared; S.privacyMode=s.privacy_mode||"";
+  S.transmissionLabel=s.transmission_label||""; S.totalSamples=s.total_samples||0;
+  S.testWindows=s.test_windows; S.solo=s.solo_sessions||[];
+  S.central=(s.centralized||{})[s.primary_metric];
+  S.ceiling=(s.centralized_nonprivate||{})[s.primary_metric];
+  S.epsBudget=s.epsilon_budget;
+  S.epsPerRound=(s.dp||{}).epsilon_per_round;
+  S.rejected=s.rejected_payloads??0; S.metrics=s.metrics||[];
+  S.latest=s.latest_metrics||(S.metrics.length?S.metrics[S.metrics.length-1]:null);
+  // during a replay the chain is the source of truth for these — letting the live poll write
+  // them back would pin the hero number to its final value and the climb would never show
+  if(!replaying){
+    if(s.fed_primary!=null) S.fedAuc=s.fed_primary;
+    S.eps=s.global_eps??0;
+    S.round=(s.metrics&&s.metrics.length)?s.metrics[s.metrics.length-1].round:0;
+  }
+
+  // nodes: keep positions stable, only re-layout when the cohort itself changes
+  const changed = S.nodes.length!==s.nodes.length ||
+    s.nodes.some((n,i)=>S.nodes[i]?.id!==n.node_id);
+  s.nodes.forEach((n,i)=>{
+    let m=S.nodes[i];
+    if(!m){ m={id:n.node_id,x:0,y:0,state:"idle",flash:0,dots:[]}; S.nodes[i]=m; }
+    m.id=n.node_id; m.name=n.name; m.rounds=n.rounds_submitted;
+    if(m.samples!==n.samples){ m.samples=n.samples; seedDots(m); }
+  });
+  S.nodes.length=s.nodes.length;
+  if(changed) layout();
+
+  const pending=(s.pending_rounds||[]).filter(r=>(r.waiting_for||[]).length);
+  S.waiting = pending.length ? {names:pending[0].waiting_for,
+    left:Math.max(0,Math.round((s.round_timeout_seconds||0)-pending[0].waited_seconds))} : null;
+
+  const ML={acc:"accuracy",auc:"AUC"}[s.primary_metric]||s.primary_metric;
+  $("sub").textContent=`${s.classes.length} classes · ${s.test_windows} held-out test samples`;
+  $("datasetBadge").textContent=`${s.dataset} · ${s.nodes.length} members · ${s.test_windows} test samples`;
+  if(S.secure){ $("saBadge").textContent="secure-agg ✓"; $("saBadge").className="ok"; }
+  else if(S.soloShared){ $("saBadge").textContent="central-DP solo · shared"; $("saBadge").className="warn"; }
+  else{ $("saBadge").textContent="central-DP solo · isolated"; $("saBadge").className="warn"; }
+  $("sentLegend").textContent=S.secure?"pairwise-masked counts · sent":"leaf counts · sent to DP curator";
+  $("fCellsK").textContent=S.secure?"Masked cells / round":"Count cells / round";
+  $("footLine").textContent=`${s.dataset} · held-out engineering evaluation · not clinical validation`;
+  $("aucK").textContent=`federated ${ML} · locked test set`;
+  renderHud(); renderLedger(); renderSpark(); renderCaveat(ML);
+}
+
+function ingestAudit(a){
+  S.chainOk=!!a.verified;
+  $("chainBadge").textContent=a.verified?`chain ✓ ${a.entries.length}`:"chain/signature broken ✕";
+  $("chainBadge").className=a.verified?"ok":"bad";
+  $("auditCount").textContent=`· ${a.entries.length} entries`;
+  if(replaying) return;
+  if(!booted){
+    booted=true;
+    a.entries.forEach(e=>seen.add(e.seq));
+    // adopt the chain's own figures without animating the history back through the stage
+    const lastSubmit=[...a.entries].reverse().find(e=>e.event==="submit");
+    if(lastSubmit) S.cells=lastSubmit.detail?.masked_cells??S.cells;
+    a.entries.slice(-24).forEach(e=>logEvent(e));
+    renderHud();
+    return;
+  }
+  a.entries.filter(e=>!seen.has(e.seq)).forEach(e=>{ seen.add(e.seq); applyEvent(e,true); });
+}
+
+/* ============================ rendering ============================ */
+function renderHud(){
+  const fed=S.fedAuc, cen=S.central;
+  $("auc").textContent = fed!=null?Number(fed).toFixed(3):"—";
+  $("auc").classList.toggle("dim",fed==null);
+  if(fed!=null&&cen!=null){
+    const gap=fed-cen;
+    $("cmp").innerHTML=`pooled centralized <b>${cen.toFixed(3)}</b> · difference `+
+      `<span class="gap">${gap>=0?"+":"−"}${Math.abs(gap).toFixed(3)}</span>`;
+  }else if(cen!=null){
+    $("cmp").innerHTML=`pooled centralized <b>${cen.toFixed(3)}</b>`;
+  }
+
+  let k="federation", t="", d="";
+  if(S.waiting){
+    k="round "+(S.round+1)+" · waiting";
+    t="Waiting for "+S.waiting.names.join(", ");
+    d=`A round needs the exact enrolled cohort. Discarded in <b>${S.waiting.left}s</b> if it does not complete — a discarded round spends no ε and can be submitted again.`;
+  }else if(!S.nodes.length){
+    k="federation"; t="No institution has enrolled yet";
+    d="Each member runs the node client on its own machines. Nothing appears here until one registers.";
+  }else if(S.isolated){
+    k="solo mode"; t="Isolated single-node demo";
+    d="<b>FED_COHORT=1</b> — central differential privacy only. This is not secure aggregation.";
+  }else if(S.soloShared){
+    k="round "+S.round+" · shared solo"; t="One institution, one visible shared model";
+    d=`This demo sends <b>unmasked integer leaf counts</b> to the coordinator, which adds Laplace noise at ε=${S.epsPerRound??"?"} per round. Central DP is active; pairwise secure aggregation is not.`;
+  }else if(!S.secureCohort){
+    k="round "+S.round; t=`${S.nodes.length} institutions · cohort below 3`;
+    d="<b>Pairwise masking gives weak or no privacy with fewer than 3 non-colluding nodes.</b>";
+  }else{
+    k="round "+S.round+" · aggregated";
+    t=`${S.nodes.length} institutions, one model, no pooled data`;
+    d=`Each member trains on its own records and uploads pairwise-masked counts. The coordinator recovers only the pooled sum, adds Laplace noise at ε=${S.epsPerRound??"?"} per round, and returns the shared model.`;
+  }
+  $("scenK").textContent=k; $("scenT").textContent=t; $("scenD").innerHTML=d;
+
+  $("fNodes").textContent=S.nodes.length||"—";
+  $("fRaw").textContent="0";
+  $("fCells").textContent=S.cells!=null?S.cells.toLocaleString():"—";
+  $("fCeil").textContent=S.ceiling!=null?S.ceiling.toFixed(3):"—";
+  $("fRej").textContent=S.rejected;
+  $("fRej").className="v"+(S.rejected>0?" red":"");
+  renderDiagnostics();
+}
+
+function renderDiagnostics(){
+  const m=S.latest||{}, fmt=v=>v==null||!Number.isFinite(Number(v))?"—":Number(v).toFixed(3);
+  $("positiveClass").textContent=m.positive_class||"ASD";
+  const values=[
+    ["Sensitivity",m.sensitivity,"azure"],["Specificity",m.specificity,"azure"],
+    ["Balanced acc",m.bacc,""],["F1",m.f1,""],
+    ["MCC",m.mcc,"warm"],["Precision",m.precision,""],
+    ["Brier ↓",m.brier,""],["ECE ↓",m.ece,""]
+  ];
+  $("diagGrid").innerHTML=values.map(([k,v,c])=>
+    `<div class="diag"><div class="v ${c}">${fmt(v)}</div><div class="k">${k}</div></div>`).join("");
+  const c=m.confusion;
+  $("matrix").innerHTML=c?[["TN",c.tn],["FP",c.fp],["FN",c.fn],["TP",c.tp]].map(([k,v])=>
+    `<span><b>${esc(v)}</b>${k}</span>`).join(""):"";
+  const hist=S.metrics||[], prev=hist.length>1?hist[hist.length-2]:null;
+  if(!m||m.auc==null){ $("impact").textContent="Waiting for the first aggregation round"; return; }
+  const delta=prev?.auc==null?null:Number(m.auc)-Number(prev.auc);
+  const treeDelta=prev?.n_trees==null?Number(m.n_trees||0):Number(m.n_trees||0)-Number(prev.n_trees||0);
+  const lead=S.soloShared?"This node's latest update":"Latest cohort aggregation";
+  $("impact").innerHTML=`${lead} · <b>${delta==null?"first AUC snapshot":`ΔAUC ${delta>=0?"+":"−"}${Math.abs(delta).toFixed(3)}`}</b>`+
+    ` · +${treeDelta} trees · ε +${S.epsPerRound??"?"} · ${S.totalSamples} local samples represented`;
+}
+
+function renderLedger(){
+  const per=S.epsPerRound||1, total=Math.max(1,Math.round((S.epsBudget||0)/per));
+  const spent=Math.min(total,Math.round(S.eps/per)), frac=spent/total;
+  $("epsNow").textContent=Number(S.eps).toFixed(1);
+  $("epsBud").textContent=`/ ${S.epsBudget}`;
+  const bar=$("epsBar");
+  bar.className="segs"+(frac>=1?" deny":(frac>=0.8?" warn":""));
+  bar.innerHTML=Array.from({length:total},(_,i)=>`<i class="${i<spent?"on":""}"></i>`).join("");
+  $("epsNote").textContent=frac>=1 ? "exhausted · further rounds refused"
+    : `${total-spent} of ${total} rounds left · ε ${per} each`;
+
+  // In cohort-1 mode this console is in its own room. The coordinator returns read/operator-only,
+  // metadata-only summaries so an operator can see whether a partner's isolated run trained,
+  // without joining or exposing that room. Kept from origin/main, restyled for this rail.
+  const soloCard=$("soloSessionsCard"), solo=$("soloSessions"), sessions=S.solo||[];
+  soloCard.classList.toggle("hidden", !S.isolated || !sessions.length);
+  if(S.isolated && sessions.length){
+    solo.innerHTML=sessions.map(x=>{
+      const who=(x.nodes||[]).map(n=>esc(n.name||n.node_id)).join(", ")||"pending registration";
+      const samples=(x.nodes||[]).reduce((sum,n)=>sum+Number(n.samples||0),0);
+      const metric=x.fed_primary==null?"—":Number(x.fed_primary).toFixed(3);
+      return `<div class="lrow">
+        <span class="nm"><span>${who}</span><b>${esc(samples)}</b></span>
+        <span class="nm"><span>r${esc(x.rounds)} · ${esc(x.global_trees)} trees · ${esc(metric)}</span>
+          <b>ε ${esc(x.global_eps)}/${esc(S.epsBudget)}</b></span>
+      </div>`;
+    }).join("");
+  }
+
+  const max=Math.max(1,...S.nodes.map(n=>n.samples||0));
+  $("ledgerRows").innerHTML=S.nodes.map(n=>
+    `<div class="lrow${n.state==="active"?" live":""}">
+       <span class="nm"><span>${esc(n.name)}</span><b>${esc(n.samples)}</b></span>
+       <span class="track"><i style="width:${(100*(n.samples||0)/max).toFixed(1)}%"></i></span>
+     </div>`).join("");
+}
+
+function renderSpark(){
+  const svg=$("spark"), W=360,H=104,pad={l:32,r:8,t:10,b:18};
+  const pm=S.metric, pts=S.metrics.map((m,i)=>({x:i,y:m[pm]}));
+  if(!pts.length||S.central==null){ svg.innerHTML=""; $("sparkK").textContent=""; return; }
+  const lo=Math.max(0,Math.min(S.central,...pts.map(p=>p.y))-0.05), hi=Math.min(1,Math.max(S.central,...pts.map(p=>p.y))+0.05);
+  const X=i=>pad.l+(pts.length<=1?0:i/(pts.length-1))*(W-pad.l-pad.r);
+  const Y=v=>pad.t+(1-(v-lo)/Math.max(1e-6,hi-lo))*(H-pad.t-pad.b);
+  const MONO="'IBM Plex Mono',Consolas,monospace";
+  let g="";
+  [lo,hi].forEach(v=>{
+    g+=`<line x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" stroke="rgba(122,168,235,.09)"/>`;
+    g+=`<text x="${pad.l-6}" y="${Y(v)+3}" text-anchor="end" font-size="8" font-family="${MONO}" fill="#66809F">${v.toFixed(2)}</text>`;
+  });
+  const cy=Y(S.central);
+  g+=`<line x1="${pad.l}" y1="${cy}" x2="${W-pad.r}" y2="${cy}" stroke="#FFA95C" stroke-width="1.2" stroke-dasharray="4 4"/>`;
+  g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="1.6"/>`;
+  const last=pts[pts.length-1];
+  g+=`<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.y).toFixed(1)}" r="2.6" fill="#4EA8FF"/>`;
+  svg.innerHTML=g;
+  $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; <span style="color:#FFA95C">-- pooled centralized</span><br>`+
+    `each point = one aggregation round · ensemble-size variance reduction, not iterative learning`;
+}
+
+function renderCaveat(ML){
+  const mechanism=S.secure
+    ? `<b>What is proven here.</b> Nodes upload pairwise-masked integer leaf counts of a shared, `+
+      `data-independent forest. Under an honest-but-curious, non-colluding coordinator with the full `+
+      `cohort (n≥3), the coordinator recovers <b>only the pooled sum</b>, then adds Laplace noise at `+
+      `ε=${S.epsPerRound??"?"} per round under a global budget of ${S.epsBudget}.`
+    : `<b>What is proven here.</b> This is an explicitly labelled single-node central-DP run. `+
+      `The node sends integer leaf counts to the coordinator; they are <b>not pairwise masked</b>. `+
+      `The coordinator adds Laplace noise at ε=${S.epsPerRound??"?"} per round under a global `+
+      `budget of ${S.epsBudget}. Do not describe this mode as secure aggregation.`;
+  $("caveatText").innerHTML=
+    mechanism+` Every event is Ed25519-signed and hash-chained, and the exported `+
+    `audit package verifies offline.<br><br>`+
+    `<b>What is not proven.</b> The protocol does not verify input honesty, so a `+
+    `malicious member could still skew the model — input robustness is future work. A fully `+
+    `compromised coordinator needs external anchoring. The transfer figures are exact UTF-8 JSON `+
+    `application payload bytes, not total network or TLS bytes. The convergence curve reflects `+
+    `ensemble-size variance reduction, not iterative training.<br><br>`+
+    `<b>About these numbers.</b> ${esc(S.dataset)} is a held-out engineering evaluation. It `+
+    `demonstrates model and protocol behaviour, not clinical validity or generalisability. `+
+    `The observed gap from the non-private ceiling `+
+    `(${S.ceiling!=null?S.ceiling.toFixed(3):"—"}) to federated ${ML} `+
+    `(${S.fedAuc!=null?Number(S.fedAuc).toFixed(3):"—"}) reflects data-independent splits, DP `+
+    `noise, finite sampling and ensemble size; it is not evidence that one institution caused an improvement.`;
+}
+
+/* ============================ actions ============================ */
 async function downloadProtected(path,fallbackName){
   $("headerMsg").textContent="";
   const response=await apiFetch(path);
-  if(response.status===401){showAuth("Unlock the dashboard before downloading.");return;}
+  if(response.status===401){ showAuth("Unlock the console before downloading."); return; }
   if(!response.ok){
     let detail=`Download failed (${response.status})`;
-    try{const body=await response.json();if(body.error)detail=body.error;}catch(_e){}
-    $("headerMsg").textContent=detail;
-    return;
+    try{ const body=await response.json(); if(body.error) detail=body.error; }catch(_e){}
+    $("headerMsg").textContent=detail; return;
   }
-  const blob=await response.blob(),url=URL.createObjectURL(blob);
-  const disposition=response.headers.get("content-disposition")||"";
-  const match=disposition.match(/filename="?([^";]+)"?/i);
+  const blob=await response.blob(), url=URL.createObjectURL(blob);
+  const match=(response.headers.get("content-disposition")||"").match(/filename="?([^";]+)"?/i);
   const link=document.createElement("a");
-  link.href=url;link.download=match?.[1]||fallbackName;document.body.appendChild(link);link.click();link.remove();
+  link.href=url; link.download=match?.[1]||fallbackName;
+  document.body.appendChild(link); link.click(); link.remove();
   URL.revokeObjectURL(url);
 }
 
@@ -296,40 +875,19 @@ $("authForm").addEventListener("submit",async event=>{
   event.preventDefault();
   readKey=$("authPassword").value;
   const ok=await poll();
-  if(ok){sessionStorage.setItem("gba-df-read-key",readKey);$("authPassword").value="";}
+  if(ok){ sessionStorage.setItem("gba-df-read-key",readKey); $("authPassword").value=""; }
 });
 $("accessLink").addEventListener("click",()=>showAuth(""));
-$("modelLink").addEventListener("click",event=>{event.preventDefault();downloadProtected("/model","gba-df-model.json");});
-$("auditBundleLink").addEventListener("click",event=>{event.preventDefault();downloadProtected("/audit/bundle","gba-df-audit.json");});
+$("replayBtn").addEventListener("click",replay);
+$("caveatBtn").addEventListener("click",()=>$("caveatSheet").classList.remove("hidden"));
+$("caveatClose").addEventListener("click",()=>$("caveatSheet").classList.add("hidden"));
+$("caveatSheet").addEventListener("click",e=>{ if(e.target===$("caveatSheet")) $("caveatSheet").classList.add("hidden"); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") $("caveatSheet").classList.add("hidden"); });
+$("modelLink").addEventListener("click",event=>{ event.preventDefault(); downloadProtected("/model","gba-df-model.json"); });
+$("auditBundleLink").addEventListener("click",event=>{ event.preventDefault(); downloadProtected("/audit/bundle","gba-df-audit.json"); });
 
-function drawChart(metrics, central, pm){
-  const svg=$('chart'); const W=700,H=300, pad={l:46,r:14,t:14,b:28};
-  const pts=metrics.map((m,i)=>({x:i,y:m[pm]}));
-  const ymin=Math.max(0, Math.min(central, ...pts.map(p=>p.y), 1)-0.04), ymax=1.0;
-  const X=i=>pad.l+(pts.length<=1?0:i/(pts.length-1))*(W-pad.l-pad.r);
-  const Y=v=>pad.t+(1-(v-ymin)/(ymax-ymin))*(H-pad.t-pad.b);
-  let g='';
-  // y gridlines
-  for(let k=0;k<=4;k++){ const v=ymin+(ymax-ymin)*k/4, y=Y(v);
-    g+=`<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="#efe9dd"/>`;
-    g+=`<text x="${pad.l-8}" y="${y+4}" text-anchor="end" font-size="11" fill="#a9a193">${v.toFixed(2)}</text>`;}
-  // centralized baseline
-  const cy=Y(central);
-  g+=`<line x1="${pad.l}" y1="${cy}" x2="${W-pad.r}" y2="${cy}" stroke="#6a9ccd" stroke-width="2" stroke-dasharray="6 5"/>`;
-  g+=`<text x="${W-pad.r}" y="${cy-6}" text-anchor="end" font-size="11" fill="#6a9ccd">centralized ${central.toFixed(3)}</text>`;
-  // federated polyline
-  if(pts.length){
-    const dpath=pts.map((p,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(' ');
-    g+=`<path d="${dpath}" fill="none" stroke="#d97757" stroke-width="2.5"/>`;
-    pts.forEach((p,i)=>{ g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="3" fill="#d97757"/>`; });
-    const last=pts[pts.length-1];
-    g+=`<text x="${X(pts.length-1)-4}" y="${Y(last.y)-9}" text-anchor="end" font-size="12" font-weight="700" fill="#c2683f">${last.y.toFixed(3)}</text>`;
-  }
-  g+=`<text x="${(W)/2}" y="${H-6}" text-anchor="middle" font-size="11" fill="#a9a193">cumulative trees in global ensemble (each point = one node submission)</text>`;
-  svg.innerHTML=g;
-}
-
-poll(); setInterval(poll, 1000);
+layout();
+poll(); setInterval(poll,1000);
 </script>
 </body>
 </html>

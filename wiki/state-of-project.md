@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-07-31
+Last updated: 2026-08-01
 
 ## Executive status
 
@@ -54,6 +54,18 @@ Verified on 2026-07-30:
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
+
+- **2026-08-01 — Contribution-impact and transparent coordinator console:** the coordinator now
+  reports binary held-out diagnostics with ASD explicitly treated as the positive class: AUC,
+  balanced accuracy, sensitivity, specificity, precision, F1, MCC, Brier score, ECE, a confusion
+  matrix, and compact ROC points. The dashboard adopts the `frontendv2` full-canvas topology and
+  makes the latest round's honest metric delta, added trees, privacy spend, local sample count, and
+  signed audit events visually prominent. Its animation and wording now distinguish three-or-more
+  node pairwise-masked secure aggregation from cohort-1 central-DP sharing; the latter is never
+  labelled secure aggregation. The desktop scan summary separately reports files per ASD/TD class
+  and derived training windows, so a 10+10 video batch is visible locally without sending class
+  counts to the coordinator. This remains demo/experiment UX and does not enter the September pilot
+  critical path or establish clinical validity.
 
 - **2026-07-31 — Switchable desktop interfaces and global settings:** the partner desktop client
   now keeps one shared upload/training implementation while offering the existing blue-and-white

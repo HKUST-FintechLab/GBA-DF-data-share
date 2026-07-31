@@ -46,7 +46,7 @@ function applyLang(){
   document.querySelectorAll("[data-i-placeholder]").forEach(el=>{ const k=el.getAttribute("data-i-placeholder"); if(I18N[LANG][k]!=null) el.placeholder=I18N[LANG][k]; });
   $("#zhHans").classList.toggle("on",LANG==="zh"); $("#zhHant").classList.toggle("on",LANG==="zh-Hant"); $("#en").classList.toggle("on",LANG==="en");
   document.documentElement.lang = LANG;
-  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderVideoOutput(); renderThemeSettings(); renderStatus(); updateConsoleChrome();
+  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderVideoOutput(); renderThemeSettings(); renderStatus(); renderPrivacyCopy(); updateConsoleChrome();
 }
 $("#zhHans").onclick=()=>{LANG="zh";applyLang();};
 $("#zhHant").onclick=()=>{LANG="zh-Hant";applyLang();};
@@ -62,9 +62,17 @@ function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; 
 function renderTraffic(s){
   const total=s?.application_bytes_sent||0, masked=s?.masked_payload_bytes_sent||0;
   const metadata=s?.protocol_metadata_bytes_sent||0;
+  const secure=sel.sch?.secure_aggregation!==false;
   $("#rsTx").textContent=humanBytes(total);
-  $("#rsTxDetail").textContent=`${t("tx_masked")} ${humanBytes(masked)} · ${t("tx_metadata")} ${humanBytes(metadata)}`;
-  $("#stShared").textContent=total?t("st_shared_bytes").replace("{bytes}",humanBytes(total)):t("st_shared");
+  $("#rsTxDetail").textContent=`${t(secure?"tx_masked":"tx_counts")} ${humanBytes(masked)} · ${t("tx_metadata")} ${humanBytes(metadata)}`;
+  $("#stShared").textContent=total?t("st_shared_bytes").replace("{bytes}",humanBytes(total)):t(secure?"st_shared":"st_shared_solo");
+}
+function renderPrivacyCopy(){
+  const secure=sel.sch?.secure_aggregation!==false;
+  const banner=document.querySelector('[data-i="s4_banner"]'),note=document.querySelector('[data-i="s4_note"]');
+  if(banner) banner.textContent=t(secure?"s4_banner":"s4_banner_solo");
+  if(note) note.textContent=t(secure?"s4_note":"s4_note_solo");
+  renderTraffic(null);
 }
 
 const STEP_LABELS={en:["Data type","Folder","Connect","Train"],zh:["数据类型","文件夹","连接","训练"],"zh-Hant":["資料類型","資料夾","連線","訓練"]};
@@ -84,7 +92,7 @@ function updateConsoleChrome(){
   $("#consoleSceneTitle").textContent=t(`${key}_h`);
   $("#consoleSceneSub").textContent=curStep===2
     ?(sel.mInfo?$("#s2hint").textContent:t("s2_note"))
-    :t(curStep===4?"s4_banner":`${key}_hint`);
+    :t(curStep===4?(sel.sch?.secure_aggregation===false?"s4_banner_solo":"s4_banner"):`${key}_hint`);
 
   const back=$("#consoleBack"),next=$("#consoleNext"),start=$("#consoleStart");
   back.disabled=curStep===1||curStep===4;
@@ -563,9 +571,15 @@ async function scan(path){
   const r=await api().scan_folder(sel.modality, path);
   if(!r.ok){ $("#foldkv").innerHTML=""; msg("#s2msg","bad",r.error); $("#s2next").disabled=true; return; }
   sel.folder=path; sel.scan=r; $("#s2msg").innerHTML="";
-  const tags=Object.entries(r.labels).map(([k,v])=>`<span class="tag ${k.toLowerCase()==='asd'?'asd':'td'}">${k}: ${v}</span>`).join("");
+  const tags=Object.entries(r.labels).map(([k,v])=>{
+    const files=r.label_files?.[k];
+    const detail=Number.isFinite(files)?`${files} ${t("files")} · ${v} ${t("found")}`:`${v}`;
+    return `<span class="tag ${k.toLowerCase()==='asd'?'asd':'td'}">${k}: ${detail}</span>`;
+  }).join("");
+  const balanced=r.label_files&&Number(r.label_files.ASD)>0&&Number(r.label_files.TD)>0
+    ? `<span class="tag ready">✓ ${t("supervised_ready")}</span>`:"";
   $("#foldkv").innerHTML=`<span><b>${r.n_samples}</b> ${t("found")}</span><span><b>${r.n_files}</b> ${t("files")}</span>`+
-    `<span><b>${r.n_features}</b> ${t("feats")}</span><span>${tags}</span>`;
+    `<span><b>${r.n_features}</b> ${t("feats")}</span><span>${tags}${balanced}</span>`;
   $("#s2next").disabled=false;
   updateConsoleChrome();
 }
@@ -578,10 +592,12 @@ $("#testconn").onclick=async()=>{
   const r=await api().test_connect(coord, sel.modality, key, sel.invitation);
   if(!r.ok){ msg("#s3msg","bad",r.error); $("#s3next").disabled=true; setConn("off",""); return; }
   sel.sch=r;
+  renderPrivacyCopy();
   const host=coord.replace(/^https?:\/\//,"");
   const featOk = r.n_features===sel.scan.n_features;
   const info=r.modality_info?(isTraditional()?HANT_MODALITIES[r.modality_info.key]?.task:(isChinese()?r.modality_info.task_zh:r.modality_info.task_en)):r.modality;
-  let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
+  const privacy=r.secure_aggregation?t("mode_secure"):t("mode_solo_dp");
+  let lines=`<b>${info||"—"}</b> · ${r.n_features} ${t("feats")} · cohort ${r.cohort} · ${privacy} · ε/round ${r.dp.epsilon_per_round}, budget ${r.epsilon_budget}`;
   if(r.pinned) lines+=`<br>${t("pin_ok")}`;
   if(r.pin_warning) lines+=`<br>⚠ ${r.pin_warning}`;
   if(!r.compatible){ msg("#s3msg","bad",`${t("compat_bad")}<br>${lines}`); $("#s3next").disabled=true; setConn("off",""); }
@@ -627,7 +643,7 @@ async function poll(){
     $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
     setConn(st.error?"on":"done");
     if(st.error) msg("#s4msg","bad",st.error);
-    else msg("#s4msg","ok","✓ "+t("train_done"));
+    else msg("#s4msg","ok","✓ "+t(sel.sch?.secure_aggregation!==false?"train_done":"train_done_solo"));
     updateConsoleChrome();
   }
 }
