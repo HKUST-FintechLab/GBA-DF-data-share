@@ -170,9 +170,11 @@ For the **`action` and experimental `action_cdp`** front ends, step 2 has two in
   2/4/8 fps sampling rate. The web view loads the pinned MediaPipe Holistic JavaScript package from
   jsDelivr only when requested, decodes every video locally, and shows the video with a live 33-point
   skeleton overlay and extraction progress. The browser sends only the extracted landmark array to the
-  local Python bridge; the existing NumPy dependency atomically writes a compressed compatible NPZ into
-  the selected dataset folder. The app then scans that folder and continues through the unchanged
-  feature-extraction and federation path.
+  local Python bridge; the existing NumPy dependency atomically writes a compressed compatible NPZ.
+  By default it uses a private per-process temporary folder that is removed when the desktop app exits,
+  so selecting video opens only the video picker. The collapsed **Advanced settings** section can choose
+  a permanent output folder when the NPZ files should be retained. The app scans the active output
+  folder and continues through the unchanged feature-extraction and federation path.
 
 The CDP experiment locks browser extraction to the champion's 4 fps setting. Its local feature
 adapter rejects clips with fewer than 24 sampled frames and uniformly caps longer clips at 64.

@@ -38,6 +38,11 @@ class Api:
         self._demo_seed = 100
         self._default_coord = default_coord
         self._default_node = default_node
+        # Browser-extracted pose files default to one private, per-process workspace.
+        # TemporaryDirectory removes it when the desktop client exits; users can opt
+        # into a persistent folder explicitly through the advanced video settings.
+        self._video_temp = tempfile.TemporaryDirectory(prefix="gba-df-video-")
+        self._video_output = self._video_temp.name
 
     # ---- discovery ----
     def list_modalities(self):
@@ -54,10 +59,29 @@ class Api:
     def pick_folder(self):
         import webview
         win = webview.windows[0]
-        res = win.create_file_dialog(webview.FOLDER_DIALOG)
+        dialog_kind = (webview.FileDialog.FOLDER if hasattr(webview, "FileDialog")
+                       else webview.FOLDER_DIALOG)
+        res = win.create_file_dialog(dialog_kind)
         if not res:
             return {"ok": False, "cancelled": True}
         return {"ok": True, "path": res[0]}
+
+    def video_output(self):
+        path = os.path.abspath(self._video_output)
+        return {"ok": True, "path": path,
+                "temporary": path == os.path.abspath(self._video_temp.name)}
+
+    def pick_video_output(self):
+        selected = self.pick_folder()
+        if not selected.get("ok"):
+            return selected
+        self._video_output = os.path.abspath(selected["path"])
+        return self.video_output()
+
+    def reset_video_output(self):
+        os.makedirs(self._video_temp.name, exist_ok=True)
+        self._video_output = self._video_temp.name
+        return self.video_output()
 
     def scan_folder(self, modality, path):
         try:
@@ -222,6 +246,10 @@ class Api:
 def _selftest():
     """Headless check of every API method except the native folder dialog."""
     api = Api()
+    temporary_output = api.video_output()
+    assert temporary_output["ok"] and temporary_output["temporary"]
+    assert os.path.isdir(temporary_output["path"])
+    print("video_output:", {"temporary": True, "exists": True})
     print("modalities:", [m["key"] for m in api.list_modalities()])
     d = api.generate_demo("eyegaze", n_per_class=8)
     print("generate_demo:", d)
@@ -229,11 +257,16 @@ def _selftest():
     with tempfile.TemporaryDirectory() as out:
         body = np.zeros((8, 33, 4), dtype=np.float32)
         body[..., 3] = 0.9
-        saved = api.save_pose_npz(out, "ASD", "sample video.mp4", body.tolist())
+        saved = api.save_pose_npz(temporary_output["path"], "ASD",
+                                  "sample video.mp4", body.tolist())
         assert saved["ok"] and os.path.exists(saved["path"]), saved
+        assert saved["root"] == temporary_output["path"]
         assert np.load(saved["path"])["body"].shape == (8, 33, 4)
-        scanned = api.scan_folder("action", out)
+        scanned = api.scan_folder("action", temporary_output["path"])
         assert scanned["ok"] and scanned["labels"] == {"ASD": 1}, scanned
+        api._video_output = out
+        assert not api.video_output()["temporary"]
+        assert api.reset_video_output()["temporary"]
         assert not api.save_pose_npz(out, "UNKNOWN", "bad.mp4", body.tolist())["ok"]
         assert not api.save_pose_npz(out, "TD", "bad.mp4", [[[0, 0, 0, 1]]])["ok"]
         print("save_pose_npz:", {"ok": True, "frames": saved["frames"],

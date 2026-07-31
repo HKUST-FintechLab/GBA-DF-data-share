@@ -86,6 +86,15 @@
   .videohead .vs{font-size:11.5px;color:var(--mut);margin-top:2px}
   .videoopts{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
   .videoopts label{font-size:11px;color:var(--mut);display:flex;flex-direction:column;gap:4px}
+  .advanced{margin:0 0 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+  .advanced summary{padding:9px 11px;color:var(--mut);font-size:11.5px;font-weight:600;cursor:pointer;user-select:none}
+  .outputrow{display:flex;align-items:flex-end;gap:12px;padding:0 11px 11px;flex-wrap:wrap}
+  .outputmeta{flex:1;min-width:260px;display:flex;flex-direction:column;gap:5px}
+  .outputlabel{font-size:11px;color:var(--mut)}
+  .outputpath{font-family:var(--mono);font-size:11px;color:var(--head);word-break:break-all}
+  .tempbadge{font-size:10.5px;color:var(--ok)}
+  .outputactions{display:flex;gap:8px;flex-wrap:wrap}
+  .outputactions .btn{padding:7px 11px;font-size:11.5px}
   .preview{position:relative;overflow:hidden;border-radius:9px;background:#242526;min-height:180px;display:grid;place-items:center}
   .preview canvas{display:block;width:100%;max-height:330px;object-fit:contain}
   .preview .empty{position:absolute;color:#bbb;font-size:12px;text-align:center;padding:20px}
@@ -206,6 +215,9 @@
   .videoimport{max-width:900px;margin-top:15px;padding:18px;border-color:rgba(60,60,67,.11);border-radius:20px;background:rgba(255,255,255,.76);box-shadow:0 10px 28px rgba(20,47,82,.055);backdrop-filter:blur(12px)}
   .videohead{margin-bottom:13px}.videohead .vh{font-size:15px;font-weight:720;color:var(--head)}.videohead .vs{font-size:12px;color:var(--mut);margin-top:3px}
   .videoopts{gap:11px}.videoopts label{font-size:11px;font-weight:650;color:var(--mut);gap:5px}
+  .advanced{border-color:rgba(60,60,67,.11);border-radius:13px;background:rgba(247,249,252,.76)}
+  .advanced summary{padding:10px 12px}.outputrow{padding:0 12px 12px}
+  .outputpath{color:#2d4158}.tempbadge{color:#198842}
   .preview{border:1px solid rgba(60,60,67,.1);border-radius:15px;background:#111722;box-shadow:inset 0 1px rgba(255,255,255,.08)}
   .preview canvas{border-radius:14px}.preview .empty{color:#cbd4e0}
   .cdnload{background:rgba(12,21,35,.83);backdrop-filter:blur(8px)}

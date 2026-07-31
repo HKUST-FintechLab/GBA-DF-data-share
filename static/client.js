@@ -1,5 +1,6 @@
 const I18N = window.GBA_DF_I18N;
 let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null, invitation:null};
+let videoOutput={path:"",temporary:true};
 let conn={state:"off", host:""};      // off | on | run | done
 const HOLISTIC_VERSION="0.5.1675471629";
 const HOLISTIC_CDN=`https://cdn.jsdelivr.net/npm/@mediapipe/holistic@${HOLISTIC_VERSION}`;
@@ -45,7 +46,7 @@ function applyLang(){
   document.querySelectorAll("[data-i-placeholder]").forEach(el=>{ const k=el.getAttribute("data-i-placeholder"); if(I18N[LANG][k]!=null) el.placeholder=I18N[LANG][k]; });
   $("#zhHans").classList.toggle("on",LANG==="zh"); $("#zhHant").classList.toggle("on",LANG==="zh-Hant"); $("#en").classList.toggle("on",LANG==="en");
   document.documentElement.lang = LANG;
-  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderStatus();
+  renderMods(); renderSteps(); updateS2Hint(); updateActionControls(); renderVideoOutput(); renderStatus();
 }
 $("#zhHans").onclick=()=>{LANG="zh";applyLang();};
 $("#zhHant").onclick=()=>{LANG="zh-Hant";applyLang();};
@@ -113,6 +114,18 @@ function updateActionControls(){
   $("#pick").textContent=action?t("pick_npz"):t("pick");
   if(cdp) $("#videoFps").value="4";
   $("#videoFps").disabled=cdp||videoImport.running;
+}
+function renderVideoOutput(){
+  if(!$("#videoOutputPath"))return;
+  $("#videoOutputPath").textContent=videoOutput.path||"—";
+  $("#videoOutputBadge").textContent=t(videoOutput.temporary?"video_output_temp":"video_output_permanent");
+  $("#resetVideoOutput").classList.toggle("hidden",videoOutput.temporary);
+}
+async function refreshVideoOutput(){
+  try{
+    const result=await api().video_output();
+    if(result?.ok){videoOutput=result;renderVideoOutput();}
+  }catch(_e){}
 }
 
 const CONNECTION_CONFIG_FORMAT="gba-df-client-config";
@@ -190,7 +203,8 @@ function setExtractProgress(fraction, status, count){
 }
 function setVideoBusy(busy){
   videoImport.running=busy;
-  ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps"].forEach(s=>$(s).disabled=busy);
+  ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps","#changeVideoOutput","#resetVideoOutput"]
+    .forEach(s=>$(s).disabled=busy);
   if(sel.modality==="action_cdp") $("#videoFps").disabled=true;
   $("#cancelVideo").classList.toggle("hidden",!busy);
   $("#s2next").disabled=busy||!sel.scan;
@@ -407,9 +421,18 @@ $("#retryCdn").onclick=async()=>{
 };
 $("#videoFiles").onchange=async event=>{
   const files=Array.from(event.target.files||[]); event.target.value=""; if(!files.length)return;
-  const dest=sel.folder?{ok:true,path:sel.folder}:await api().pick_folder();
+  const dest=await api().video_output();
   if(!dest.ok)return;
+  videoOutput=dest;renderVideoOutput();
   await runVideoBatch(files,dest);
+};
+$("#changeVideoOutput").onclick=async()=>{
+  const result=await api().pick_video_output();
+  if(result?.ok){videoOutput=result;renderVideoOutput();}
+};
+$("#resetVideoOutput").onclick=async()=>{
+  const result=await api().reset_video_output();
+  if(result?.ok){videoOutput=result;renderVideoOutput();}
 };
 
 $("#pick").onclick=async()=>{
@@ -500,6 +523,7 @@ $("#restart").onclick=()=>goStep(3);
 
 async function init(){
   try{ MODS=await api().list_modalities(); }catch(e){ MODS=[]; }
+  await refreshVideoOutput();
   try{ const d=await api().defaults();
     if(d){ $("#coord").value=d.coord||""; $("#nodeid").value=d.node_id||"node_1"; } }catch(e){}
   applyLang();

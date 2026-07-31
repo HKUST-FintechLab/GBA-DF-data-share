@@ -60,6 +60,20 @@
               <button class="btn stop hidden" id="cancelVideo" data-i="video_cancel">Cancel</button>
             </div>
           </div>
+          <details class="advanced" id="videoAdvanced">
+            <summary data-i="video_advanced">Advanced settings</summary>
+            <div class="outputrow">
+              <div class="outputmeta">
+                <span class="outputlabel" data-i="video_output_label">Extracted NPZ folder</span>
+                <code class="outputpath" id="videoOutputPath">—</code>
+                <span class="tempbadge" id="videoOutputBadge" data-i="video_output_temp">Temporary · removed when the app closes</span>
+              </div>
+              <div class="outputactions">
+                <button class="btn ghost" id="changeVideoOutput" data-i="video_output_change">Choose permanent folder…</button>
+                <button class="btn ghost hidden" id="resetVideoOutput" data-i="video_output_reset">Use temporary folder</button>
+              </div>
+            </div>
+          </details>
           <div class="preview">
             <video id="sourceVideo" muted playsinline preload="auto" class="hidden"></video>
             <canvas id="poseCanvas" width="640" height="360"></canvas>

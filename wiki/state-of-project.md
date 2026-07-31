@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-07-30
+Last updated: 2026-07-31
 
 ## Executive status
 
@@ -54,6 +54,11 @@ Verified on 2026-07-30:
 | P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
 
 ## Recently completed
+
+- **2026-07-31 — Single-dialog video import:** browser-extracted pose NPZ files now default to a
+  private per-process temporary folder that is cleaned when the desktop app exits. Video selection
+  therefore opens only the video picker. A collapsed advanced setting allows an institution to choose
+  a permanent NPZ output folder when retention is intentional.
 
 - **2026-07-30 — Experimental CDP feature adapter:** `action_cdp` now reproduces the historical
   CDP-TreeFusion 33→17 pose mapping and 230/1150-dimensional feature branches, then applies a
