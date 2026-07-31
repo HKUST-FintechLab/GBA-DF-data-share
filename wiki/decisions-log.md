@@ -1,8 +1,27 @@
 # Decisions Log
 
-Last updated: 2026-07-30
+Last updated: 2026-08-01
 
 Newest decisions appear first.
+
+## 2026-08-01 — Add unlabeled learning as a staged post-pilot research track
+
+- Keep the monitored September pilot on the current labeled, auditable leaf-count classifier. Do not
+  put semi-supervised, self-supervised or federated-gradient work on its critical path.
+- Add unlabeled learning to the roadmap because local video volume can materially exceed expert label
+  capacity, but make capability status explicit: it is a design/research track, not a current feature.
+- Fix the legacy unlabeled-to-TD fallback before exposing any unlabeled workflow.
+- Build local active learning with human confirmation first. It gives immediate label-efficiency value
+  while reusing the existing model download, supervised counts, secure aggregation and DP proof.
+- Evaluate hard pseudo-label self-training only after provenance, deduplication, abstention and
+  per-subject contribution limits exist. Never merge pseudo and human labels invisibly.
+- Prefer a public, frozen, hash-pinned SSL encoder feeding a new versioned modality and the current DP
+  forest before attempting federated encoder training.
+- Treat true federated SSL/FedAvg as a new protocol requiring update clipping, parameter aggregation,
+  a multi-step DP accountant, dropout recovery, poisoning tests and independent review. Do not inherit
+  the leaf-count protocol's security or sensitivity claims by analogy.
+- Split EEG and fMRI schemas before learned neuro representations; do not build on the current shared
+  128 Hz engineering assumption.
 
 ## 2026-07-30 — Keep CDP federation as a parallel experiment, outside the pilot path
 

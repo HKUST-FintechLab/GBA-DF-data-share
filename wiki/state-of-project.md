@@ -5,14 +5,21 @@ Last updated: 2026-08-01
 ## Executive status
 
 GBA-DF is a functioning engineering POC. It is ready for demonstrations and internal dry runs, and it
-has the core ingredients for a controlled research pilot: three modalities, local extraction,
+has the core ingredients for a controlled research pilot: four versioned front ends across three
+signal families, local extraction,
 pairwise-masked secure aggregation, coordinator-enforced central DP, a global epsilon budget,
 signed/persistent audit evidence, real JSON-payload accounting, a desktop client, and a dashboard.
 
 It is **not yet ready for unattended exposure on a hospital network**. Institution identity, round
-reliability, backup/restore, operational logging, and CI are now done. What remains is installable
-client delivery, offline browser assets, and institutional governance — plus the owner-required items
-in [`human-critical-path.md`](human-critical-path.md). None of it is another model feature.
+reliability, backup/restore, operational logging, offline browser-asset tooling, and CI are now done.
+What remains is installable client delivery, real-OS E2E, institutional governance, and the
+owner-required items in [`human-critical-path.md`](human-critical-path.md). None of it is another
+model feature.
+
+The shipped training path is a **labeled supervised DP forest**. Unlabeled training,
+self-supervised learning, semi-supervised learning and federated neural encoders are documented
+post-pilot research tracks, not implemented capabilities. The staged decision and backlog are in
+[`learning-modes.md`](learning-modes.md) and [`../TODO.md`](../TODO.md).
 
 ## Readiness by target
 
@@ -29,9 +36,9 @@ These percentages are planning estimates, not formal maturity certifications.
 
 Verified on 2026-07-30:
 
-- `uv run python verify_security.py` — 136 assertions passed across its core checks and the
-  coordinator HTTP/invitation/pinning/logging, shared-solo, CDP-adapter, round-integrity, and
-  backup/restore subprocess suites.
+- `uv run python verify_security.py` — the complete core and coordinator
+  HTTP/invitation/pinning/logging, shared-solo, CDP-adapter, round-integrity, and backup/restore
+  suites passed.
 - `uv run python modalities.py` — eyegaze, action, experimental action_cdp, and neuro extraction
   checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
@@ -150,4 +157,5 @@ now moves only if the owner-required items start.**
 
 The September target is a **monitored research pilot** with a small fixed cohort and a documented
 abort/restart procedure. It is not a clinical claim, a diagnostic product, or an unattended public
-service. Clinical use cannot be accelerated merely by completing engineering tasks.
+service. It remains on the current labeled classifier; new self/semi-supervised protocols do not
+enter its critical path. Clinical use cannot be accelerated merely by completing engineering tasks.

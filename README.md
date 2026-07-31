@@ -1,57 +1,77 @@
-# GBA-DF Federated Learning POC — multi-modal (eye-gaze · action · EEG/fMRI)
+# GBA-DF Federated Learning POC — multi-modal (eye-gaze · action · neuro time series)
 
-A **working** federated-learning proof-of-concept for the Greater Bay Area Data Federation.
-It demonstrates, end-to-end and recordable, the four claims the federation rests on — across
-**three data modalities** (eye-tracking, body-action/pose, EEG/fMRI), plus a parallel experimental
-CDP action front end, with a **desktop node client** a partner runs on their own machine
-(pick modality → pick folder → connect):
+A **working, end-to-end and auditable** federated-learning proof-of-concept for the Greater Bay Area
+Data Federation. One privacy kernel serves four heterogeneous local signal front ends—eye gaze,
+body-action/pose, experimental CDP pose representation, and EEG-like time series—through a desktop
+node client a partner can run as **pick modality → pick data → connect → contribute**.
 
-Project status and the compressed delivery schedule are maintained in the
-[`wiki/`](wiki/README.md).
+The architecture deliberately separates representation innovation from the privacy-preserving
+classifier. Each modality converts raw recordings to a versioned local feature vector; every modality
+then uses the same data-independent federated DP forest. This makes the system broad enough to
+demonstrate a multi-modal research platform while keeping the wire protocol, privacy budget and audit
+story inspectable rather than hiding them inside an opaque training service.
+
+Current release status is **labeled supervised classification**. Unlabeled inference is partially
+available; active learning, semi-supervised learning, frozen self-supervised encoders and true
+federated SSL are now a staged post-pilot research track, not shipped training features.
+
+Detailed references:
+
+| Guide | What it answers |
+|---|---|
+| [`wiki/modalities-and-models.md`](wiki/modalities-and-models.md) | Exactly what model/feature front end each modality uses, dimensions, assumptions and limitations |
+| [`wiki/learning-modes.md`](wiki/learning-modes.md) | Labeled vs unlabeled data, current supervised learning, active learning, semi-supervised and self-supervised designs |
+| [`wiki/evaluation-and-claims.md`](wiki/evaluation-and-claims.md) | AUC/sensitivity/specificity/calibration, test-set provenance and defensible claims |
+| [`TODO.md`](TODO.md) | Prioritized implementation roadmap and the decision on self/semi-supervised work |
+| [`wiki/state-of-project.md`](wiki/state-of-project.md) | Release readiness, blockers and pilot boundary |
 
 | Claim | How it's shown | Honest scope |
 |---|---|---|
 | **Multi-node** | Coordinator + N independent node processes (each can run on a different machine). | Fully supported. |
-| **DP + secure aggregation** | Every node uploads **pairwise-masked** integer leaf counts of a **shared, data-independent** forest. The coordinator can only recover the **pooled sum** (masks cancel) — never an individual node's counts — then adds **Laplace(1/ε)** to that secure aggregate (central DP on the sum) and meters a **global ε-budget**. | Genuine **(ε,0)-DP** on the aggregate, **basic composition**, ε **coordinator-enforced**. The coordinator never sees individual node data. Caveats: honest-but-curious, **non-colluding** coordinator; **full cohort required per round** (no Shamir dropout recovery — future work). |
+| **DP + secure aggregation** | With a cohort of 3 or more, every node uploads **pairwise-masked** integer leaf×class counts of a **shared, data-independent** forest. Masks cancel only in the full pooled sum; the coordinator then adds **Laplace(1/ε)** and meters a **global ε-budget**. | Genuine **(ε,0)-DP release** under row-level add/remove adjacency and basic composition. Secure aggregation hides each node's own counts, but the trusted central-DP curator sees the exact pooled pre-noise counts. It assumes an honest-but-curious, non-colluding coordinator and the exact full cohort. Cohort 1 has central DP only and no pairwise masking. |
 | **Persistent, exportable audit** | Each node update is **Ed25519-signed**; every event is coordinator-signed and hash-chained. The coordinator key, chain, node public keys, signed submission receipts, privacy spend, and latest model survive restarts. `GET /audit/bundle` exports a self-contained package for `verify_audit_bundle.py`. | Detects edits to the package, chain, receipts, or model. Files are written atomically with mode `0600`. A *fully compromised* coordinator still needs external anchoring (future work). |
 | **Federated ≈ centralized-DP, robust to non-IID** | Multi-seed benchmark (`bench.py`) vs centralized-DP + the non-private ceiling, IID **and** non-IID. | Secure-agg tracks centralized-DP and **recovers the non-IID collapse**: the naive per-node ensemble drops to **0.51±0.10** under label skew; secure-agg holds **0.73±0.03** (figure below). |
 
-Verified run (HAR, 3 nodes × 5 rounds, **ε=1/round**): federated **secure-agg DP ≈ 0.80 ≈ centralized-DP
-0.72** vs **non-private ceiling 0.972** (the DP utility cost); coordinator sees only masked sums, global
-ε metered (5.0/10), under-budget/`429` enforced, audit **chain + signatures verified**.
-`verify_security.py` runs **136 assertions** across the core, API-security, shared-solo, CDP-adapter,
-round-integrity, and backup/restore suites. Hardened across **four rounds** of adversarial code audit
-(security · regressions · DP correctness · secure aggregation).
-
-Each modality is its **own federation** (its own feature schema); the privacy machinery is identical —
-only the front end that turns raw recordings into features changes. Verified live end-to-end on all three
-(3 nodes × 4 rounds, ε=1/round): eye-gaze fed AUC **0.78**, action **~0.80**, EEG/fMRI **0.80**, each
-≈ its centralized-DP reference and below its non-private ceiling.
+`verify_security.py` exercises the core, API boundary, invitations/pinning, shared-solo mode,
+CDP adapter, round integrity and backup/restore; `modalities.py` runs every synthetic raw-data front end
+through its real extractor. The tracked HAR multi-seed figure below is the reproducible utility
+benchmark. Modality-demo metrics are synthetic engineering checks unless a separately governed real,
+grouped and institution-held-out evaluation artifact is supplied.
 
 ![Privacy–utility tradeoff: the price of the ε-guarantee, and secure aggregation's non-IID recovery](assets/epsilon_utility.png)
 
-*The privacy dial (HAR, 3 nodes, 5 seeds). Non-private ceiling ≈ 0.98 → DP ≈ 0.73 is the honest cost of
-the ε-guarantee. Under non-IID label skew the naive per-node ensemble **collapses** (~0.51) while secure
-aggregation **holds** (~0.73), tracking the centralized-DP reference. Regenerate with `uv run python bench.py`.*
+*The privacy dial (HAR engineering benchmark, 3 nodes, 5 seeds). Non-private ceiling ≈ 0.98 → DP ≈
+0.73 illustrates the utility cost of the current data-independent structure. Under the benchmark's
+non-IID label skew the naive per-node ensemble collapses (~0.51) while pooled secure aggregation holds
+near the centralized-DP mechanism (~0.73). This is not an ASD clinical result. Regenerate with
+`uv run python bench.py`.*
 
 ## Method — DP federated forest
 
-**Secure aggregation + central differential privacy** (a strategy that fits tree / random-forest models
-whose leaves are class histograms):
+**Data-independent forest + central differential privacy**, with pairwise secure aggregation when the
+cohort contains at least three nodes (a strategy that fits tree-like models whose leaves are class
+histograms):
 
 - **Shared, data-independent forest** — all nodes build the *same* trees from a **public** structure
   seed; splits are random features + thresholds from **public** per-feature bounds (HAR is documented-
   normalised to [-1,1]; each modality is mapped into the same public [-1,1] range by a shipped public
   `tanh(raw/scale)` transform). Private data never influences tree shape (`verify_security.py` proves this).
-- **Node** — routes its local data to leaves (each record → one tree ⇒ L1 sensitivity 1), then masks
-  its integer count vector with **pairwise X25519 masks** (`secure_agg.mask_counts`) and uploads only
-  the masked vector.
-- **Coordinator** — sums the masked vectors; the masks cancel, so it recovers **only the pooled leaf
-  counts** (never an individual node's), then adds **Laplace(1/ε)** to that sum (`dp.forest_from_summed_counts`)
-  and meters a **global ε-budget**. Disjoint records ⇒ *parallel* composition within a round; rounds
-  compose sequentially (basic composition).
-- Because the secure sum is the pooled distribution, the result tracks **centralized-DP even under
-  non-IID** — fixing the per-node-ensemble collapse.
+- **Node** — routes each labeled feature row to one tree and one leaf, incrementing that leaf's class
+  bin. Under add/remove-one-row adjacency this gives L1 sensitivity 1. With a cohort of 3 or more the
+  integer vector is protected by **pairwise X25519 masks** (`secure_agg.mask_counts`).
+- **Coordinator** — in secure mode, sums the masked vectors and recovers the exact **pooled pre-noise
+  leaf×class counts**, never an individual node's counts; it then adds **Laplace(1/ε)**
+  (`dp.forest_from_summed_counts`) and meters a **global ε-budget**. In cohort-1 mode the submitted
+  vector has no pairwise mask, so this is trusted-curator central DP rather than secure aggregation.
+  Disjoint rows imply parallel composition within a round; rounds compose sequentially.
+- Because the secure sum represents pooled counts, it targets the same mechanism as the
+  centralized-DP reference; in the tracked HAR non-IID benchmark this avoids the naive
+  per-node-ensemble collapse. This is an empirical benchmark result, not a guarantee for every model
+  or adversarial dataset.
+
+The privacy unit is currently one feature row/window, not automatically one video or one person. A
+person contributing multiple recordings needs contribution clipping and a new group-level privacy
+analysis before the project can claim person-level DP.
 
 The non-private ceiling (label-optimised ExtraTrees) and a centralized-DP reference are computed in
 `prepare_data.py`; `bench.py` produces the multi-seed IID/non-IID comparison and the ε-utility figure
@@ -64,18 +84,57 @@ The legacy per-node-ensemble path (`dp.build_dp_counts`/`add_dp_noise`) is retai
 its own front end, then feeds the identical federation. `demo_dataset()` synthesizes a realistic cohort so
 every modality runs end-to-end through the **same** extractor a real folder would:
 
-| Modality | Raw files a partner has | Features → task | Dim |
-|---|---|---|---|
-| **`eyegaze`** | one gaze CSV per recording (`x, y[, pupil]`), under `asd/` `td/` | fixation / saccade / spatial-attention summary → ASD/TD | 32 |
-| **`action`** | raw video converted locally by the desktop client, or one MediaPipe-pose `.npz` (key `body`, `(T,33,4)`) per clip | kinematic pose features (`features.py`) → ASD/TD | 174 |
-| **`action_cdp`** *(experimental)* | the same local MediaPipe-pose `.npz` as `action` | historical CDP 17-point mapping → 230/1150 branches → frozen 40+64 selected representation → ASD/TD | 104 |
-| **`neuro`** | one EEG/fMRI `.npz` (key `ts`, channels×time) or CSV per scan | spectral band-power + functional-connectivity summary → ASD/TD | 48 |
+| Modality | Local front end | Analysis unit | Federated representation | Final classifier |
+|---|---|---|---:|---|
+| **`eyegaze`** | gaze CSV → I-VT-style fixation/saccade, spatial-attention and pupil summaries; assumes roughly 30 Hz | one CSV recording | 32 | common supervised DP forest |
+| **`action`** | local MediaPipe 33-point pose → translation/scale-normalized kinematics | one `(T,33,4)` window; a 4D NPZ contributes multiple grouped windows | 174 | common supervised DP forest |
+| **`action_cdp`** *(experimental)* | 33→17 points → 230/1150 branches → frozen scaler/selectors → 40+64 | one valid 24–64 sampled-frame clip/window | 104 | common supervised DP forest, **not** the historical CDP ExtraTrees |
+| **`neuro`** | 128-Hz EEG-like spectral/connectivity summary from a 2D time series | one scan/file | 48 schema slots: 28 computed + 20 reserved zeros | common supervised DP forest |
 
 Features are squashed into the **public** `[-1,1]` DP range by `tanh(raw / scale)`, where `scale` is a
 **shipped public constant** (`public_scales.json`) computed once from a fixed-seed synthetic *reference*
 cohort — **never** from participant data (`verify_security.py` proves it stays public and participant-
-independent). `tanh` is monotone, so tree accuracy is unchanged while the DP forest gets a genuinely
-public range to draw thresholds from.
+independent). `tanh` preserves each feature's ordering and supplies a genuinely public threshold range;
+it does **not** by itself guarantee unchanged accuracy because the random-threshold distribution and
+finite ensemble still matter.
+
+### What model is actually trained?
+
+- `eyegaze` and `neuro` use deterministic statistical front ends; they do not currently contain a
+  learned ASD encoder.
+- `action` uses a pretrained MediaPipe model locally for **pose extraction**, not ASD classification;
+  its 174-dimensional classifier input is then computed deterministically.
+- `action_cdp` reuses a frozen historical representation adapter but does not load, aggregate or
+  continue training the historical classifier.
+- All four final global models are pickle-free ensembles of the same data-independent DP forest type.
+- `prepare_data.py`'s label-optimized ExtraTrees is a non-private comparison ceiling, not the deployed
+  federated model.
+
+The exact dimensions, assumptions and scientific limitations are documented in
+[`wiki/modalities-and-models.md`](wiki/modalities-and-models.md).
+
+### Labeled and unlabeled data
+
+The current training protocol is supervised: every local feature row needs an ASD/TD label because the
+node builds leaf×class integer counts. Raw labels are not uploaded row by row, but pooled class-conditioned
+statistics do leave the nodes under the documented aggregation boundary.
+
+> **Important:** the current raw-folder parser does not implement an unlabeled class. A file whose path
+> and filename contain neither `asd` nor `td` falls back to TD for legacy demo compatibility. Do not put
+> an `unlabeled/` directory under a training root; it will contaminate TD. Fail-closed unlabeled handling
+> is the first item in [`TODO.md`](TODO.md).
+
+| Learning mode | Status |
+|---|---|
+| Labeled supervised forest | **Implemented** |
+| Downloaded-model inference on X without truth | Partially implemented |
+| Active learning with human confirmation | Chosen near-term design; not yet productized |
+| Hard pseudo-label semi-supervised learning | Post-pilot experiment; not implemented |
+| Public frozen self-supervised encoder + DP forest | Chosen research route; not implemented |
+| True federated SSL/FedAvg/teacher-student | New protocol generation; not implemented |
+
+See [`wiki/learning-modes.md`](wiki/learning-modes.md) for algorithms, privacy implications, evidence
+gates and the staged roadmap.
 
 ### Experimental CDP adapter
 
@@ -122,14 +181,14 @@ This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`
 git clone https://github.com/HKUST-FintechLab/GBA-DF-data-share.git
 cd GBA-DF-data-share
 uv sync                                   # creates .venv from pyproject.toml / uv.lock
-uv run python verify_security.py          # 136 assertions across the complete security/regression suite
-uv run python modalities.py               # optional: self-check three modalities + CDP action variant
+uv run python verify_security.py          # complete security/protocol regression suite
+uv run python modalities.py               # self-check four front ends, including CDP action experiment
 
 # one command: prepare data -> start coordinator -> run all nodes -> live dashboard
 uv run python run_demo.py --nodes 3 --rounds 5                 # HAR benchmark
 uv run python run_demo.py --modality eyegaze --prepare         # eye-tracking federation
 uv run python run_demo.py --modality action_cdp --prepare      # experimental CDP adapter
-uv run python run_demo.py --modality neuro --noniid --prepare  # EEG/fMRI, skewed cohort
+uv run python run_demo.py --modality neuro --prepare           # EEG-like time-series POC
 # open the dashboard URL it prints (http://localhost:8055), then start your screen recorder
 ```
 
@@ -143,7 +202,7 @@ Re-prepare / change dataset or modality:
 uv run python prepare_data.py --modality eyegaze --nodes 3     # eye-tracking (synth demo cohort)
 uv run python prepare_data.py --modality action  --nodes 3     # body-pose action
 uv run python prepare_data.py --modality action_cdp --nodes 3  # CDP adapter experiment
-uv run python prepare_data.py --modality neuro   --nodes 3     # EEG/fMRI
+uv run python prepare_data.py --modality neuro   --nodes 3     # EEG-like time-series POC
 uv run python prepare_data.py --dataset  har     --nodes 3 --total-trees 600   # benchmark
 uv run python run_demo.py --prepare --modality eyegaze --nodes 3 --rounds 5
 ```
@@ -379,7 +438,7 @@ uv run uvicorn coordinator:app --host 0.0.0.0 --port 8055
 
 # on the partner's machine (their data stays on their machine)
 uv run python node.py --node-id partner_lab --coord http://<coordinator-host>:8055 \
-    --data /path/to/their/local/data.npz --rounds 5 --trees 40 --name "University Lab"
+    --data /path/to/their/local/data.npz --rounds 5 --name "University Lab"
 ```
 
 `data.npz` holds their local `X` (features) and `y` (labels). Their private signing key is generated
@@ -387,21 +446,22 @@ next to it (`node_key.pem`) and **never leaves the machine**.
 
 ## Using the trained model (as a data-user / central node)
 
-The model everyone trained together lives in the coordinator as an aggregated, pickle-free JSON forest
-(a weighted ensemble of the per-round secure-aggregated DP forests). Two ways to consume it:
+The model everyone trained together lives in the coordinator as an aggregated, pickle-free JSON forest:
+a weighted ensemble of per-round DP forests. Cohorts of three or more use secure-aggregated pooled
+counts; cohort 1 uses a single-node central-DP count path. Two ways to consume it:
 
 ```bash
 # (A) LOCAL inference — download the model once, score your OWN recordings offline so your
 #     query data also stays on your machine (symmetric with training):
-uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+uv run python predict.py --coord http://<host>:8055 --password <read-password> \
   --folder my_new_cases --out predictions.csv
 
 # (B) HOSTED inference — send feature rows to the coordinator's /predict (convenience):
-uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+uv run python predict.py --coord http://<host>:8055 --password <read-password> \
   --folder my_new_cases --hosted --out predictions.csv
 
 # just archive the model artifact (JSON, with provenance) for offline / audit use:
-uv run python predict.py --coord http://<host>:8062 --password <read-password> \
+uv run python predict.py --coord http://<host>:8055 --password <read-password> \
   --save-model global_model.json
 ```
 
@@ -414,8 +474,8 @@ accuracy. The endpoints are:
 - **`POST /predict`** — `{"X": [[…]]}` in the published feature order → `{proba, pred}`. Prefer `GET
   /model` + local inference when the query data is itself sensitive.
 
-Verified live (action modality, 5 rounds, ε=1/round): downloaded a 100-tree model (held-out AUC 0.805),
-scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns identical predictions.
+An internal synthetic action rehearsal downloaded a 100-tree model, scored held-out demo recordings
+locally, and matched hosted predictions. That verifies artifact portability, not clinical accuracy.
 
 ## Files
 
@@ -428,8 +488,8 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `cdp_features.py` | pure-NumPy CDP 33→17 mapping, 230/1150 branch features, pinned JSON validation, and 104-feature transform |
 | `assets/cdp_adapter_v1.json` | allow-listed, hash-pinned CDP scaler/selector metadata; no participant IDs, executable model, or classifier trees |
 | `export_cdp_adapter.py` | explicit hash-pinned, local-only migration tool from a trusted historical pickle to the data-only adapter |
-| `prepare_data.py` | split off coordinator test set, partition train across nodes, train centralized baseline (`--modality` or `--dataset`) |
-| `fed_common.py` | Ed25519 signing, signature-verified hash-chained `Audit`, multiclass `GlobalModel` (forest merge) |
+| `prepare_data.py` | recording/file-grouped coordinator test split when groups exist, node partitioning, centralized references (`--modality` or `--dataset`) |
+| `fed_common.py` | Ed25519 signing, signature-verified hash-chained `Audit`, global JSON-forest ensemble and binary diagnostics |
 | `dp.py` | DP random forest: data-independent splits, leaf counts, shared-forest + curator noise |
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |
 | `bench.py` | multi-seed IID/non-IID benchmark + the ε-utility figure (`assets/epsilon_utility.png`) |
@@ -452,9 +512,11 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 | `admin_backup.py` | back up / inspect / restore the coordinator key, signed state, and invitation registry |
 | `fetch_offline_assets.py` | mirror + hash-pin the browser MediaPipe assets for offline/CDN-free operation |
 | `.github/workflows/verify.yml` | CI: full verification suite, known-vulnerability audit, CycloneDX SBOM |
-| `static/dashboard.html` | live coordinator dashboard: accuracy, nodes, persistent signed audit and package download |
+| `static/dashboard.html` | full-canvas topology console: cohort/privacy mode, AUC and deltas, sensitivity/specificity, calibration, confusion matrix, ε ledger, signed audit replay and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
+| `TODO.md` | prioritized pilot and post-pilot backlog, including active/semi/self-supervised learning gates |
+| `wiki/` | canonical model, learning-mode, evaluation, delivery and decision documentation |
 
 ## Security (hardened after an adversarial code audit)
 
@@ -464,9 +526,10 @@ scored 10 unseen recordings locally at **9/10 correct**; the hosted path returns
 - **Signatures bind the payload.** The node signs `node_id | round | n_samples | sha256(masked)`, so
   nothing can be altered in transit. The merge weight is the `n_samples` the node **declared at
   enrolment** (signature-bound, but not independently verified — see honesty notes).
-- **Secure aggregation + global ε-budget:** nodes upload only pairwise-masked counts; the coordinator
-  recovers just the pooled sum (masks cancel), adds the DP noise itself, meters a **global** ε budget,
-  and rejects (`429`) once exhausted. ε is coordinator-set, never node-declared.
+- **Secure aggregation + global ε-budget:** with at least three nodes, nodes upload pairwise-masked
+  counts and the coordinator recovers the exact pooled pre-noise sum without being able to isolate a
+  node. It adds DP noise, meters a **global** ε budget, and rejects (`429`) once exhausted. Cohort 1
+  sends unmasked counts to the central-DP curator and is never described as secure aggregation.
 - **Cohort integrity:** enrolment is **capped at the cohort size** (extra nodes → `409`) and a round
   aggregates only when the **exact enrolled set** has submitted — otherwise residual masks would
   silently corrupt the sum. A startup warning fires if **cohort < 3** (masking needs ≥3 to be meaningful).
@@ -500,12 +563,12 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
 
 ## Honesty notes (deliberate — meant to be defensible, not self-certified)
 
-- **Privacy is secure-aggregation + central-DP:** the coordinator only ever sees **pairwise-masked**
-  vectors whose sum is the pooled leaf counts — it never sees an individual node's data or un-noised
-  aggregate — then adds Laplace at ε (coordinator-enforced) on the secure sum. Trust model:
-  **honest-but-curious, non-colluding** coordinator; **full cohort required per round** (no Shamir
-  dropout recovery yet). Accounting is **basic composition** (RDP would be tighter). A fully
-  compromised coordinator is out of scope.
+- **Privacy is central-DP plus secure aggregation for cohorts of at least three:** secure aggregation
+  hides each institution's own leaf×class counts, but the trusted curator recovers the exact pooled
+  pre-noise counts and then adds coordinator-enforced Laplace noise. Cohort 1 exposes that one node's
+  counts to the curator before noise. Trust model: honest-but-curious, non-colluding coordinator;
+  full cohort required per secure round. Accounting is basic composition. A fully compromised
+  coordinator is out of scope.
 - **Secure aggregation hides inputs; it does NOT verify them.** A malicious node could upload in-range
   garbage counts and skew the model — input-robustness (range proofs / Byzantine-robust aggregation) is
   out of scope, and the (ε,0)-DP guarantee assumes *honest* leaf counts (the sensitivity-1 bound is not
@@ -515,6 +578,12 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
   price of the guarantee — shown explicitly via the non-private ceiling and the `dp.py` ε-sweep.
 - **The "convergence" curve is ensemble-size variance reduction, not round-over-round learning** —
   tree-merge has no iterative training; the dashboard labels the axis accordingly.
+- **The privacy unit is a feature row/window under add/remove adjacency, not automatically a video or
+  person.** A person contributing several files or windows needs contribution clipping and a new
+  group-level analysis before a person-level DP claim is valid.
+- **Current training is labeled only.** A file without an ASD/TD path or filename token currently
+  falls back to TD; never place unlabeled files under a training root. Active learning,
+  pseudo-labeling and SSL are documented roadmap items, not shipped training modes.
 - **HAR uses a window-level stratified, IID, single-seed split** (the OpenML variant has no subject
   ids). Absolute ~0.96/0.97 is optimistic; the federated-vs-centralized *gap* is the honest result.
   The optional `pose` loader uses a subject-level split when you supply seed data.
@@ -524,6 +593,9 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
   claim of clinical accuracy on real patients. The feature extractors are standard, literature-shaped
   summaries (fixation/saccade; pose kinematics; band-power + connectivity), not tuned biomarkers. Point
   the client at real recordings in the documented format and the identical path runs on real data.
+- **`neuro` is presently an EEG-oriented engineering adapter.** It assumes 128 Hz, computes 28
+  statistics in a 48-slot versioned schema, and leaves 20 slots reserved at zero. Those assumptions
+  are not a validated fMRI model; a real fMRI path needs a separate TR-aware schema.
 - **The historical CDP locked-test AUC does not transfer to `action_cdp`.** The experiment reuses its
   representation but trains a different data-independent DP forest. Any improvement claim needs a
   grouped, institution-held-out comparison against the frozen CDP model; more data or federation alone
