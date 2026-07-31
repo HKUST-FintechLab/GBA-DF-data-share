@@ -193,7 +193,11 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
                "primary_metric": sch.get("primary_metric", "acc"), "ok": True, "error": None,
                "current_round": None, "application_bytes_sent": 0,
                "application_bytes_received": 0, "masked_payload_bytes_sent": 0,
-               "protocol_metadata_bytes_sent": 0}
+               "protocol_metadata_bytes_sent": 0,
+               # Display-only. Length of the flattened leaf-count vector this node masks and
+               # uploads; already public in the audit chain as `masked_cells`. Nothing in the
+               # protocol reads it, and the desktop client treats it as optional.
+               "masked_cells": 0}
 
     def post_json(path, payload, masked_bytes=0):
         """Send and count the exact UTF-8 JSON application body (not HTTP/TLS overhead)."""
@@ -272,6 +276,7 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             trees = dpmod.build_shared_structure(struct_seed + rd, X.shape[1], bounds, depth, n_trees)
             counts = dpmod.count_on_shared(trees, X, y, classes, assign_seed=seed * 100 + rd)
             flat = dpmod.flatten_counts(counts)
+            summary["masked_cells"] = len(flat)
 
             resp = None
             for attempt in range(RECONNECT_ATTEMPTS):

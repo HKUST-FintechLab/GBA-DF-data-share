@@ -17,3 +17,8 @@ static/vendor/*
 !static/vendor/mediapipe/
 static/vendor/mediapipe/*
 !static/vendor/mediapipe/manifest.json
+
+# mirrored display fonts: same arrangement — binaries local, manifest tracked
+!static/vendor/fonts/
+static/vendor/fonts/*
+!static/vendor/fonts/manifest.json
