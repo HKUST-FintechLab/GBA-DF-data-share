@@ -7,172 +7,166 @@
 <link rel="stylesheet" href="client.css"/>
 </head>
 <body>
-<div class="app">
-  <div class="titlebar">
-    <div class="logo">DF</div>
-    <div>
-      <div class="tname" data-i="title">GBA-DF Federated Node</div>
-      <div class="tsub" data-i="subtitle">Join a data federation — your raw data never leaves this machine</div>
-    </div>
-    <div class="spacer"></div>
-    <div class="lang" aria-label="Language"><button id="zhHans">简体</button><button id="zhHant">繁體</button><button id="en" class="on">EN</button></div>
+<!-- One full-bleed stage. Every step is a scene drawn on it; the chrome lives in the corners. -->
+<canvas id="stage"></canvas>
+<div class="vignette"></div>
+
+<div class="ui">
+  <div class="wordmark"><b>GBA·DF</b> &nbsp;/&nbsp; <span data-i="wordmark">FEDERATED NODE</span></div>
+
+  <div class="lang" aria-label="Language">
+    <button id="zhHans">简体</button><button id="zhHant">繁體</button><button id="en" class="on">EN</button>
   </div>
 
-  <div class="workspace">
-    <nav class="sidebar">
-      <div class="rail" id="steps"></div>
-      <div class="sidefoot">
-        <span class="lk"><span class="dotk"></span><span data-i="side_local">Data stays on this machine</span></span>
+  <div class="status"><span class="dot" id="stDot"></span><span id="stConn"></span>
+    <span id="stEps" class="stmeta"></span></div>
+
+  <!-- the scene caption: index, title, one line of plain language -->
+  <div class="caption" id="caption">
+    <div class="idx" id="sceneIdx"></div>
+    <h1 id="sceneTitle"></h1>
+    <div class="sub" id="sceneSub"></div>
+  </div>
+
+  <!-- ============================ 01 · data type ============================ -->
+  <section class="scene" data-step="1">
+    <div class="picks" id="mods"></div>
+  </section>
+
+  <!-- ============================ 02 · your data ============================ -->
+  <section class="scene hidden" data-step="2">
+    <div class="panel">
+      <div class="acts">
+        <button class="btn primary" id="pick" data-i="pick">Choose folder…</button>
+        <button class="btn hidden" id="pickvideo" data-i="pickvideo">Extract raw video…</button>
+        <button class="btn" id="gendemo" data-i="gendemo">No data? Generate a demo folder</button>
+        <input type="file" id="videoFiles" accept="video/*,.mp4,.mov,.m4v,.webm" multiple class="hidden"/>
       </div>
-    </nav>
 
-    <div class="content">
-      <!-- STEP 1 -->
-      <section class="pane" data-step="1">
-        <h2 data-i="s1_h">Choose your data type</h2>
-        <div class="hint" data-i="s1_hint">Which kind of recordings will this node contribute? Each modality is its own federation.</div>
-        <div class="mods" id="mods"></div>
-      </section>
+      <div class="foldbox hidden" id="foldbox">
+        <div class="path" id="foldpath">—</div>
+        <div class="kv" id="foldkv"></div>
+      </div>
+      <div id="s2msg"></div>
+      <div class="hint" id="s2hint"></div>
+    </div>
 
-      <!-- STEP 2 -->
-      <section class="pane hidden" data-step="2">
-        <h2 data-i="s2_h">Select your data folder</h2>
-        <div class="hint" id="s2hint"></div>
-        <div class="row">
-          <button class="btn primary" id="pick" data-i="pick">Choose folder…</button>
-          <button class="btn ghost hidden" id="pickvideo" data-i="pickvideo">Extract raw video…</button>
-          <button class="btn ghost" id="gendemo" data-i="gendemo">No data? Generate a demo folder</button>
-          <input type="file" id="videoFiles" accept="video/*,.mp4,.mov,.m4v,.webm" multiple class="hidden"/>
+    <!-- browser pose extraction, shown only for the action modality -->
+    <div class="videoimport hidden" id="videoImport">
+      <div class="videohead">
+        <div class="grow">
+          <div class="vh" data-i="video_h">Browser pose extraction</div>
+          <div class="vs" data-i="video_s">MediaPipe loads on demand; selected videos never leave this device.</div>
         </div>
-        <div class="videoimport hidden" id="videoImport">
-          <div class="videohead">
-            <div class="grow">
-              <div class="vh" data-i="video_h">Browser pose extraction</div>
-              <div class="vs" data-i="video_s">MediaPipe loads on demand; selected videos never leave this device.</div>
-            </div>
-            <div class="videoopts">
-              <label><span data-i="video_label">Class for this batch</span>
-                <select id="videoLabel"><option value="ASD">ASD</option><option value="TD">TD</option></select>
-              </label>
-              <label><span data-i="video_fps">Sample rate</span>
-                <select id="videoFps"><option value="2">2 fps</option><option value="4" selected>4 fps</option><option value="8">8 fps</option></select>
-              </label>
-              <button class="btn stop hidden" id="cancelVideo" data-i="video_cancel">Cancel</button>
-            </div>
-          </div>
-          <div class="preview">
-            <video id="sourceVideo" muted playsinline preload="auto" class="hidden"></video>
-            <canvas id="poseCanvas" width="640" height="360"></canvas>
-            <div class="empty" id="previewEmpty" data-i="video_empty">Choose one or more videos to see pose extraction here.</div>
-            <div class="cdnload hidden" id="cdnLoad">
-              <div class="cdncard">
-                <div class="loadring"></div>
-                <div class="cdntitle" id="cdnTitle">Loading MediaPipe</div>
-                <div class="cdndetail" id="cdnDetail">Connecting to CDN…</div>
-                <div class="cdnprogress indeterminate" id="cdnProgress"><div class="fill" id="cdnFill"></div></div>
-                <button class="btn cdnretry hidden" id="retryCdn" data-i="cdn_retry">Retry</button>
-              </div>
+        <div class="videoopts">
+          <label><span data-i="video_label">Class for this batch</span>
+            <select id="videoLabel"><option value="ASD">ASD</option><option value="TD">TD</option></select>
+          </label>
+          <label><span data-i="video_fps">Sample rate</span>
+            <select id="videoFps"><option value="2">2 fps</option><option value="4" selected>4 fps</option><option value="8">8 fps</option></select>
+          </label>
+          <button class="btn stop hidden" id="cancelVideo" data-i="video_cancel">Cancel</button>
+        </div>
+      </div>
+      <!-- Two panes, deliberately side by side: the recording on the left, and on the right
+           exactly what is kept from it. For a non-technical room this one image carries the
+           whole argument better than any sentence. -->
+      <div class="panes">
+        <div class="preview">
+          <div class="ptag" data-i="video_src">the recording · stays on this machine</div>
+          <!-- parked offscreen rather than display:none — Chromium can leave a display:none
+               media element stalled at readyState 0, so loadeddata never fires and extraction
+               hangs before MediaPipe is ever reached -->
+          <video id="sourceVideo" muted playsinline preload="auto" class="offscreen"></video>
+          <canvas id="poseCanvas" width="640" height="360"></canvas>
+          <div class="empty" id="previewEmpty" data-i="video_empty">Choose one or more videos to see pose extraction here.</div>
+          <div class="cdnload hidden" id="cdnLoad">
+            <div class="cdncard">
+              <div class="loadring"></div>
+              <div class="cdntitle" id="cdnTitle">Loading MediaPipe</div>
+              <div class="cdndetail" id="cdnDetail">Connecting to CDN…</div>
+              <div class="cdnprogress indeterminate" id="cdnProgress"><div class="fill" id="cdnFill"></div></div>
+              <button class="btn cdnretry hidden" id="retryCdn" data-i="cdn_retry">Retry</button>
             </div>
           </div>
-          <div class="extractbar"><div class="extractfill" id="extractFill"></div></div>
-          <div class="extractmeta"><span id="extractStatus">—</span><span id="extractCount">0 / 0</span></div>
-          <div class="extractlog" id="extractLog"></div>
         </div>
-        <div class="foldbox hidden" id="foldbox">
-          <div class="path" id="foldpath">—</div>
-          <div class="kv" id="foldkv"></div>
+        <div class="preview kept">
+          <div class="ptag keep" data-i="video_kept">what is kept · movement only</div>
+          <canvas id="poseSkeleton" width="640" height="360"></canvas>
+          <div class="empty" id="skeletonEmpty" data-i="video_kept_empty">No face, no pixels — only the moving geometry.</div>
         </div>
-        <div id="s2msg"></div>
-        <div class="note" data-i="s2_note"></div>
-        <div class="nav">
-          <button class="btn ghost" data-back="1" data-i="back">Back</button>
-          <div class="spacer"></div>
-          <button class="btn primary" id="s2next" disabled data-i="next">Next</button>
-        </div>
-      </section>
+      </div>
+      <div class="extractbar"><div class="extractfill" id="extractFill"></div></div>
+      <div class="extractmeta"><span id="extractStatus">—</span><span id="extractCount">0 / 0</span></div>
+      <div class="extractlog" id="extractLog"></div>
+    </div>
+  </section>
 
-      <!-- STEP 3 -->
-      <section class="pane hidden" data-step="3">
-        <h2 data-i="s3_h">Node & coordinator</h2>
-        <div class="hint" data-i="s3_hint">Enter the coordinator address your group shared, and a name for this node.</div>
+  <!-- ============================ 03 · connect ============================ -->
+  <section class="scene hidden" data-step="3">
+    <div class="panel">
+      <div class="field"><label class="fld" for="coord" data-i="f_coord">Coordinator URL</label>
+        <input type="text" id="coord" placeholder="http://coordinator-host:8055"/></div>
+      <div class="field"><label class="fld" for="passwd" data-i="f_pass">Password</label>
+        <input type="password" id="passwd" placeholder="shared federation password"/></div>
+
+      <details class="more" id="advanced">
+        <summary data-i="advanced">Node identity and rounds</summary>
         <div class="grid2">
-          <div>
-            <label class="fld" data-i="f_coord">Coordinator URL</label>
-            <input type="text" id="coord" placeholder="http://coordinator-host:8055"/>
-          </div>
-          <div>
-            <label class="fld" data-i="f_pass">Password</label>
-            <input type="password" id="passwd" placeholder="shared federation password"/>
-          </div>
-          <div>
-            <label class="fld" data-i="f_nodeid">Node ID</label>
-            <input type="text" id="nodeid" placeholder="node_1"/>
-          </div>
-          <div>
-            <label class="fld" data-i="f_name">Display name</label>
-            <input type="text" id="nodename" placeholder="e.g. Shenzhen Partner Clinic"/>
-          </div>
-          <div>
-            <label class="fld" data-i="f_rounds">Rounds</label>
-            <input type="number" id="rounds" value="5" min="1" max="20"/>
-          </div>
+          <div class="field"><label class="fld" for="nodeid" data-i="f_nodeid">Node ID</label>
+            <input type="text" id="nodeid" placeholder="node_1"/></div>
+          <div class="field"><label class="fld" for="nodename" data-i="f_name">Display name</label>
+            <input type="text" id="nodename" placeholder="e.g. Shenzhen Partner Clinic"/></div>
+          <div class="field"><label class="fld" for="rounds" data-i="f_rounds">Rounds</label>
+            <input type="number" id="rounds" value="5" min="1" max="20"/></div>
         </div>
-        <div class="row" style="margin-top:14px">
-          <button class="btn ghost" id="importConfig" data-i="import_config">Import connection config…</button>
-          <button class="btn ghost" id="testconn" data-i="testconn">Test connection</button>
-        </div>
-        <div id="s3msg"></div>
-        <div class="nav">
-          <button class="btn ghost" data-back="2" data-i="back">Back</button>
-          <div class="spacer"></div>
-          <button class="btn primary" id="s3next" disabled data-i="s3_start">Connect & start</button>
-        </div>
-      </section>
+      </details>
 
-      <!-- STEP 4 -->
-      <section class="pane hidden" data-step="4">
-        <h2 data-i="s4_h">Federated training — live</h2>
-        <div class="banner">
-          <div class="big">🔒 <span data-i="s4_private">Raw data stays local</span></div>
-          <div class="tx" data-i="s4_banner">This node shares pairwise-masked integer counts only; the coordinator recovers just the pooled sum.</div>
-        </div>
-        <div class="runstats">
-          <div class="rs hero"><div class="l" data-i="rs_fed">Global model</div><div class="v" id="rsFed">—</div><div class="l" id="rsMetric">metric</div></div>
-          <div class="rs"><div class="l" data-i="rs_round">Round</div><div class="v" id="rsRound">0</div></div>
-          <div class="rs"><div class="l" data-i="rs_eps">Privacy ε used</div><div class="v" id="rsEps">0</div><div class="epsbar"><div class="epsfill" id="epsFill"></div></div></div>
-          <div class="rs"><div class="l" data-i="rs_samp">Local samples</div><div class="v" id="rsSamp">—</div></div>
-          <div class="rs"><div class="l" data-i="rs_tx">FL JSON payload sent</div><div class="v" id="rsTx">0 B</div><div class="l" id="rsTxDetail" data-i="rs_tx_detail">masked 0 B · metadata 0 B</div></div>
-        </div>
-        <div class="log" id="log"></div>
-        <div id="s4msg"></div>
-        <div class="nav">
-          <button class="btn stop" id="stop" data-i="stop">Stop</button>
-          <button class="btn ghost hidden" id="restart" data-i="restart">Run again</button>
-        </div>
-        <div class="note" data-i="s4_note"></div>
-      </section>
-    </div>
-  </div>
-
-  <div class="configmodal hidden" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
-    <div class="configcard">
-      <div class="vh" id="configModalTitle" data-i="config_title">Import connection configuration</div>
-      <div class="vs" data-i="config_hint">Paste the JSON generated by the coordinator. It can include the URL, password, node ID, display name, and rounds.</div>
-      <textarea id="configJson" class="configjson" rows="9" maxlength="16384" spellcheck="false" data-i-placeholder="config_placeholder" placeholder='{"coordinator_url":"https://coordinator.example:8055"}'></textarea>
-      <div id="configMsg"></div>
-      <div class="nav configactions">
-        <button class="btn ghost" id="cancelConfig" data-i="config_cancel">Cancel</button>
-        <div class="spacer"></div>
-        <button class="btn primary" id="applyConfig" data-i="config_apply">Apply configuration</button>
+      <div class="acts">
+        <button class="btn" id="importConfig" data-i="import_config">Import connection config…</button>
+        <button class="btn" id="testconn" data-i="testconn">Test connection</button>
       </div>
+      <div id="s3msg"></div>
     </div>
+  </section>
+
+  <!-- ============================ 04 · train ============================ -->
+  <section class="scene hidden" data-step="4">
+    <div class="figs">
+      <div class="fig hero"><div class="k" data-i="rs_fed">Global model</div><div class="v" id="rsFed">—</div><div class="k" id="rsMetric">metric</div></div>
+      <div class="fig"><div class="k" data-i="rs_round">Round</div><div class="v" id="rsRound">0</div></div>
+      <div class="fig"><div class="k" data-i="rs_eps">Privacy ε used</div><div class="v" id="rsEps">0</div><div class="epsbar"><div class="epsfill" id="epsFill"></div></div></div>
+      <div class="fig"><div class="k" data-i="rs_samp">Local samples</div><div class="v" id="rsSamp">—</div></div>
+      <div class="fig"><div class="k" data-i="rs_tx">FL JSON payload sent</div><div class="v" id="rsTx">0 B</div><div class="k" id="rsTxDetail" data-i="rs_tx_detail">masked 0 B · metadata 0 B</div></div>
+    </div>
+    <div class="log" id="log"></div>
+    <div id="s4msg"></div>
+  </section>
+
+  <!-- bottom strip: scene dots, navigation, and the standing privacy line -->
+  <div class="controls">
+    <button class="nav" data-back="prev" id="backBtn" data-i="back">◁ back</button>
+    <div class="dots" id="steps"></div>
+    <button class="nav" id="s2next" disabled data-i="next">next ▷</button>
+    <button class="nav go hidden" id="s3next" disabled data-i="s3_start">connect &amp; start ▷</button>
+    <button class="nav stop hidden" id="stop" data-i="stop">■ stop</button>
+    <button class="nav hidden" id="restart" data-i="restart">⟲ run again</button>
   </div>
 
-  <div class="statusbar">
-    <span class="stdot" id="stDot"></span><span id="stConn"></span>
-    <span class="spacer"></span>
-    <span id="stEps" class="stmeta"></span>
-    <span class="stlock">🔒 <span data-i="st_privacy">Raw data stays local</span><span class="stshared" id="stShared" data-i="st_shared">Sharing: masked counts + protocol metadata</span></span>
+  <div class="lock"><span data-i="st_privacy">Raw data stays local</span>
+    <span class="shared" id="stShared" data-i="st_shared">Sharing: masked counts + protocol metadata</span></div>
+</div>
+
+<div class="configmodal hidden" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configModalTitle">
+  <div class="configcard">
+    <div class="vh" id="configModalTitle" data-i="config_title">Import connection configuration</div>
+    <div class="vs" data-i="config_hint">Paste the JSON generated by the coordinator. It can include the URL, password, node ID, display name, and rounds.</div>
+    <textarea id="configJson" class="configjson" rows="9" maxlength="16384" spellcheck="false" data-i-placeholder="config_placeholder" placeholder='{"coordinator_url":"https://coordinator.example:8055"}'></textarea>
+    <div id="configMsg"></div>
+    <div class="acts configactions">
+      <button class="btn" id="cancelConfig" data-i="config_cancel">Cancel</button>
+      <button class="btn primary" id="applyConfig" data-i="config_apply">Apply configuration</button>
+    </div>
   </div>
 </div>
 

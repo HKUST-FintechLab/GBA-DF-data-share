@@ -1,0 +1,54 @@
+{
+  "files": {
+    "ibm-plex-mono-400.woff2": {
+      "bytes": 14708,
+      "family": "IBM Plex Mono",
+      "sha256": "08949f728dc52d528e69b1667d15c89a5686a4ee9a296ff90983985f99c380f7",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F63fjptAgt5VM-kVkqdyU8n1i8q1w.woff2",
+      "style": "normal",
+      "weight": 400
+    },
+    "ibm-plex-mono-500.woff2": {
+      "bytes": 14888,
+      "family": "IBM Plex Mono",
+      "sha256": "01d285447409c8a588692162439a038b8cbd7871309ee20267b0d2d91c6e8e22",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3twJwlBFgg.woff2",
+      "style": "normal",
+      "weight": 500
+    },
+    "ibm-plex-mono-600.woff2": {
+      "bytes": 15620,
+      "family": "IBM Plex Mono",
+      "sha256": "0d1f0b8d0722224e32e9f28261bdc86c79115be73444ae5eceb73976a1bcdf83",
+      "source": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3vAOwlBFgg.woff2",
+      "style": "normal",
+      "weight": 600
+    },
+    "newsreader-300.woff2": {
+      "bytes": 58212,
+      "family": "Newsreader",
+      "sha256": "7b51fc658fd18f082b9688c437796d8bb8444c6386810b4368d01f883c701420",
+      "source": "https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLafXjalZCsZBt-BgbNJYQ.woff2",
+      "style": "normal",
+      "weight": 300
+    },
+    "newsreader-400-italic.woff2": {
+      "bytes": 63292,
+      "family": "Newsreader",
+      "sha256": "2bf0dbb1a4a052fffcc447bdab56b12049ee804a8a0d1ee04f5e76a6ab89166a",
+      "source": "https://fonts.gstatic.com/s/newsreader/v26/cY9XfjOCX1hbuyalUrK439vogqCz_goCYw7oRd6JFYYzbA.woff2",
+      "style": "italic",
+      "weight": 400
+    },
+    "newsreader-400.woff2": {
+      "bytes": 57268,
+      "family": "Newsreader",
+      "sha256": "725d78a558da7c48dd6753e4aa21bc40b4a5dc721c457e2b7d3ef782e8a9904b",
+      "source": "https://fonts.gstatic.com/s/newsreader/v26/cY9VfjOCX1hbuyalUrK49dLafXjalZCsZBsgBgbNJYQ.woff2",
+      "style": "normal",
+      "weight": 400
+    }
+  },
+  "format": "gba-df-offline-fonts",
+  "version": 1
+}
