@@ -38,34 +38,86 @@
   }
   const modalitySketch={
     eyegaze(ctx,width,height,time,selected){
-      const cx=width/2,cy=height*.5,faceWidth=width*.20,faceHeight=height*.30;
+      /* An eye, a gaze ray, and where the gaze lands. The previous version drew the whole
+         scan path, which at card size read as scattered noise rather than as eye tracking;
+         one eye plus three dwell spots says what the modality is at a glance. */
       const ink=selected?"rgba(78,168,255,":"rgba(122,168,235,";
-      ctx.strokeStyle=ink+(selected?".3":".18")+")";ctx.lineWidth=1;
-      ctx.beginPath();ctx.ellipse(cx,cy,faceWidth,faceHeight,0,0,Math.PI*2);ctx.stroke();
-      const leftEye=[cx-faceWidth*.42,cy-faceHeight*.22];
-      const rightEye=[cx+faceWidth*.42,cy-faceHeight*.22];
-      const mouth=[cx,cy+faceHeight*.44];
-      [leftEye,rightEye].forEach(([x,y])=>{
-        ctx.beginPath();ctx.ellipse(x,y,faceWidth*.26,faceHeight*.12,0,0,Math.PI*2);ctx.stroke();
-        ctx.beginPath();ctx.arc(x,y,faceHeight*.055,0,Math.PI*2);
-        ctx.fillStyle=ink+(selected?".55":".3")+")";ctx.fill();
+      const heat=selected?1:.55;
+      const eyeX=width*.24,eyeY=height*.46,eyeW=width*.115,eyeH=eyeW*.62;
+      const frameLeft=width*.47,frameRight=width*.88;
+      const frameTop=height*.16,frameBottom=height*.78;
+      const frameWidth=frameRight-frameLeft,frameHeight=frameBottom-frameTop;
+
+      // three dwell spots; the gaze rests on each in turn
+      const spots=[[frameLeft+frameWidth*.34,frameTop+frameHeight*.34,1.0],
+                   [frameLeft+frameWidth*.66,frameTop+frameHeight*.62,.78],
+                   [frameLeft+frameWidth*.30,frameTop+frameHeight*.74,.6]];
+      const live=Math.floor(time*.55)%spots.length;
+
+      ctx.save();
+      // stimulus frame
+      ctx.strokeStyle=ink+(selected?".24":".14")+")";ctx.lineWidth=1;
+      ctx.strokeRect(frameLeft,frameTop,frameWidth,frameHeight);
+      ctx.strokeStyle=ink+(selected?".6":".3")+")";ctx.lineWidth=1.2;
+      const corner=8;
+      [[frameLeft,frameTop,1,1],[frameRight,frameTop,-1,1],
+        [frameLeft,frameBottom,1,-1],[frameRight,frameBottom,-1,-1]].forEach(([x,y,sx,sy])=>{
+        ctx.beginPath();ctx.moveTo(x+sx*corner,y);ctx.lineTo(x,y);ctx.lineTo(x,y+sy*corner);ctx.stroke();
       });
-      ctx.beginPath();ctx.moveTo(mouth[0]-faceWidth*.3,mouth[1]);
-      ctx.quadraticCurveTo(mouth[0],mouth[1]+faceHeight*.12,mouth[0]+faceWidth*.3,mouth[1]);ctx.stroke();
-      const targets=[[mouth,7],[mouth,6],[leftEye,3],[mouth,8],[rightEye,3],[mouth,6],[leftEye,2.5]];
-      const points=targets.map(([[x,y],dwell],index)=>[
-        x+Math.sin(time*.7+index*2.1)*faceWidth*.16,
-        y+Math.cos(time*.6+index*1.7)*faceHeight*.13,dwell
-      ]);
-      ctx.strokeStyle=ink+(selected?".45":".25")+")";ctx.lineWidth=1;ctx.beginPath();
-      points.forEach((point,index)=>index?ctx.lineTo(point[0],point[1]):ctx.moveTo(point[0],point[1]));ctx.stroke();
-      const live=Math.floor(time*1.4)%points.length;
-      points.forEach((point,index)=>{
+
+      // accumulated dwell, additively blended so the fixated spot burns brightest
+      ctx.save();
+      ctx.beginPath();ctx.rect(frameLeft,frameTop,frameWidth,frameHeight);ctx.clip();
+      ctx.globalCompositeOperation="lighter";
+      spots.forEach(([x,y,weight],index)=>{
+        const hot=index===live?1.35:1;
+        const radius=frameHeight*(.26+weight*.20)*hot;
+        const gradient=ctx.createRadialGradient(x,y,0,x,y,radius);
+        gradient.addColorStop(0,`rgba(255,240,196,${.5*weight*heat*hot})`);
+        gradient.addColorStop(.34,`rgba(255,150,62,${.34*weight*heat})`);
+        gradient.addColorStop(.7,`rgba(214,64,72,${.15*weight*heat})`);
+        gradient.addColorStop(1,"rgba(120,32,96,0)");
+        ctx.fillStyle=gradient;ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fill();
+      });
+      ctx.globalCompositeOperation="source-over";
+      ctx.restore();
+
+      // fixation rings, sized by dwell
+      spots.forEach(([x,y,weight],index)=>{
         const hot=index===live;
-        ctx.beginPath();ctx.arc(point[0],point[1],point[2]*(hot?1.35:1),0,Math.PI*2);
-        ctx.fillStyle=ink+(selected?(hot?".4":".16"):".1")+")";ctx.fill();
-        ctx.strokeStyle=ink+(selected?(hot?".95":".5"):".32")+")";ctx.lineWidth=hot?1.4:1;ctx.stroke();
+        ctx.beginPath();ctx.arc(x,y,3.4+weight*2.6,0,Math.PI*2);
+        ctx.strokeStyle=hot?`rgba(255,236,190,${selected?.95:.55})`:`rgba(255,169,92,${selected?.5:.28})`;
+        ctx.lineWidth=hot?1.6:1;ctx.stroke();
       });
+
+      const target=spots[live];
+      // the eye itself: lid almond, iris tracking the live spot, pupil
+      const look=Math.max(-1,Math.min(1,(target[1]-eyeY)/(height*.5)));
+      const irisX=eyeX+eyeW*.34,irisY=eyeY+look*eyeH*.26;
+      ctx.strokeStyle=selected?"#eaf2ff":"#a3b9d8";ctx.lineWidth=1.4;ctx.lineJoin="round";
+      ctx.beginPath();
+      ctx.moveTo(eyeX-eyeW,eyeY);
+      ctx.quadraticCurveTo(eyeX,eyeY-eyeH,eyeX+eyeW,eyeY);
+      ctx.quadraticCurveTo(eyeX,eyeY+eyeH,eyeX-eyeW,eyeY);
+      ctx.stroke();
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(eyeX-eyeW,eyeY);
+      ctx.quadraticCurveTo(eyeX,eyeY-eyeH,eyeX+eyeW,eyeY);
+      ctx.quadraticCurveTo(eyeX,eyeY+eyeH,eyeX-eyeW,eyeY);
+      ctx.clip();
+      ctx.beginPath();ctx.arc(irisX,irisY,eyeH*.66,0,Math.PI*2);
+      ctx.strokeStyle=selected?"#4ea8ff":"#7aa8eb";ctx.lineWidth=1.2;ctx.stroke();
+      ctx.beginPath();ctx.arc(irisX,irisY,eyeH*.26,0,Math.PI*2);
+      ctx.fillStyle=selected?"#eaf2ff":"#a3b9d8";ctx.fill();
+      ctx.restore();
+
+      // gaze ray from the pupil to whatever it is resting on
+      ctx.strokeStyle=`rgba(255,214,150,${selected?.55:.28})`;ctx.lineWidth=1;
+      ctx.setLineDash([3,4]);
+      ctx.beginPath();ctx.moveTo(irisX+eyeH*.5,irisY);ctx.lineTo(target[0],target[1]);ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
     },
     action(ctx,width,height,time,selected){
       const cx=width/2,top=height*.14,scale=height*.155;
@@ -110,32 +162,70 @@
     }
   };
   modalitySketch.action_cdp=(ctx,width,height,time,selected)=>{
-    /* CDP keeps the pose input, but its fixed adapter has two feature branches before fusion.
-       Draw a recognisable bottom-up binary tree behind the skeleton: one trunk, two branch levels,
-       and four leaves. This reads as TreeFusion rather than as extra limbs. */
-    const centerX=width/2;
-    const nodes={
-      root:[centerX,height*.86], trunk:[centerX,height*.63],
-      left:[centerX-width*.16,height*.43], right:[centerX+width*.16,height*.43],
-      ll:[centerX-width*.29,height*.22], lr:[centerX-width*.08,height*.22],
-      rl:[centerX+width*.08,height*.22], rr:[centerX+width*.29,height*.22]
+    /* Same pose input as `action`, read a different way: the frozen adapter keeps 17 of the 33
+       points and only ever sees fixed sampled windows. So this skeleton is deliberately NOT the
+       one on the action card — amber instead of blue, diamond joints instead of round, echoes of
+       the earlier frames still inside the window, and the sampled-frame strip underneath. */
+    const centerX=width/2,top=height*.05,scale=height*.126;
+    const pose=moment=>{
+      const sway=Math.sin(moment*1.9),counter=Math.cos(moment*1.9);
+      return {
+        nose:[centerX,top+scale*.32],
+        eyeL:[centerX-scale*.13,top+scale*.21],eyeR:[centerX+scale*.13,top+scale*.21],
+        earL:[centerX-scale*.26,top+scale*.28],earR:[centerX+scale*.26,top+scale*.28],
+        shL:[centerX-scale*.52,top+scale*.95],shR:[centerX+scale*.52,top+scale*.95],
+        elL:[centerX-scale*.80+sway*scale*.14,top+scale*1.55],
+        elR:[centerX+scale*.80-sway*scale*.14,top+scale*1.55],
+        wrL:[centerX-scale*.92+sway*scale*.30,top+scale*2.15],
+        wrR:[centerX+scale*.92-sway*scale*.30,top+scale*2.15],
+        hipL:[centerX-scale*.34,top+scale*2.05],hipR:[centerX+scale*.34,top+scale*2.05],
+        knL:[centerX-scale*.40+counter*scale*.16,top+scale*2.90],
+        knR:[centerX+scale*.40-counter*scale*.16,top+scale*2.90],
+        anL:[centerX-scale*.44+counter*scale*.30,top+scale*3.70],
+        anR:[centerX+scale*.44-counter*scale*.30,top+scale*3.70]
+      };
     };
-    const edges=[["root","trunk"],["trunk","left"],["trunk","right"],
-      ["left","ll"],["left","lr"],["right","rl"],["right","rr"]];
+    const bones=[["shL","shR"],["shL","elL"],["elL","wrL"],["shR","elR"],["elR","wrR"],
+      ["shL","hipL"],["shR","hipR"],["hipL","hipR"],["hipL","knL"],["knL","anL"],
+      ["hipR","knR"],["knR","anR"],["nose","eyeL"],["nose","eyeR"],["eyeL","earL"],["eyeR","earR"]];
+    const draw=(points,color,lineWidth)=>{
+      ctx.strokeStyle=color;ctx.lineWidth=lineWidth;
+      bones.forEach(([a,b])=>{ctx.beginPath();ctx.moveTo(...points[a]);ctx.lineTo(...points[b]);ctx.stroke();});
+    };
     ctx.save();
-    ctx.globalAlpha=selected?.8:.42;ctx.lineWidth=1.15;ctx.lineCap="round";
-    edges.forEach(([from,to],index)=>{
-      const warm=index>=5;ctx.strokeStyle=warm?"#9a6636":"#3c6fa8";
-      ctx.beginPath();ctx.moveTo(...nodes[from]);ctx.lineTo(...nodes[to]);ctx.stroke();
+    ctx.lineCap="butt";ctx.lineJoin="miter";
+    // earlier frames of the same window, fading back
+    for(let back=3;back>=1;back--){
+      draw(pose(time-back*.34),`rgba(255,169,92,${(selected?.13:.07)/back})`,1);
+    }
+    const points=pose(time);
+    draw(points,selected?"#ffc07a":"#b08055",1.5);
+    Object.entries(points).forEach(([name,[x,y]])=>{
+      const head=["nose","eyeL","eyeR","earL","earR"].includes(name),size=head?1.7:2.6;
+      ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);
+      ctx.fillStyle="#0d1a2e";ctx.fillRect(-size,-size,size*2,size*2);
+      ctx.strokeStyle=head?(selected?"#4ea8ff":"#3c6fa8"):(selected?"#ffc07a":"#b08055");
+      ctx.lineWidth=1.2;ctx.strokeRect(-size,-size,size*2,size*2);
+      ctx.restore();
     });
-    Object.entries(nodes).forEach(([name,[x,y]])=>{
-      const leaf=["ll","lr","rl","rr"].includes(name);
-      ctx.fillStyle="#0d1a2e";ctx.beginPath();ctx.arc(x,y,leaf?3.6:3,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle=(name==="rl"||name==="rr")?"#9a6636":"#4ea8ff";
-      ctx.beginPath();ctx.arc(x,y,leaf?3.6:3,0,Math.PI*2);ctx.stroke();
-    });
+    // sampled-frame strip: the fixed window sliding by its fixed stride
+    const stripWidth=Math.min(width*.62,150),stripLeft=centerX-stripWidth/2,stripY=height*.70;
+    const frames=24,windowSize=8,step=stripWidth/(frames-1);
+    const start=Math.floor(time*.8)%(frames-windowSize+1);
+    for(let index=0;index<frames;index++){
+      const inside=index>=start&&index<start+windowSize;
+      const x=stripLeft+index*step;
+      ctx.strokeStyle=inside?(selected?"#ffc07a":"#b08055")
+        :(selected?"rgba(78,168,255,.32)":"rgba(122,168,235,.18)");
+      ctx.lineWidth=inside?1.4:1;
+      ctx.beginPath();ctx.moveTo(x,stripY-(inside?4.5:2.5));ctx.lineTo(x,stripY+(inside?4.5:2.5));ctx.stroke();
+    }
+    ctx.strokeStyle=selected?"rgba(255,192,122,.65)":"rgba(176,128,85,.4)";ctx.lineWidth=1;
+    const windowLeft=stripLeft+start*step,windowRight=windowLeft+(windowSize-1)*step;
+    ctx.beginPath();
+    ctx.moveTo(windowLeft,stripY+8);ctx.lineTo(windowLeft,stripY+11);
+    ctx.lineTo(windowRight,stripY+11);ctx.lineTo(windowRight,stripY+8);ctx.stroke();
     ctx.restore();
-    modalitySketch.action(ctx,width,height,time+.55,selected);
   };
   function pickSlots(){
     const modalityList=typeof MODS==="undefined"?[]:MODS;

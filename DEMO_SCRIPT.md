@@ -84,10 +84,55 @@ front end that reads your recordings changes; your raw data never leaves this wi
 > pipeline end-to-end per modality, not clinical accuracy. Point the client at real recordings in the
 > documented format (§4/§5 of the Partner Guide) and the identical path runs on real data.
 
+### Rehearsal staging: a baseline cohort plus real clips to upload live
+
+Uploading two or three clips on camera shows the privacy path, but two or three feature rows cannot
+carry a metric: the coordinator adds Laplace noise to every leaf-count cell, so with that little data
+the AUC is a coin flip and the demo argues against itself. Stage a synthetic baseline per node first,
+then upload real clips into the same folder so one run carries both the privacy story and a metric
+with signal.
+
+```bash
+uv run python stage_demo_nodes.py --modality action --nodes 3 --per-class 6
+```
+
+This writes `demo_nodes/node_1|2|3`, each an independent synthetic cohort (its own seed, both classes,
+every file named `synthetic_…` under a `SYNTHETIC-DATA.txt` marker). `client_app.py --node-id node_N`
+then defaults its extracted-NPZ folder to the matching `demo_nodes/node_N`, so clips extracted on
+camera land beside that baseline and train together. Pass `--video-out` to override, and note the
+advanced settings correctly report the folder as permanent — retention is a deliberate choice.
+
+`demo_videos/asd|td` holds clips screened for this rehearsal: one child, whole body in frame, no
+burned-in captions, no shot changes, roughly 5–20 s, audio stripped. `demo_videos/manifest.csv` lists
+length and resolution. **These are real recordings of real children.** They are git-ignored, must not
+be redistributed, and the ethics coverage in
+[`wiki/human-critical-path.md`](wiki/human-critical-path.md) applies to any run that touches them.
+
+Say the composition out loud rather than letting the number speak for itself:
+
+> "Each node also holds a synthetic baseline cohort so the metric has statistical meaning. The clips
+> just uploaded joined that same pool."
+
+Do **not** attribute a round's metric change to the clips just uploaded — a round mixes fresh random
+trees, fresh DP noise and the whole cohort's contribution, which is why
+[`wiki/evaluation-and-claims.md`](wiki/evaluation-and-claims.md) rules out reading Δ as one
+institution's contribution.
+
 ## Re-record / reset
 
 ```bash
 pkill -f "coordinator:app"
 uv run python run_demo.py --prepare --nodes 3 --rounds 5                 # HAR
 uv run python run_demo.py --prepare --modality eyegaze --nodes 3 --rounds 5
+```
+
+For the staged desktop rehearsal, `reset_demo.py` puts the federation back to round 1 without
+touching the coordinator's identity — it deletes the room state and keeps `coordinator_key.pem`, so
+issued invitations stay valid. It refuses to run while something still holds the port, because a
+live coordinator keeps its state in memory and would write the cleared files straight back.
+
+```bash
+uv run python reset_demo.py                    # stop, clear, restart
+uv run python reset_demo.py --purge-videos     # also drop clips extracted into demo_nodes/
+uv run python reset_demo.py --export audit.zip # archive the chain before clearing it
 ```

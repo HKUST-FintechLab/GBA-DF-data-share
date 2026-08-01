@@ -203,7 +203,10 @@ html[data-theme="console"] [data-step="2"]:has(.videoimport:not(.hidden)) > .not
 html[data-theme="console"] .videohead{justify-content:flex-end;margin-bottom:27px}
 html[data-theme="console"] .videohead .grow{display:none}
 html[data-theme="console"] .videoopts label{color:#66809f;font:9px var(--mono);letter-spacing:.15em;text-transform:uppercase}
-html[data-theme="console"] .panes{flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+html[data-theme="console"] .panes{
+  flex:1;min-height:0;display:grid;grid-template-columns:1fr 1fr;
+  grid-template-rows:minmax(0,1fr);gap:16px;
+}
 html[data-theme="console"] .preview.kept{display:grid;background:#060e1b}
 html[data-theme="console"] .preview{
   min-height:0;overflow:visible;border:1px solid rgba(122,168,235,.2);border-radius:0;background:#060e1b;
@@ -214,7 +217,13 @@ html[data-theme="console"] .preview::before,html[data-theme="console"] .preview:
 }
 html[data-theme="console"] .preview::before{left:-1px;top:-1px;border-right:0;border-bottom:0}
 html[data-theme="console"] .preview::after{right:-1px;bottom:-1px;border-left:0;border-top:0}
-html[data-theme="console"] .preview canvas{width:100%;height:100%;max-height:none;border-radius:0;object-fit:contain}
+/* The canvas is sized in device pixels from the source video, so a portrait clip would
+   otherwise impose its own aspect ratio on this grid row and stretch the whole page. Taking
+   it out of flow lets the panel keep its size and letterbox any video inside it. */
+html[data-theme="console"] .preview canvas{
+  position:absolute;inset:0;width:100%;height:100%;max-height:none;border-radius:0;
+  object-fit:contain;
+}
 html[data-theme="console"] .ptag{
   display:block;position:absolute;left:0;top:-23px;color:#9a6636;font:9px var(--mono);
   letter-spacing:.16em;text-transform:uppercase;
