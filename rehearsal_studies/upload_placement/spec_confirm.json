@@ -1,0 +1,13 @@
+[
+ {"label":"base30 + 0","per_class":30,"assign":{}},
+ {"label":"base30 + 11 node_1 (as-is)","per_class":30,
+  "assign":{"1":["asd_01.npz","asd_02.npz","asd_03.npz","asd_04.npz","asd_05.npz","asd_06.npz","td_01.npz","td_02.npz","td_03.npz","td_04.npz","td_05.npz"]}},
+ {"label":"base30 + 11 node_1 (sort-last)","per_class":30,"prefix":"upload_",
+  "assign":{"1":["asd_01.npz","asd_02.npz","asd_03.npz","asd_04.npz","asd_05.npz","asd_06.npz","td_01.npz","td_02.npz","td_03.npz","td_04.npz","td_05.npz"]}},
+ {"label":"base30 + 11 spread (as-is)","per_class":30,
+  "assign":{"1":["asd_01.npz","asd_04.npz","td_01.npz","td_04.npz"],
+            "2":["asd_02.npz","asd_05.npz","td_02.npz","td_05.npz"],
+            "3":["asd_03.npz","asd_06.npz","td_03.npz"]}},
+ {"label":"base20 + 11 node_1 (as-is)","per_class":20,
+  "assign":{"1":["asd_01.npz","asd_02.npz","asd_03.npz","asd_04.npz","asd_05.npz","asd_06.npz","td_01.npz","td_02.npz","td_03.npz","td_04.npz","td_05.npz"]}}
+]

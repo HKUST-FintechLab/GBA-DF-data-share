@@ -1,0 +1,16 @@
+pc10 rep0 port8710 37.2s rounds=5 auc 0.786
+pc10 rep1 port8711 52.7s rounds=5 auc 0.809
+pc10 rep2 port8712 90.7s rounds=5 auc 0.770
+pc10 rep3 port8713 94.6s rounds=5 auc 0.782
+pc10 rep4 port8714 45.7s rounds=5 auc 0.789
+pc10 rep5 port8715 54.6s rounds=5 auc 0.808
+pc10 rep6 port8716 29.7s rounds=5 auc 0.790
+pc10 rep7 port8717 18.3s rounds=5 auc 0.787
+pc10 rep8 port8718 26.5s rounds=5 auc 0.794
+pc10 rep9 port8719 43.6s rounds=5 auc 0.764
+pc10 rep10 port8720 38.3s rounds=5 auc 0.788
+pc10 rep11 port8721 36.1s rounds=5 auc 0.789
+pc10 rep12 port8722 38.7s rounds=5 auc 0.816
+pc10 rep13 port8723 39.3s rounds=5 auc 0.773
+pc10 rep14 port8724 35.3s rounds=5 auc 0.779
+pc10 rep15 port8725 31.4s rounds=5 auc 0.768

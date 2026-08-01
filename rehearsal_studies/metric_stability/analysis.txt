@@ -1,0 +1,192 @@
+runs collected: 98   usable: 96   failed: 2
+  FAILED pc10 rep17: incomplete rounds=0 rcs=[4294967295, 4294967295, 1]
+  FAILED pc30 rep5: RuntimeError: coordinator never became ready rounds=0 rcs=None
+  per-class 10: n=32 runs, median wall 23s
+  per-class 20: n=32 runs, median wall 38s
+  per-class 30: n=32 runs, median wall 32s
+
+
+=== 1. FINAL-ROUND (round 5) RUN-TO-RUN DISPERSION, per staging ===
+metric      | pc10: mean    sd     CV%   | pc20: mean    sd     CV%   | pc30: mean    sd     CV%   
+---------------------------------------------------------------------------------------------------
+auc         |  0.789  0.012    1.6   |  0.796  0.007    0.9   |  0.800  0.005    0.7   
+acc         |  0.716  0.017    2.4   |  0.731  0.010    1.4   |  0.735  0.011    1.6   
+bacc        |  0.711  0.020    2.8   |  0.730  0.011    1.5   |  0.735  0.012    1.6   
+sensitivity |  0.619  0.086   13.9   |  0.707  0.042    5.9   |  0.747  0.030    4.1   
+specificity |  0.802  0.060    7.5   |  0.753  0.033    4.4   |  0.724  0.025    3.4   
+precision   |  0.741  0.034    4.5   |  0.719  0.018    2.5   |  0.707  0.015    2.1   
+f1          |  0.670  0.043    6.4   |  0.712  0.017    2.4   |  0.726  0.015    2.0   
+mcc         |  0.434  0.031    7.2   |  0.462  0.021    4.6   |  0.471  0.023    5.0   
+brier       |  0.225  0.003    1.2   |  0.220  0.002    0.8   |  0.221  0.001    0.7   
+ece         |  0.148  0.025   16.8   |  0.172  0.012    7.1   |  0.177  0.012    6.9   
+tn          | 188.562 14.190    7.5   | 176.969  7.769    4.4   | 170.125  5.791    3.4   
+fp          | 46.438 14.190   30.6   | 58.031  7.769   13.4   | 64.875  5.791    8.9   
+fn          | 79.562 17.950   22.6   | 61.188  8.690   14.2   | 52.875  6.359   12.0   
+tp          | 129.438 17.950   13.9   | 147.812  8.690    5.9   | 156.125  6.359    4.1   
+
+--- ranking by CV% at each staging (1 = most stable) ---
+  pc10: brier(1.2) < auc(1.6) < acc(2.4) < bacc(2.8) < precision(4.5) < f1(6.4) < mcc(7.2) < specificity(7.5) < sensitivity(13.9) < ece(16.8)
+  pc20: brier(0.8) < auc(0.9) < acc(1.4) < bacc(1.5) < f1(2.4) < precision(2.5) < specificity(4.4) < mcc(4.6) < sensitivity(5.9) < ece(7.1)
+  pc30: brier(0.7) < auc(0.7) < acc(1.6) < bacc(1.6) < f1(2.0) < precision(2.1) < specificity(3.4) < sensitivity(4.1) < mcc(5.0) < ece(6.9)
+
+metric        rank10  rank20  rank30  spread   CVmin   CVmax  CVmax/CVmin
+brier              1       1       1       0     0.7     1.2          1.8
+auc                2       2       2       0     0.7     1.6          2.3
+acc                3       3       3       0     1.4     2.4          1.7
+bacc               4       4       4       0     1.5     2.8          1.9
+f1                 6       5       5       1     2.0     6.4          3.2
+precision          5       6       6       1     2.1     4.5          2.2
+specificity        8       7       7       1     3.4     7.5          2.2
+mcc                7       8       9       2     4.6     7.2          1.6
+sensitivity        9       9       8       1     4.1    13.9          3.4
+ece               10      10      10       0     6.9    16.8          2.4
+
+--- absolute SD (units of the metric) per staging ---
+metric         sd_pc10   sd_pc20   sd_pc30   max/min
+auc              0.012     0.007     0.005       2.3
+acc              0.017     0.010     0.011       1.7
+bacc             0.020     0.011     0.012       1.8
+sensitivity      0.086     0.042     0.030       2.8
+specificity      0.060     0.033     0.025       2.5
+precision        0.034     0.018     0.015       2.3
+f1               0.043     0.017     0.015       2.9
+mcc              0.031     0.021     0.023       1.5
+brier            0.003     0.002     0.001       1.9
+ece              0.025     0.012     0.012       2.0
+
+
+=== 2. WITHIN-RUN BEHAVIOUR ACROSS ROUNDS ===
+r5<r3 = runs whose round-5 value is worse than round-3 (for brier/ece 'worse' = higher)
+metric        r1mean  r3mean  r5mean  rise r1->r5  r5<r3 (n/48)  r5 worse r3  mean |¦¤| per round  sign flips
+auc            0.770   0.794   0.795        0.025            47           47               0.009        1.41
+acc            0.704   0.728   0.728        0.024            52           52               0.012        1.43
+bacc           0.702   0.725   0.725        0.024            55           55               0.013        1.65
+sensitivity    0.671   0.678   0.691        0.020            34           34               0.033        1.42
+specificity    0.733   0.771   0.760        0.027            61           61               0.026        1.43
+precision      0.696   0.729   0.722        0.026            66           66               0.018        1.69
+f1             0.675   0.698   0.703        0.028            47           47               0.018        1.72
+mcc            0.411   0.456   0.456        0.045            58           58               0.024        1.60
+brier          0.218   0.220   0.222        0.003            12           84               0.002        1.04
+ece            0.134   0.165   0.166        0.031            46           50               0.014        1.40
+
+--- per staging: fraction of runs with round-5 below round-3 ---
+metric             pc10       pc20       pc30
+auc               13/32      13/32      21/32
+acc               15/32      15/32      22/32
+bacc              15/32      18/32      22/32
+sensitivity       15/32      11/32       8/32
+specificity       18/32      16/32      27/32
+precision         21/32      19/32      26/32
+f1                16/32      15/32      16/32
+mcc               18/32      18/32      22/32
+brier              6/32       4/32       2/32
+ece               18/32      10/32      18/32
+
+--- projector view: does the curve visibly rise, and how far does it fall back? ---
+oriented so 'up' = better (brier/ece negated). dip = a round-to-round fall > 0.010
+metric       rise r1->r5  rise/sd_run    r5>r1 runs w/ >=1 dip  dips per run  max drawdown  drawdown/sd
+auc                0.025          2.9   91/96             9/96          0.09         0.005          0.6
+acc                0.024          1.8   85/96            40/96          0.47         0.012          0.9
+bacc               0.024          1.7   85/96            47/96          0.54         0.013          0.9
+sensitivity        0.020          0.4   58/96            81/96          1.28         0.049          0.9
+specificity        0.027          0.7   64/96            80/96          1.24         0.035          0.9
+precision          0.026          1.2   77/96            60/96          0.81         0.020          0.9
+f1                 0.028          1.1   73/96            61/96          0.84         0.020          0.8
+mcc                0.045          1.8   85/96            70/96          0.95         0.024          0.9
+brier             -0.003         -1.7   16/96             0/96          0.00         0.005          2.6
+ece               -0.031         -1.9    9/96            93/96          1.60         0.042          2.6
+
+
+=== 3. BETWEEN-METRIC CORRELATION ACROSS RUNS (final round) ===
+Pearson r, computed within each staging then averaged (removes between-config signal)
+                 auc     acc    bacc  sensit  specif  precis      f1     mcc   brier     ece
+auc             1.00    0.59    0.55    0.17    0.20    0.42    0.38    0.61   -0.34    0.54
+acc             0.59    1.00    0.99    0.54    0.04    0.34    0.83    0.99   -0.30    0.86
+bacc            0.55    0.99    1.00    0.67   -0.12    0.19    0.91    0.99   -0.30    0.87
+sensitivity     0.17    0.54    0.67    1.00   -0.81   -0.56    0.91    0.59   -0.21    0.55
+specificity     0.20    0.04   -0.12   -0.81    1.00    0.93   -0.50   -0.02    0.07   -0.07
+precision       0.42    0.34    0.19   -0.56    0.93    1.00   -0.20    0.31   -0.01    0.20
+f1              0.38    0.83    0.91    0.91   -0.50   -0.20    1.00    0.85   -0.27    0.78
+mcc             0.61    0.99    0.99    0.59   -0.02    0.31    0.85    1.00   -0.30    0.86
+brier          -0.34   -0.30   -0.30   -0.21    0.07   -0.01   -0.27   -0.30    1.00   -0.09
+ece             0.54    0.86    0.87    0.55   -0.07    0.20    0.78    0.86   -0.09    1.00
+
+--- strongest anti-correlations (would make a panel see-saw) ---
+  sensitivity  vs specificity  r = -0.806
+  sensitivity  vs precision    r = -0.558
+  specificity  vs f1           r = -0.499
+  auc          vs brier        r = -0.336
+  bacc         vs brier        r = -0.303
+  acc          vs brier        r = -0.299
+  mcc          vs brier        r = -0.296
+  f1           vs brier        r = -0.273
+--- strongest positive (redundant: showing both adds nothing) ---
+  acc          vs mcc          r = +0.990
+  acc          vs bacc         r = +0.986
+  bacc         vs mcc          r = +0.985
+  specificity  vs precision    r = +0.931
+  bacc         vs f1           r = +0.910
+  sensitivity  vs f1           r = +0.909
+  bacc         vs ece          r = +0.874
+  acc          vs ece          r = +0.864
+
+
+=== 4. BETWEEN-CONFIGURATION SIGNAL vs RUN-TO-RUN NOISE (final round) ===
+metric           pc10     pc20     pc30  sd_within  ¦¤(30-10)   |¦¤|/sd    eta2        F   separable?
+auc             0.789    0.796    0.800      0.009     0.011      1.3    0.22     13.2      partial
+acc             0.716    0.731    0.735      0.013     0.019      1.4    0.27     17.6      partial
+bacc            0.711    0.730    0.735      0.015     0.025      1.7    0.35     24.8      partial
+sensitivity     0.619    0.707    0.747      0.058     0.128      2.2    0.47     40.9      partial
+specificity     0.802    0.753    0.724      0.042    -0.078      1.9    0.38     28.2      partial
+precision       0.741    0.719    0.707      0.024    -0.034      1.5    0.27     17.3      partial
+f1              0.670    0.712    0.726      0.028     0.056      2.0    0.43     35.3      partial
+mcc             0.434    0.462    0.471      0.026     0.036      1.4    0.27     17.5      partial
+brier           0.225    0.220    0.221      0.002    -0.005      2.2    0.54     54.7      partial
+ece             0.148    0.172    0.177      0.017     0.030      1.7    0.36     26.0      partial
+
+--- pairwise separation: |¦¤mean| / pooled within-staging sd (Cohen's d) ---
+metric         10 vs 20   20 vs 30   10 vs 30  monotonic?  Welch t (10v30)
+auc                0.71       0.63       1.18         yes             4.73
+acc                1.07       0.31       1.26         yes             5.05
+bacc               1.21       0.47       1.51         yes             6.04
+sensitivity        1.30       1.09       1.98         yes             7.93
+specificity       -1.01      -1.00      -1.70         yes            -6.81
+precision         -0.81      -0.75      -1.32         yes            -5.29
+f1                 1.30       0.87       1.76         yes             7.03
+mcc                1.03       0.40       1.32         yes             5.27
+brier             -2.06       0.12      -2.10          no            -8.42
+ece                1.22       0.48       1.52         yes             6.08
+
+
+=== 5. WHAT A VIEWER SEES: range of final-round values across runs ===
+metric             pc10 min-max       pc20 min-max       pc30 min-max
+auc          0.764-0.816 (0.052) 0.782-0.816 (0.034) 0.790-0.808 (0.018)
+acc          0.678-0.743 (0.065) 0.716-0.757 (0.041) 0.714-0.755 (0.041)
+bacc         0.665-0.742 (0.077) 0.715-0.759 (0.044) 0.714-0.757 (0.043)
+sensitivity  0.445-0.813 (0.368) 0.612-0.809 (0.196) 0.670-0.809 (0.139)
+specificity  0.617-0.902 (0.285) 0.672-0.817 (0.145) 0.677-0.770 (0.094)
+precision    0.646-0.802 (0.156) 0.687-0.762 (0.075) 0.684-0.735 (0.052)
+f1           0.565-0.738 (0.172) 0.674-0.753 (0.080) 0.691-0.753 (0.062)
+mcc          0.371-0.485 (0.114) 0.432-0.517 (0.084) 0.428-0.513 (0.085)
+brier        0.220-0.231 (0.011) 0.216-0.223 (0.007) 0.218-0.223 (0.005)
+ece          0.091-0.189 (0.099) 0.152-0.207 (0.055) 0.151-0.199 (0.048)
+
+
+=== 6. IS THE STABILITY RANKING ITSELF REPRODUCIBLE? ===
+Spearman rho between the CV%-rankings of the three stagings
+  pc10 vs pc20: rho = +0.976
+  pc20 vs pc30: rho = +0.988
+  pc10 vs pc30: rho = +0.952
+
+--- CV% estimated from the first half vs the second half of the runs (does the estimate survive halving n?) ---
+metric               pc10 A/B         pc20 A/B         pc30 A/B
+auc                 1.9 / 1.2        0.8 / 1.0        0.7 / 0.7
+acc                 2.2 / 2.6        1.5 / 1.3        1.5 / 1.6
+bacc                2.5 / 3.1        1.7 / 1.3        1.6 / 1.6
+sensitivity       10.1 / 17.2        6.7 / 4.1        4.6 / 3.6
+specificity         5.1 / 9.5        4.5 / 3.8        3.5 / 3.3
+precision           3.7 / 5.3        2.3 / 2.6        2.0 / 2.1
+f1                  5.0 / 7.6        2.9 / 1.7        2.2 / 1.9
+mcc                 6.8 / 7.6        5.1 / 4.1        5.1 / 5.0
+brier               1.3 / 1.1        0.9 / 0.8        0.7 / 0.7
+ece               15.9 / 17.8        6.4 / 7.9        7.3 / 6.7

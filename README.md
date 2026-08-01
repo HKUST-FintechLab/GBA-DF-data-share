@@ -210,6 +210,7 @@ unmodified checkout), and `client_app.py --selftest` passes.
 |---|---|
 | `stage_demo_nodes.py` | Gives each node its own synthetic baseline cohort (independent seed, both classes, files marked `synthetic_…`). Without a baseline, a demo that uploads two or three clips trains on two or three feature rows, the DP noise swamps them, and the AUC lands on a coin flip — the demo then argues against itself. |
 | `reset_demo.py` | Returns the federation to round 1 between takes without touching the coordinator's identity: clears the room state, keeps `coordinator_key.pem`, so issued invitations stay valid. Refuses to run while anything still holds the port, because a live coordinator keeps state in memory and would write the cleared files straight back. |
+| `verify_demo_run.py` | Rehearses both arms — baseline alone and baseline plus the screened clips — on an isolated port and prints the curve, the dips, and whether the clips move the final AUC by more than the run-to-run noise. Run it after any change to the staging, before performing the demo. |
 
 **Node behaviour (`node_core.py`)**
 
@@ -257,6 +258,84 @@ unmodified checkout), and `client_app.py --selftest` passes.
 - Member bars normalise to the pooled record count instead of the largest member: 78/69/77 rendered
   as 100%/88%/99% and implied a dominant institution that is not there.
 - `rejoin` and `round_discarded` now render as sentences instead of a raw `key=value` dump.
+
+**What the rehearsal measurements found**
+
+`verify_demo_run.py` reruns the whole thing on an isolated port and reports what the audience will
+see. Three studies fed it, together ~140 real federations:
+
+- **Baseline size decides whether the curve holds up.** At `--per-class 6` (~72 rows/node) the final
+  AUC is 0.783 ± 0.010 and 6 runs in 10 show a visible dip — with the pooled-centralized reference at
+  0.778, a bad draw looks like a tie or a loss on screen. Bigger baselines are steadier but flatter:
+  `--per-class 30` reaches 0.804 ± 0.006 with no dips, yet starts high enough that little movement is
+  left to see. `DEMO_SCRIPT.md` stages **16**, the setting that satisfies both constraints below.
+- **Uploading a handful of clips does not raise any metric.** Across 80 paired runs, no metric moved
+  more than its own noise; every 95% interval straddled zero and win rates were 7–12 out of 20. A
+  chart captioned "watch it improve" would be showing DP noise.
+- **Where the clips are placed matters far more than how many there are — and the reason is file
+  ordering, not the data.** Spreading all 11 clips across three nodes at `--per-class 20` dropped the
+  final AUC to 0.775 and put 0 of 3 runs above the reference. That looked like an out-of-distribution
+  penalty, and it is not. `modalities._list()` returns files in sorted path order and
+  `dp.count_on_shared` zips its row→tree draw against that order, so a file inserted **early** in the
+  sort re-rolls which of the shared trees every later row of that node is counted into. `asd_*.npz`
+  sorts before `synthetic_*.npz`; `td_*.npz` sorts after — which is exactly why the five TD clips
+  were inert while the six ASD clips were not. Swept over 12 node-seed triples the same upload
+  averages **+0.001 ± 0.007**: the demo had simply lost that coin flip at the one seed triple it
+  uses. Two independent fixes stack — land uploads at the end of the sort (`client_app.py` now writes
+  `upload_<name>.npz`, with the measurement in a comment there) and concentrate the upload on one
+  node, which perturbs one node's assignment instead of three and halves the variance.
+- **The shipped configuration survives a live upload.** `--per-class 16` with all 11 clips on one
+  node: 0.802 ± 0.008 with clips versus 0.804 ± 0.003 without, 4 of 4 runs above the reference in
+  each arm, the upload moving the final AUC by −0.002 — inside the noise. Verified on fresh seeds.
+- **One institution alone versus three together is the one comparison that does move, and it is the
+  project's actual claim.** Across 28 paired runs at `--per-class 16`: solo 0.750 ± 0.029, above the
+  reference in 5 of 28; the three together 0.794 ± 0.010, above it in 26 of 28. The federation wins
+  97% of single-run pairings. The incremental 2→3 step is *not* showable (+0.004, a 58% win rate — a
+  coin flip), so do not add a third institution on stage and point at the number.
+- **That gain is data volume, not federation machinery**, and the control says so: holding total rows
+  fixed at ~720 and splitting them across 1, 2 and 3 institutions gives 0.796 / 0.795 / 0.792 — flat.
+  The defensible sentence is "three sites bring three times the data, and federating costs nothing
+  compared with pooling it" — which is the whole point, since these institutions cannot pool.
+  "Federation makes the model better" is contradicted by that same control. The solo arm also runs
+  `FED_COHORT=1`, which the coordinator itself labels `privacy_mode: central_dp_solo` and which
+  `AGENTS.md` forbids calling secure aggregation, so the two arms are different privacy modes and the
+  narration has to say so.
+
+The honest consequence is unchanged: **a live upload demonstrates the privacy path, not an accuracy
+gain.** The supportable claim is that uploading real data does *not degrade* the model, which is what
+was measured; "uploading real data improves it" is not supported at n = 11 clips. Raw video never
+leaves the machine, `raw sent = 0 bytes`, and the audit chain gains signed entries — those are true
+every time. Attributing a metric change to the clips just uploaded is ruled out on separate grounds
+by [`wiki/evaluation-and-claims.md`](wiki/evaluation-and-claims.md): a round mixes fresh random trees,
+fresh DP noise and the whole cohort's contribution.
+
+Sensitivity — recall on ASD, the metric a screening tool actually rides on — is exactly unchanged by
+the upload (Δ = +0.000 across 20 paired runs). Nothing about this demo should be read as evidence
+that adding real recordings improves screening performance; the evaluation set here is synthetic, and
+answering that question needs a real, institution-grouped held-out set.
+
+**Which metrics the dashboard shows, and why those**
+
+Chosen from 96 federations across three stagings, on measured stability rather than preference. The
+ranking held across all three (Spearman 0.95–0.99) even though the magnitudes did not — sensitivity's
+coefficient of variation is 13.9% at `--per-class 10` and 4.1% at 30, so a stability figure quoted at
+one staging cannot be carried to another.
+
+| Shown | Why |
+|---|---|
+| AUC | CV 0.7–1.6%, rises in 91 of 96 runs, visibly dips in 9. The headline. |
+| Balanced accuracy | CV 1.5–2.8%; stands in for accuracy (r = +0.99) and MCC (r = +0.99) at a third of MCC's noise. |
+| Sensitivity + specificity, as one operating-point element | They are one threshold rendered twice, anti-correlated at r = −0.81. As two bars they are forced to disagree and read as instability; as one element they read as the trade-off they are. |
+
+| Dropped | Why |
+|---|---|
+| Brier | The most stable metric measured, and useless: its entire observed range across 96 runs is 0.015 wide, it degrades over rounds in 84 of 96, and it is non-monotonic across stagings. Stability is not a reason to display something. |
+| Precision | Redundant with specificity (r = +0.93) and falls as data is added — a number that moves backwards on stage. |
+| MCC | Same information as balanced accuracy (r = +0.99) at 3× the noise. |
+| F1 | A blend of two things already on screen (r = +0.91 with each). |
+| ECE | Worst on every axis: CV 6.9–16.8%, a visible dip in 93 of 96 runs, and it worsens in 87 of 96. |
+
+All of them remain in `/status` and in the exported audit bundle.
 
 **Screened rehearsal clips (`demo_videos/`)**
 

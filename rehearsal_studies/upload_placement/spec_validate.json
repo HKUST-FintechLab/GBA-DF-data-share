@@ -1,0 +1,7 @@
+[
+ {"label":"baseline20 only","per_class":20,"assign":{}},
+ {"label":"baseline20 + 11 spread","per_class":20,
+  "assign":{"1":["asd_01.npz","asd_04.npz","td_01.npz","td_04.npz"],
+            "2":["asd_02.npz","asd_05.npz","td_02.npz","td_05.npz"],
+            "3":["asd_03.npz","asd_06.npz","td_03.npz"]}}
+]

@@ -1,0 +1,16 @@
+pc10 rep16 port8830 80.6s rounds=5 auc 0.801
+pc10 rep17 port8831 798.3s rounds=0 FAILED
+pc10 rep18 port8832 15.8s rounds=5 auc 0.799
+pc10 rep19 port8833 15.3s rounds=5 auc 0.776
+pc10 rep20 port8834 15.6s rounds=5 auc 0.787
+pc10 rep21 port8835 20.2s rounds=5 auc 0.804
+pc10 rep22 port8836 14.6s rounds=5 auc 0.796
+pc10 rep23 port8837 13.4s rounds=5 auc 0.790
+pc10 rep24 port8838 13.1s rounds=5 auc 0.791
+pc10 rep25 port8839 12.8s rounds=5 auc 0.789
+pc10 rep26 port8840 13.2s rounds=5 auc 0.799
+pc10 rep27 port8841 13.2s rounds=5 auc 0.796
+pc10 rep28 port8842 13.4s rounds=5 auc 0.787
+pc10 rep29 port8843 13.4s rounds=5 auc 0.784
+pc10 rep30 port8844 13.3s rounds=5 auc 0.769
+pc10 rep31 port8845 13.5s rounds=5 auc 0.793

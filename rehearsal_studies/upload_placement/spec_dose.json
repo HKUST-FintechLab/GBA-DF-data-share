@@ -1,0 +1,15 @@
+[
+ {"label":"base20 + 3 spread","per_class":20,
+  "assign":{"1":["asd_01.npz"],"2":["td_01.npz"],"3":["asd_02.npz"]}},
+ {"label":"base20 + 6 spread (3A+3T)","per_class":20,
+  "assign":{"1":["asd_01.npz","td_01.npz"],"2":["asd_02.npz","td_02.npz"],"3":["asd_03.npz","td_03.npz"]}},
+ {"label":"base20 + 6 ASD spread","per_class":20,
+  "assign":{"1":["asd_01.npz","asd_04.npz"],"2":["asd_02.npz","asd_05.npz"],"3":["asd_03.npz","asd_06.npz"]}},
+ {"label":"base20 + 5 TD spread","per_class":20,
+  "assign":{"1":["td_01.npz","td_04.npz"],"2":["td_02.npz","td_05.npz"],"3":["td_03.npz"]}},
+ {"label":"base40 + 11 spread","per_class":40,
+  "assign":{"1":["asd_01.npz","asd_04.npz","td_01.npz","td_04.npz"],
+            "2":["asd_02.npz","asd_05.npz","td_02.npz","td_05.npz"],
+            "3":["asd_03.npz","asd_06.npz","td_03.npz"]}},
+ {"label":"base40 + 0","per_class":40,"assign":{}}
+]

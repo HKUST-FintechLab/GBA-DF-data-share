@@ -137,7 +137,14 @@ class Api:
             stem = re.sub(r"[^A-Za-z0-9._-]+", "_", stem).strip("._-") or "video"
             out_dir = os.path.join(os.path.abspath(root), label.lower())
             os.makedirs(out_dir, exist_ok=True)
-            out = os.path.join(out_dir, f"{stem}.npz")
+            # The `upload_` prefix is not cosmetic. `modalities._list()` returns files in sorted
+            # path order and `dp.count_on_shared` zips its row->tree draw against that order, so a
+            # new file inserted EARLY in the sort re-rolls which tree every later row of that node
+            # is counted into. Measured: adding clips named `asd_*` (which sort before
+            # `synthetic_*`) moved the federated AUC by -0.017 at one node-seed triple while
+            # `td_*` files, which sort after, were inert. Landing uploads at the end of the sort
+            # makes an upload's effect independent of what the source video happened to be called.
+            out = os.path.join(out_dir, f"upload_{stem}.npz")
             suffix = 2
             while os.path.exists(out):
                 out = os.path.join(out_dir, f"{stem}_{suffix}.npz")
