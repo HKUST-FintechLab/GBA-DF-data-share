@@ -126,23 +126,38 @@
   .lrow .track i{display:block;height:100%;background:var(--warm-soft);transition:width .5s ease}
   .lrow.live .track i{background:var(--warm)}
 
-  #spark{width:100%;height:104px;display:block}
+  #spark{width:100%;height:132px;display:block}
   .logwrap{min-height:96px}
   .spark-k{font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:.1em;
     text-transform:uppercase;margin-top:8px;line-height:1.8}
-  .diaggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px 8px}
-  .diag{min-width:0}
-  .diag .v{font:600 17px var(--mono);color:var(--ink);letter-spacing:-.03em}
+  /* the ROC plot sits beside the scalars: AUC is the area under it, so the headline number and
+     its geometry belong in one glance */
+  .diagtop{display:flex;gap:14px;align-items:flex-start}
+  #roc{flex:0 0 96px;width:96px;height:96px}
+  .diaggrid{flex:1;min-width:0;display:grid;grid-template-columns:repeat(2,1fr);gap:9px 8px}
+  .diag{min-width:0;display:flex;align-items:baseline;gap:6px}
+  .diag .v{font:600 13px var(--mono);color:var(--ink);letter-spacing:-.03em}
   .diag .v.azure{color:var(--azure)} .diag .v.warm{color:var(--warm)}
-  .diag .k{font:8px var(--mono);color:var(--ink-faint);letter-spacing:.12em;
-    text-transform:uppercase;margin-top:3px;white-space:nowrap}
+  .diag .k{font:8px var(--mono);color:var(--ink-faint);letter-spacing:.1em;
+    text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* a hairline track behind each scalar: length is the value, so eight numbers read as a shape */
+  .diag .bar{flex:0 0 26px;height:2px;background:rgba(122,168,235,.14);position:relative}
+  .diag .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--azure)}
+  .diag .bar i.warm{background:var(--warm)}
   .impact{margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);
     font:9px/1.7 var(--mono);letter-spacing:.06em;color:var(--ink-faint);text-transform:uppercase}
   .impact b{color:var(--azure);font-weight:500}
-  .matrix{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-top:10px}
-  .matrix span{padding:5px 2px;text-align:center;background:rgba(78,168,255,.06);
-    font:8px var(--mono);color:var(--ink-faint)}
-  .matrix b{display:block;color:var(--ink-soft);font-size:11px;margin-bottom:2px}
+  /* one bar instead of four counts: how much of the held-out set the model placed correctly */
+  .matrix{margin-top:12px}
+  .mxbar{display:flex;height:12px;overflow:hidden;background:rgba(122,168,235,.08)}
+  .mxbar i{display:block;height:100%}
+  .mxbar i.tn{background:rgba(78,168,255,.55)} .mxbar i.tp{background:var(--azure)}
+  .mxbar i.fp{background:rgba(255,169,92,.75)} .mxbar i.fn{background:rgba(255,107,107,.7)}
+  .mxk{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px;
+    font:8px var(--mono);color:var(--ink-faint);letter-spacing:.1em;text-transform:uppercase}
+  .mxk span{display:flex;align-items:center;gap:4px}
+  .mxk em{width:7px;height:7px;font-style:normal}
+  .mxk b{color:var(--ink-soft);font-weight:500}
 
   .logwrap{flex:1;min-height:0;display:flex;flex-direction:column}
   .log{flex:1;overflow:auto;font-family:var(--mono);font-size:10px;line-height:1.7;min-height:0;
@@ -154,6 +169,12 @@
   .e .tx{color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .e .h{color:var(--ink-faint)}
   .ev-submit{color:var(--azure)} .ev-aggregate{color:var(--warm)} .ev-register{color:#A78BFA}
+  .ev-rejoin{color:#A78BFA} .ev-round_discarded{color:var(--amber)}
+  /* one bar of the three members' share of the pooled record count */
+  .sharebar{display:flex;height:6px;overflow:hidden;background:rgba(255,255,255,.06)}
+  .sharebar i{display:block;height:100%}
+  .sharebar i.s0{background:var(--warm)} .sharebar i.s1{background:var(--warm-soft)}
+  .sharebar i.s2{background:#C98A4B}
   .ev-genesis{color:var(--ink-soft)} .ev-rejected{color:var(--red)}
 
   /* ---- bottom strip: legend, figures, honesty ---- */
@@ -218,7 +239,7 @@
     .rail{top:92px;bottom:78px}
     .sec{padding-bottom:7px}
     .block{padding-bottom:13px;margin-bottom:13px}
-    #spark{height:80px}
+    #spark{height:104px}
   }
   @media (max-height:700px){
     .wordmark,.topright{top:20px}
@@ -229,7 +250,7 @@
     .hud .cmp{margin-top:9px}
     .rail{top:96px;bottom:62px}
     .spark-k{display:none}
-    #spark{height:64px}
+    #spark{height:86px}
     .figs{bottom:14px;gap:16px}
     .fig .v{font-size:13px}
   }
@@ -288,7 +309,10 @@
 
     <div class="sec">Model diagnostics · positive <span class="n" id="positiveClass">ASD</span></div>
     <div class="block">
-      <div class="diaggrid" id="diagGrid"></div>
+      <div class="diagtop">
+        <svg id="roc" viewBox="0 0 108 108" aria-label="ROC curve"></svg>
+        <div class="diaggrid" id="diagGrid"></div>
+      </div>
       <div class="matrix" id="matrix"></div>
       <div class="impact" id="impact">Waiting for the first aggregation round</div>
     </div>
@@ -303,7 +327,7 @@
 
     <div class="sec">Federated vs pooled · per round</div>
     <div class="block">
-      <svg id="spark" viewBox="0 0 360 104" preserveAspectRatio="none"></svg>
+      <svg id="spark" viewBox="0 0 360 132" preserveAspectRatio="none"></svg>
       <div class="spark-k" id="sparkK"></div>
     </div>
 
@@ -544,6 +568,10 @@ function evText(e){
   if(e.event==="aggregate") return `r${d.round} · ${d.participants} members · ε=${d.epsilon} · AUC ${d.auc??d.fed_auc??"—"}`;
   if(e.event==="register")  return `${d.name} · key ${d.key_fingerprint}`;
   if(e.event==="genesis")   return `${d.dataset} · cohort ${d.cohort} · pooled ${d.centralized_auc}`;
+  // these two reach the chain in ordinary operation, so they deserve a sentence rather than the
+  // raw key=value dump the fallback produces
+  if(e.event==="rejoin")    return `${d.name??"member"} re-enrolled · ${d.samples} local · masks rebuilt`;
+  if(e.event==="round_discarded") return `r${d.round} discarded · ${d.reason??"cohort changed"} · no ε spent`;
   return Object.entries(d).map(([k,v])=>`${k}=${v}`).join(" ").slice(0,72);
 }
 function logEvent(e){
@@ -744,20 +772,62 @@ function renderHud(){
   renderDiagnostics();
 }
 
+/* The coordinator has always shipped the ROC points; nothing drew them. AUC is the area under this
+   curve, so plotting it turns the headline decimal into a shape a non-specialist can read: the
+   further the curve bulges above the chance diagonal, the better the ranking. */
+function renderRoc(){
+  const svg=$("roc"), roc=(S.latest||{}).roc, W=108, pad=10;
+  if(!roc||!Array.isArray(roc.fpr)||roc.fpr.length<2){ svg.innerHTML=""; return; }
+  const P=v=>pad+v*(W-pad*2), Q=v=>W-pad-v*(W-pad*2);
+  const pts=roc.fpr.map((f,i)=>`${P(f).toFixed(1)} ${Q(roc.tpr[i]).toFixed(1)}`);
+  svg.innerHTML=
+    `<rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${W-pad*2}" fill="none" `+
+      `stroke="rgba(122,168,235,.12)"/>`+
+    `<line x1="${P(0)}" y1="${Q(0)}" x2="${P(1)}" y2="${Q(1)}" stroke="rgba(122,168,235,.22)" `+
+      `stroke-dasharray="3 3"/>`+
+    `<path d="M${P(0).toFixed(1)} ${Q(0).toFixed(1)} L${pts.join(" L")} L${P(1).toFixed(1)} `+
+      `${Q(0).toFixed(1)} Z" fill="rgba(78,168,255,.13)"/>`+
+    `<path d="M${pts.join(" L")}" fill="none" stroke="#4EA8FF" stroke-width="1.6" `+
+      `stroke-linejoin="round"/>`+
+    `<text x="${W/2}" y="${W-1}" text-anchor="middle" font-size="6.5" `+
+      `font-family="'IBM Plex Mono',Consolas,monospace" fill="#66809F" `+
+      `letter-spacing="1">ROC · AREA = AUC</text>`;
+}
+
 function renderDiagnostics(){
   const m=S.latest||{}, fmt=v=>v==null||!Number.isFinite(Number(v))?"—":Number(v).toFixed(3);
   $("positiveClass").textContent=m.positive_class||"ASD";
+  // Brier and ECE are lower-is-better, so their bar shows 1-v and is warm: a short warm bar and a
+  // long azure one both mean "good", which would invert the reading if they shared a colour.
   const values=[
-    ["Sensitivity",m.sensitivity,"azure"],["Specificity",m.specificity,"azure"],
-    ["Balanced acc",m.bacc,""],["F1",m.f1,""],
-    ["MCC",m.mcc,"warm"],["Precision",m.precision,""],
-    ["Brier ↓",m.brier,""],["ECE ↓",m.ece,""]
+    ["Sens",m.sensitivity,"azure",false],["Spec",m.specificity,"azure",false],
+    ["Bal acc",m.bacc,"",false],["F1",m.f1,"",false],
+    ["MCC",m.mcc,"warm",false],["Prec",m.precision,"",false],
+    ["Brier ↓",m.brier,"",true],["ECE ↓",m.ece,"",true]
   ];
-  $("diagGrid").innerHTML=values.map(([k,v,c])=>
-    `<div class="diag"><div class="v ${c}">${fmt(v)}</div><div class="k">${k}</div></div>`).join("");
+  $("diagGrid").innerHTML=values.map(([k,v,c,inv])=>{
+    const n=Number(v), ok=Number.isFinite(n);
+    const fill=!ok?0:Math.max(0,Math.min(1,inv?1-n:n))*100;
+    return `<div class="diag"><span class="bar"><i class="${inv?"warm":""}" `+
+      `style="width:${fill.toFixed(0)}%"></i></span>`+
+      `<span class="v ${c}">${fmt(v)}</span><span class="k">${k}</span></div>`;
+  }).join("");
+  renderRoc();
   const c=m.confusion;
-  $("matrix").innerHTML=c?[["TN",c.tn],["FP",c.fp],["FN",c.fn],["TP",c.tp]].map(([k,v])=>
-    `<span><b>${esc(v)}</b>${k}</span>`).join(""):"";
+  if(!c){ $("matrix").innerHTML=""; }
+  else{
+    const total=Math.max(1,c.tn+c.fp+c.fn+c.tp);
+    const seg=[["tn","TN",c.tn],["tp","TP",c.tp],["fp","FP",c.fp],["fn","FN",c.fn]];
+    const right=Math.round(100*(c.tn+c.tp)/total);
+    $("matrix").innerHTML=
+      `<div class="mxbar">${seg.map(([cls,,v])=>
+        `<i class="${cls}" style="width:${(100*v/total).toFixed(2)}%"></i>`).join("")}</div>`+
+      `<div class="mxk">${seg.map(([cls,k,v])=>
+        `<span><em class="mx-${cls}" style="background:var(--x)"></em>${k} <b>${esc(v)}</b></span>`
+          .replace("var(--x)",{tn:"rgba(78,168,255,.55)",tp:"#4EA8FF",
+                               fp:"rgba(255,169,92,.75)",fn:"rgba(255,107,107,.7)"}[cls])).join("")}`+
+        `<span style="margin-left:auto">${right}% placed correctly</span></div>`;
+  }
   const hist=S.metrics||[], prev=hist.length>1?hist[hist.length-2]:null;
   if(!m||m.auc==null){ $("impact").textContent="Waiting for the first aggregation round"; return; }
   const delta=prev?.auc==null?null:Number(m.auc)-Number(prev.auc);
@@ -796,34 +866,70 @@ function renderLedger(){
     }).join("");
   }
 
-  const max=Math.max(1,...S.nodes.map(n=>n.samples||0));
-  $("ledgerRows").innerHTML=S.nodes.map(n=>
+  // share of the pooled record count, not share of the largest member: normalising to the max makes
+  // 78/69/77 look like 100%/88%/99% and implies a dominant institution that is not there
+  const pooled=Math.max(1,S.nodes.reduce((sum,n)=>sum+(n.samples||0),0));
+  $("ledgerRows").innerHTML=
+    `<div class="sharebar">${S.nodes.map((n,i)=>
+      `<i class="s${i%3}" style="width:${(100*(n.samples||0)/pooled).toFixed(2)}%"></i>`).join("")}</div>`+
+    S.nodes.map(n=>
     `<div class="lrow${n.state==="active"?" live":""}">
        <span class="nm"><span>${esc(n.name)}</span><b>${esc(n.samples)}</b></span>
-       <span class="track"><i style="width:${(100*(n.samples||0)/max).toFixed(1)}%"></i></span>
+       <span class="track"><i style="width:${(100*(n.samples||0)/pooled).toFixed(1)}%"></i></span>
      </div>`).join("");
 }
 
+/* The federated line alone says nothing without something to compare it against, and a line indexed
+   by round invites the reading that the model is "learning". So: draw both reference levels and
+   shade between them, mark every round, and give the growing tree count its own lane — the lane is
+   the honest explanation of why the line moves, not decoration. */
 function renderSpark(){
-  const svg=$("spark"), W=360,H=104,pad={l:32,r:8,t:10,b:18};
-  const pm=S.metric, pts=S.metrics.map((m,i)=>({x:i,y:m[pm]}));
-  if(!pts.length||S.central==null){ svg.innerHTML=""; $("sparkK").textContent=""; return; }
-  const lo=Math.max(0,Math.min(S.central,...pts.map(p=>p.y))-0.05), hi=Math.min(1,Math.max(S.central,...pts.map(p=>p.y))+0.05);
-  const X=i=>pad.l+(pts.length<=1?0:i/(pts.length-1))*(W-pad.l-pad.r);
-  const Y=v=>pad.t+(1-(v-lo)/Math.max(1e-6,hi-lo))*(H-pad.t-pad.b);
+  const svg=$("spark"), W=360,H=132,pad={l:32,r:8,t:10,b:36}, lane=14;
+  const pm=S.metric, pts=S.metrics.map((m,i)=>({x:i,y:Number(m[pm])}))
+    .filter(p=>Number.isFinite(p.y));
+  if(!pts.length){ svg.innerHTML=""; $("sparkK").textContent=""; return; }
+  const refs=[S.central,S.ceiling].filter(v=>v!=null&&Number.isFinite(Number(v))).map(Number);
+  const all=[...pts.map(p=>p.y),...refs];
+  const lo=Math.max(0,Math.min(...all)-0.05), hi=Math.min(1,Math.max(...all)+0.05);
+  const plotBottom=H-pad.b;
+  const X=i=>pad.l+(pts.length<=1?(W-pad.l-pad.r)/2:i/(pts.length-1)*(W-pad.l-pad.r));
+  const Y=v=>pad.t+(1-(v-lo)/Math.max(1e-6,hi-lo))*(plotBottom-pad.t);
   const MONO="'IBM Plex Mono',Consolas,monospace";
   let g="";
   [lo,hi].forEach(v=>{
     g+=`<line x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" stroke="rgba(122,168,235,.09)"/>`;
     g+=`<text x="${pad.l-6}" y="${Y(v)+3}" text-anchor="end" font-size="8" font-family="${MONO}" fill="#66809F">${v.toFixed(2)}</text>`;
   });
-  const cy=Y(S.central);
-  g+=`<line x1="${pad.l}" y1="${cy}" x2="${W-pad.r}" y2="${cy}" stroke="#FFA95C" stroke-width="1.2" stroke-dasharray="4 4"/>`;
-  g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="1.6"/>`;
-  const last=pts[pts.length-1];
-  g+=`<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.y).toFixed(1)}" r="2.6" fill="#4EA8FF"/>`;
+  // the band between the two references: neutral label, since that gap has several causes
+  if(S.central!=null&&S.ceiling!=null){
+    const a=Y(Math.min(S.central,S.ceiling)), b=Y(Math.max(S.central,S.ceiling));
+    g+=`<rect x="${pad.l}" y="${b}" width="${W-pad.l-pad.r}" height="${Math.max(0,a-b).toFixed(1)}" fill="rgba(122,168,235,.06)"/>`;
+  }
+  const ref=(v,color,label)=>{
+    if(v==null||!Number.isFinite(Number(v)))return"";
+    const y=Y(Number(v));
+    return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="${color}" stroke-width="1.2" stroke-dasharray="4 4"/>`+
+      `<text x="${W-pad.r}" y="${y-3}" text-anchor="end" font-size="7" font-family="${MONO}" fill="${color}" letter-spacing="1">${label}</text>`;
+  };
+  g+=ref(S.ceiling,"#9BBCE5","NON-PRIVATE");
+  g+=ref(S.central,"#FFA95C","POOLED CENTRALIZED");
+  g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="1.6" stroke-linejoin="round"/>`;
+  pts.forEach((p,i)=>{
+    const r=i===pts.length-1?2.8:1.8;
+    g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${r}" fill="#4EA8FF"/>`;
+  });
+  // cumulative ensemble size, the actual reason the curve moves
+  const trees=S.metrics.map(m=>Number(m.n_trees||0));
+  const maxTrees=Math.max(1,...trees);
+  const laneTop=H-lane-12, colW=Math.max(2,(W-pad.l-pad.r)/Math.max(1,pts.length)*0.42);
+  trees.slice(0,pts.length).forEach((t,i)=>{
+    const h=Math.max(1,(t/maxTrees)*lane);
+    g+=`<rect x="${(X(i)-colW/2).toFixed(1)}" y="${(laneTop+lane-h).toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="rgba(122,168,235,.28)"/>`;
+  });
+  g+=`<text x="${pad.l-6}" y="${laneTop+lane}" text-anchor="end" font-size="7" font-family="${MONO}" fill="#4a6285">${maxTrees}</text>`;
+  g+=`<text x="${pad.l}" y="${H-2}" font-size="7" font-family="${MONO}" fill="#4a6285" letter-spacing="1">TREES IN ENSEMBLE · ROUND 1…${pts.length}</text>`;
   svg.innerHTML=g;
-  $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; <span style="color:#FFA95C">-- pooled centralized</span><br>`+
+  $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; <span style="color:#FFA95C">-- pooled centralized</span> &nbsp; <span style="color:#9BBCE5">-- non-private</span><br>`+
     `each point = one aggregation round · ensemble-size variance reduction, not iterative learning`;
 }
 

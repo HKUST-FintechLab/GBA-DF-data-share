@@ -29,7 +29,8 @@ class Api:
     """Bridge exposed to the web UI as `window.pywebview.api`. Every method returns a
     JSON-safe dict; the node loop runs in a background thread and the UI polls poll()."""
 
-    def __init__(self, default_coord="http://localhost:8055", default_node="node_1"):
+    def __init__(self, default_coord="http://localhost:8055", default_node="node_1",
+                 video_out=None):
         self._lock = threading.Lock()
         self._log = []
         self._state = {"running": False, "done": False, "error": None, "summary": None}
@@ -43,6 +44,13 @@ class Api:
         # into a persistent folder explicitly through the advanced video settings.
         self._video_temp = tempfile.TemporaryDirectory(prefix="gba-df-video-")
         self._video_output = self._video_temp.name
+        # A staged rehearsal folder, when one exists for this node, is what the operator almost
+        # always means: extracted clips should land beside the data the node already holds
+        # rather than in a scratch directory that is emptied on exit. Retention is a deliberate
+        # choice, so the advanced settings still show this folder as permanent.
+        staged = video_out or os.path.join(HERE, "demo_nodes", default_node)
+        if os.path.isdir(staged):
+            self._video_output = os.path.abspath(staged)
 
     # ---- discovery ----
     def list_modalities(self):
@@ -141,7 +149,8 @@ class Api:
             os.replace(tmp, out)
             tmp = None
             return {"ok": True, "path": out, "root": os.path.abspath(root),
-                    "label": label, "frames": int(arr.shape[0])}
+                    "label": label, "frames": int(arr.shape[0]),
+                    "points": int(arr.shape[1]), "bytes": os.path.getsize(out)}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
         finally:
@@ -251,11 +260,19 @@ class Api:
 
 def _selftest():
     """Headless check of every API method except the native folder dialog."""
-    api = Api()
+    # a node with no staged folder keeps the temporary, cleaned-on-exit workspace
+    api = Api(default_node="__unstaged__")
     temporary_output = api.video_output()
     assert temporary_output["ok"] and temporary_output["temporary"]
     assert os.path.isdir(temporary_output["path"])
     print("video_output:", {"temporary": True, "exists": True})
+    # a staged folder for this node is adopted instead, and reported as permanent
+    with tempfile.TemporaryDirectory() as staged:
+        staged_api = Api(video_out=staged)
+        picked = staged_api.video_output()
+        assert not picked["temporary"] and picked["path"] == os.path.abspath(staged), picked
+        assert staged_api.reset_video_output()["temporary"]
+    print("video_output(staged):", {"adopted": True, "temporary": False})
     print("modalities:", [m["key"] for m in api.list_modalities()])
     d = api.generate_demo("eyegaze", n_per_class=8)
     print("generate_demo:", d)
@@ -286,12 +303,15 @@ def main():
     ap.add_argument("--selftest", action="store_true", help="run headless API checks, no GUI")
     ap.add_argument("--coord", default="http://localhost:8055", help="prefill coordinator URL")
     ap.add_argument("--node-id", default="node_1", help="prefill node id")
+    ap.add_argument("--video-out", default=None,
+                    help="folder for extracted NPZ; defaults to demo_nodes/<node-id> when that "
+                         "folder exists, otherwise a temporary one removed on exit")
     args = ap.parse_args()
     if args.selftest:
         _selftest(); return
 
     import webview
-    api = Api(default_coord=args.coord, default_node=args.node_id)
+    api = Api(default_coord=args.coord, default_node=args.node_id, video_out=args.video_out)
     webview.create_window(
         "GBA-DF Federated Node", url=os.path.join(HERE, "static", "client.html"),
         js_api=api, width=1040, height=760, min_size=(880, 620))

@@ -174,6 +174,99 @@ silently assigning different meanings to the same 104 columns.
   seed data is **not shipped** with this repo; supply your own (see `data_loaders.load_pose`) or just use
   `har` / the `action` modality. `load_pose()` raises a clear error if the seed data is absent.
 
+## Branch `20260801` — rehearsal snapshot
+
+This branch exists so a second machine can clone and reproduce one specific rehearsal, not just the
+code that would build one. It therefore **commits the runtime state that `main` ignores**: `data/`
+(prepared `action` schema, held-out test set, coordinator state), `nodes/`, `demo_nodes/`,
+`demo_videos/` and the mirrored MediaPipe binaries under `static/vendor/`. Only `.venv/` and
+`__pycache__/` stay out — committing a virtualenv full of absolute paths would break the clone
+rather than help it, and `uv sync` rebuilds it exactly from `uv.lock`.
+
+`demo_videos/` holds real recordings of real children. Keep this repository private and treat every
+clone under the ethics coverage in [`wiki/human-critical-path.md`](wiki/human-critical-path.md).
+The signing keys under `data/coordinator_state/` and `nodes/` are committed too, which `AGENTS.md`
+otherwise forbids — that is a knowing exception for a private snapshot branch, and any real
+deployment must generate fresh keys.
+
+To reproduce after cloning:
+
+```bash
+uv sync --extra client                     # rebuild the environment from uv.lock
+uv run python reset_demo.py                # coordinator on :8055, round 1, clean chain
+uv run python client_app.py --node-id node_1   # and node_2 / node_3 in two more terminals
+```
+
+### What changed on 2026-08-01
+
+Everything below is additive or a contained fix; no change to the protocol, the DP mechanism, the
+aggregation, the payload schema or any modality. `verify_security.py` passes except three
+pre-existing `0600` file-mode assertions that cannot hold on Windows (confirmed identical on an
+unmodified checkout), and `client_app.py --selftest` passes.
+
+**Rehearsal tooling (new files)**
+
+| File | Why |
+|---|---|
+| `stage_demo_nodes.py` | Gives each node its own synthetic baseline cohort (independent seed, both classes, files marked `synthetic_…`). Without a baseline, a demo that uploads two or three clips trains on two or three feature rows, the DP noise swamps them, and the AUC lands on a coin flip — the demo then argues against itself. |
+| `reset_demo.py` | Returns the federation to round 1 between takes without touching the coordinator's identity: clears the room state, keeps `coordinator_key.pem`, so issued invitations stay valid. Refuses to run while anything still holds the port, because a live coordinator keeps state in memory and would write the cleared files straight back. |
+
+**Node behaviour (`node_core.py`)**
+
+- `await_cohort()` no longer times out after 240 s. Institutions join a rehearsal minutes apart, and
+  the timeout silently dropped a node from a cohort the others were still forming. It stays
+  interruptible through `should_stop()`.
+- The per-round wait grew to ~18 min so the coordinator's own `FED_ROUND_TIMEOUT_SECONDS` — the
+  documented authority on discarding a partial round — is what decides, not the client.
+- Progress is now published at six points (register, cohort wait, counting, submit, aggregate)
+  instead of only after a completed round. Every counter previously read zero while work was in
+  flight, so a run waiting on another institution looked broken. The cohort wait also reports how
+  many institutions have connected.
+
+**Desktop client**
+
+- Opens on a cover page (`static/client_cover.js`): wordmark, one sentence, three promises, Start.
+  Each promise was checked against the code before it was written, and two were tightened —
+  "every share carries calibrated noise" became "every model update", because registration and each
+  submission send `n_samples` in the clear; and the Chinese "防篡改" became "any edit shows up",
+  since the chain is tamper-*evident* and a fully compromised coordinator still needs external
+  anchoring.
+- Per-file accounting during video import (`static/client_filelist.js`): source size → kept NPZ size,
+  resolution, duration, sampled frames, and what share of those frames contained a detectable pose.
+- A progress bar and phase line for the training step (`static/client_runprogress.js`).
+- `static/client_datacheck.js` warns on a folder too small or single-class, but is **not loaded** —
+  the `<script>` tag is commented out for demos. Note the warning's own text was corrected: a
+  single-class institution costs the federation nothing, because the coordinator sums leaf-count
+  histograms rather than averaging models, so long as the cohort as a whole covers both classes.
+- The extracted-NPZ folder defaults to `demo_nodes/<node-id>` when that folder exists, so clips
+  extracted on camera train beside the baseline instead of alone in a scratch directory. On a
+  machine without that folder the behaviour is unchanged — temporary, removed on exit.
+- Default interface is now the dark federation console; the blue-and-white one is still in settings.
+- The eye-tracking card is drawn as an eye, a gaze ray and three dwell spots rather than a scatter of
+  fixations; the CDP card dropped the tree behind the skeleton (it implied the historical TreeFusion
+  classifier, which is never loaded) in favour of a 17-point amber skeleton and a sampled-frame strip.
+
+**Coordinator dashboard (`static/dashboard.html`)**
+
+- Plots the ROC curve. The coordinator had always shipped `roc:{fpr,tpr}` per round and nothing drew
+  it, yet AUC is exactly the area under it.
+- The trajectory chart gained the non-private reference line, a band between the two references, a
+  marker per round, and a lane showing cumulative ensemble size — that lane is the honest
+  explanation of why the line moves, and pairs with the caption `AGENTS.md` requires.
+- Eight diagnostic scalars gained value bars; the confusion matrix became one stacked bar.
+- Member bars normalise to the pooled record count instead of the largest member: 78/69/77 rendered
+  as 100%/88%/99% and implied a dominant institution that is not there.
+- `rejoin` and `round_discarded` now render as sentences instead of a raw `key=value` dump.
+
+**Screened rehearsal clips (`demo_videos/`)**
+
+172 source clips were screened with MediaPipe pose, face detection, histogram shot-change detection
+and a morphological text detector; 11 survived and each was then checked frame by frame. The
+automated pass was not trustworthy on this material and the final selection is a visual one — face
+detection cannot count a person who is turned away, nothing in the pipeline separates an adult from a
+child, and the first text detector missed every rolling caption because it only looked for pixels
+that never change.
+
 ## Quick start (uv)
 
 This project uses [uv](https://docs.astral.sh/uv/) (`pyproject.toml` + `uv.lock`).
@@ -222,6 +315,13 @@ uv run python client_app.py --selftest    # headless API smoke test (no GUI)
 
 No data of your own? The client's **"Generate a demo folder"** button writes a synthetic cohort (clearly
 labelled) in the right format so a partner can walk the whole flow before wiring up real recordings.
+
+For a rehearsal where clips are uploaded on camera, `stage_demo_nodes.py` gives each node its own
+synthetic baseline cohort so the metric has signal, and `client_app.py --node-id node_N` then defaults
+its extracted-NPZ folder to the matching `demo_nodes/node_N` so live clips train alongside it. The
+staging, the clips screened for it in `demo_videos/` (git-ignored real recordings), and the wording
+that keeps the composition honest are in [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md); `reset_demo.py` returns
+the federation to round 1 between takes.
 
 For the **`action` and experimental `action_cdp`** front ends, step 2 has two inputs:
 

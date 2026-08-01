@@ -20,7 +20,8 @@ import secure_agg as sa
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 RECONNECT_ATTEMPTS = 3        # re-enrol + rebuild masks this many times before giving up
-ROUND_POLL_ATTEMPTS = 480     # ≈144 s waiting for the rest of the cohort on one round
+ROUND_POLL_ATTEMPTS = 3600    # ≈18 min; outlives the coordinator's own round timeout, which
+                              # is the authority on when a partial round is discarded
 
 
 def load_client_config(path: str) -> dict:
@@ -196,7 +197,17 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
                "primary_metric": sch.get("primary_metric", "acc"), "ok": True, "error": None,
                "current_round": None, "application_bytes_sent": 0,
                "application_bytes_received": 0, "masked_payload_bytes_sent": 0,
-               "protocol_metadata_bytes_sent": 0}
+               "protocol_metadata_bytes_sent": 0,
+               # live progress: without these the caller only learns anything once a whole
+               # round has completed, so every counter reads zero while work is in flight
+               "phase": "starting", "rounds_total": int(rounds), "cohort_size": int(sch["cohort"]),
+               "cohort_seen": 0}
+
+    def publish(phase=None):
+        if phase:
+            summary["phase"] = phase
+        if on_round:
+            on_round(dict(summary))
 
     def post_json(path, payload, masked_bytes=0):
         """Send and count the exact UTF-8 JSON application body (not HTTP/TLS overhead)."""
@@ -236,19 +247,31 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             summary.update(ok=False, error=f"register rejected: {r.get('error')}")
             on_log(f"register rejected: {r.get('error')}"); return summary
         on_log(f"{name}: {n_samples} local samples registered — waiting for cohort ({sch['cohort']})…")
+        publish("registered")
 
         def await_cohort():
             """Block until the enrolled cohort is complete, then return the peer masking keys
-            and the fingerprint of the exact set those keys belong to."""
-            for _ in range(480):
+            and the fingerprint of the exact set those keys belong to.
+
+            There is no deadline: institutions join a demo or a pilot minutes apart, and a
+            timeout here silently drops the node from a cohort the others are still forming.
+            The caller stays interruptible through should_stop() (the desktop client's Stop
+            button, Ctrl+C for the CLI).
+            """
+            while True:
                 if should_stop():
                     return None, ""
                 p = get_json("/participants")
                 if p["ready"]:
                     return ({q["node_id"]: sa.load_x_pub(q["x_pub"]) for q in p["participants"]},
                             p.get("cohort_sha256", ""))
+                seen = len(p.get("participants") or [])
+                if seen != summary["cohort_seen"]:
+                    summary["cohort_seen"] = seen
+                    on_log(f"waiting for the cohort — {seen}/{summary['cohort_size']} "
+                           f"institutions connected…")
+                publish("waiting_for_cohort")
                 time.sleep(0.5)
-            return None, ""
 
         peers, cohort_sha = await_cohort()
         if peers is None:
@@ -258,6 +281,8 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
             on_log(f"cohort ready ({len(peers)} nodes); pairwise secure aggregation active.")
         else:
             on_log("single-node cohort ready; central DP active, secure aggregation inactive.")
+        summary["cohort_seen"] = len(peers)
+        publish("cohort_ready")
 
         def rejoin():
             """Re-enrol after the coordinator lost our registration or the cohort changed.
@@ -275,6 +300,8 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
         for completed, rd in enumerate(range(start_round, start_round + rounds), start=1):
             if should_stop():
                 summary.update(error="stopped"); break
+            summary["current_round"] = rd
+            publish("counting")
             trees = dpmod.build_shared_structure(struct_seed + rd, X.shape[1], bounds, depth, n_trees)
             counts = dpmod.count_on_shared(trees, X, y, classes, assign_seed=seed * 100 + rd)
             flat = dpmod.flatten_counts(counts)
@@ -301,6 +328,7 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
                 on_log(f"round {rd} REJECTED: {(resp or {}).get('error')}"); break
 
             res = resp
+            publish("submitted")            # the payload counters are only real from here on
             for _ in range(ROUND_POLL_ATTEMPTS):
                 if should_stop():
                     break
@@ -336,8 +364,7 @@ def run_node(coord, node_id, name, X, y, sch, rounds=5, seed=0,
                    f"({count_label} {masked_kb:.1f} KB) · "
                    f"global ε {global_eps:.2f}/{epsilon_budget} · "
                    f"global {summary['primary_metric']} = {val_s}")
-            if on_round:
-                on_round(dict(summary))
+            publish("aggregated")
         if aborted and on_round:
             on_round(dict(summary))
     except Exception as e:                               # network/other — surface, don't crash UI
