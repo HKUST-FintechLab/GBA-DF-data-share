@@ -24,6 +24,39 @@ does not make a capability complete.
 The detailed rationale and privacy implications are in
 [`wiki/learning-modes.md`](wiki/learning-modes.md).
 
+## G0 — mandatory governance before any real-data or cross-border run
+
+The route matrix, exact current data flow, official sources, admission-pack template and immediate
+no-go conditions are in [`wiki/legal-and-policy.md`](wiki/legal-and-policy.md). These items require
+institution owners; completing code does not complete them.
+
+- [ ] Choose and record the pilot topology: all Hong Kong, Hong Kong↔Shenzhen GBA, Beijing/other
+  Mainland↔Hong Kong, or another overseas route. Record every cloud, backup, log, administrator and
+  remote-support location—not just the coordinator hostname.
+- [ ] Build the field-level transfer register for raw recordings, local features, masked/unmasked
+  leaf×class counts, node-reported input-row counts, node/public-key metadata, pre-noise pool, model, metrics,
+  audit bundle, test set, reverse-proxy log and backup.
+- [ ] Sign the factual role matrix and data-sharing/processing agreement: data user/controller,
+  joint controller/共同处理者, processor/受托人, purpose, onward recipient, retention/deletion,
+  rights, government requests, incident timing, audit, model/IP and termination.
+- [ ] Confirm each original PICS/consent and ethics approval covers the actual learning mode,
+  cross-institution submission, coordinator/test-set location, dashboard/audit visibility, model
+  release and future use; obtain amendment, guardian permission and age-appropriate assent where needed.
+- [ ] Complete the applicable DPIA/PIPIA and written model/update anonymization assessment; test
+  membership, attribute, extraction and small-cohort inference rather than declaring DP output anonymous.
+- [ ] Complete the applicable transfer instrument and filing: Hong Kong RMC/GBA contract, Mainland
+  standard contract/certification/security assessment, applicable EU/UK transfer mechanism, or
+  destination-specific equivalent. For U.S. partners also complete HIPAA/Common Rule/state-law
+  analysis, DOJ DSP bulk/covered-transaction screening, and a separate PADFAA data-broker screening.
+- [ ] Have every Mainland institution classify sensitive personal information, important data,
+  CIIO/medical-industry constraints and any HGR boundary; maintain a natural-person-level annual
+  outbound count rather than a video/window count.
+- [ ] Adopt a real-data policy that prohibits cohort 1/`FED_SOLO_SHARED`, plaintext HTTP, shared demo
+  passwords, unapproved centralized real `test.npz`, hosted cross-border `/predict`, public exact
+  institution counts and unknown-territory monitoring or backups.
+- [ ] Obtain named written go-live approval from legal/DPO, ethics/PI, information security/data owner,
+  and the operational system owner at every institution.
+
 ## U0 — mandatory before any unlabeled-data release
 
 - [ ] Change raw-folder training to fail closed when a file has no explicit ASD/TD label; never

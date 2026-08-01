@@ -21,6 +21,12 @@ self-supervised learning, semi-supervised learning and federated neural encoders
 post-pilot research tracks, not implemented capabilities. The staged decision and backlog are in
 [`learning-modes.md`](learning-modes.md) and [`../TODO.md`](../TODO.md).
 
+The legal/data-governance review is now documented in
+[`legal-and-policy.md`](legal-and-policy.md). It confirms that raw-data-local, secure aggregation and
+DP reduce risk but do not automatically make updates, models, metrics or audit bundles anonymous, nor
+remove cross-border, consent or ethics duties. The review is a planning aid, not an institutional
+approval; every real-data institution still needs a route-specific admission pack and written sign-off.
+
 ## Readiness by target
 
 | Target | Readiness estimate | Status |
@@ -58,7 +64,7 @@ Verified on 2026-07-30:
 | P0 | Desktop client still depends on a Python environment | Signed Windows/macOS pilot builds with fixed dependencies |
 | P0 | ~~Browser pose extraction depends on a public CDN~~ | Closed 2026-07-27: `fetch_offline_assets.py` mirrors and hash-pins the assets, and the client prefers the verified mirror. Whether to redistribute them is an owner licensing decision |
 | P0 | Desktop/E2E coverage on the real operating systems | CI now runs the full suite, a dependency audit, and an SBOM on every push; Windows/macOS end-to-end on the pilot machines remains owner work |
-| P0 | Governance is not encoded in the product | Data-processing scope, audit visibility, retention, incident response, and institution approvals |
+| P0 | Governance is not encoded in the product | Complete the route-specific admission pack in `legal-and-policy.md`: data-flow and role maps, ethics/consent, DPIA/PIPIA, applicable transfer contract/filing, retention/incident/onward-transfer terms, and institution approvals |
 
 ## Recently completed
 
@@ -147,7 +153,10 @@ Verified on 2026-07-30:
 
 The remaining pilot blockers are no longer mostly code. Partner selection, institutional approvals,
 TLS certificates, code-signing identities, and an external security review all need a person and
-carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md).
+carry lead time; they are dated in [`human-critical-path.md`](human-critical-path.md). “Institutional
+approval” is route-specific: an all-Hong-Kong pilot, Shenzhen→Hong Kong GBA transfer, Beijing→Hong
+Kong transfer and EU/US→Hong Kong transfer require different documents. The matrix and immediate
+no-go conditions are in [`legal-and-policy.md`](legal-and-policy.md).
 
 Engineering's remaining pilot list is short: the unsigned packaging specification, session cleanup
 and load limits, and surviving a coordinator restart mid-round without resubmission. None of these is the long pole. **The pilot date

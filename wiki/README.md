@@ -44,6 +44,7 @@ asking "can we go live sooner?" — adding a new model or learning mode does not
 
 | Page | Purpose |
 |---|---|
+| [`legal-and-policy.md`](legal-and-policy.md) | 香港、深圳/GBA、北京/内地与海外机构的数据流、适用规则、风险登记册、准入包和 go/no-go 条件 |
 | [`timeline.md`](timeline.md) | Compressed implementation schedule, parallel workstreams, and go/no-go gates |
 | [`human-critical-path.md`](human-critical-path.md) | Dated actions that need a person — partners, approvals, certificates, external review — and cannot be delivered by engineering |
 | [`decisions-log.md`](decisions-log.md) | Locked scope and timeline decisions |
@@ -56,6 +57,10 @@ asking "can we go live sooner?" — adding a new model or learning mode does not
 - When a target date or production boundary changes, append the decision to `decisions-log.md`.
 - When a modality, model schema, label contract, metric definition or learning-mode status changes,
   update the matching technical-reference page and `TODO.md` together.
+- When an institution, coordinator/cloud region, remote administrator, data direction, modality,
+  learning purpose or model recipient changes, re-run the route-specific analysis in
+  `legal-and-policy.md`; “federated”, “masked” and “DP” do not by themselves establish anonymity or
+  lawful cross-border transfer.
 - Never describe a **Design only** self/semi-supervised route as implemented merely because its design
   is documented.
 - Re-stamp `Last updated:` on every edited wiki page.

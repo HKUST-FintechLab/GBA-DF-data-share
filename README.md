@@ -22,6 +22,7 @@ Detailed references:
 | [`wiki/modalities-and-models.md`](wiki/modalities-and-models.md) | Exactly what model/feature front end each modality uses, dimensions, assumptions and limitations |
 | [`wiki/learning-modes.md`](wiki/learning-modes.md) | Labeled vs unlabeled data, current supervised learning, active learning, semi-supervised and self-supervised designs |
 | [`wiki/evaluation-and-claims.md`](wiki/evaluation-and-claims.md) | AUC/sensitivity/specificity/calibration, test-set provenance and defensible claims |
+| [`wiki/legal-and-policy.md`](wiki/legal-and-policy.md) | 香港、深圳/GBA、北京/内地及海外合作的数据流、隐私风险、传输路径、准入包和 no-go 条件 |
 | [`TODO.md`](TODO.md) | Prioritized implementation roadmap and the decision on self/semi-supervised work |
 | [`wiki/state-of-project.md`](wiki/state-of-project.md) | Release readiness, blockers and pilot boundary |
 
@@ -563,6 +564,13 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
 
 ## Honesty notes (deliberate — meant to be defensible, not self-certified)
 
+- **Privacy engineering is not automatic legal compliance.** Raw recordings remaining local,
+  pairwise masks and central DP reduce disclosure risk, but updates, exact pre-noise pooled counts,
+  models, metrics, audit bundles, backups and remote access may still be regulated personal/sensitive
+  data. Cohort 1 must not be used for real child/clinical cross-institution data. Route-specific Hong
+  Kong/Mainland/GBA/overseas analysis and admission gates are documented in
+  [`wiki/legal-and-policy.md`](wiki/legal-and-policy.md); that research guide is not legal advice or
+  an institutional approval.
 - **Privacy is central-DP plus secure aggregation for cohorts of at least three:** secure aggregation
   hides each institution's own leaf×class counts, but the trusted curator recovers the exact pooled
   pre-noise counts and then adds coordinator-enforced Laplace noise. Cohort 1 exposes that one node's

@@ -1,6 +1,6 @@
 # Compressed Delivery Timeline
 
-Last updated: 2026-07-27
+Last updated: 2026-08-01
 
 > **Read [`human-critical-path.md`](human-critical-path.md) alongside this page.** Since 2026-07-26
 > the engineering path has run ahead of schedule, and the binding constraint on the pilot date is now
@@ -34,6 +34,12 @@ before 2026-08-03) is now the schedule's weakest link, together with certificate
 lead times. An earlier pilot than 2026-09-07 is achievable **only** by starting the owner-required
 items in [`human-critical-path.md`](human-critical-path.md) now; no further engineering brings the
 date forward.
+
+**Governance refinement, 2026-08-01.** “Institutional approval” is not one generic signature. The
+exact path depends on whether all nodes and operators are in Hong Kong, a Shenzhen node uses the GBA
+route, a Beijing node exports under the national Mainland route, or an EU/UK/US institution exports
+to Hong Kong. The required admission pack and no-go rules are now specified in
+[`legal-and-policy.md`](legal-and-policy.md); route selection and signatures remain owner work.
 
 ## Progress
 
@@ -99,7 +105,11 @@ All items are mandatory:
 - Raw-video extraction works without access to a public CDN, or the pilot formally disables it. (Technically closed 07-27; the **[owner]** part is the licensing decision on redistributing the assets.)
 - At least three consecutive full-cohort rehearsals complete without manual database/file editing. **[owner]**
 - There are no unresolved critical/high security findings. **[owner]** (external review)
-- Each institution approves the data-processing purpose, retention, audit visibility, and incident contact. **[owner]**
+- Each institution approves the exact data flow, roles, purpose, consent/ethics basis, retention,
+  audit/model visibility, onward recipients and incident contact; each cross-border direction has its
+  applicable impact assessment, contract/filing and jurisdiction lock. **[owner]**
+- No real participant data uses cohort 1, plaintext HTTP, a shared demo password, an unapproved
+  centralized test set or hosted cross-border inference. **[owner]**
 
 ## Seven-week production track after pilot start
 
