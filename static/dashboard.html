@@ -94,18 +94,22 @@
   .hud .k{font-family:var(--mono);font-size:9.5px;letter-spacing:var(--track);text-transform:uppercase;
     color:var(--ink-soft);margin-top:10px}
   #cmpBars{display:block;width:min(300px,26vw);margin:14px 0 0 auto}
+  /* two rows now, not three — the viewBox has to shrink with them or the SVG reserves dead space */
   .hud .cmp{font-family:var(--mono);font-size:11px;color:var(--ink-faint);margin-top:14px;
     letter-spacing:.04em}
   .hud .cmp b{color:var(--warm);font-weight:500}
   .hud .cmp .gap{color:var(--azure)}
 
   /* ---- floating rail: no border, no fill, hairlines only ---- */
-  .rail{position:absolute;right:34px;top:104px;bottom:96px;width:min(360px,30vw);
-    display:flex;flex-direction:column;min-height:0;animation:fadein .8s ease}
+  /* overflow:hidden is a floor, not a layout: the blocks are fixed-height and the log is the only
+     thing that can give, so on a short viewport the surplus used to be painted straight over the
+     figure strip. Clip it inside the rail instead. */
+  .rail{position:absolute;right:34px;top:104px;bottom:70px;width:min(360px,30vw);
+    display:flex;flex-direction:column;min-height:0;overflow:hidden;animation:fadein .8s ease}
   .sec{font-family:var(--mono);font-size:9px;letter-spacing:var(--track);text-transform:uppercase;
     color:var(--warm-soft);padding:0 0 10px;flex:none}
   .sec .n{color:var(--ink-faint)}
-  .block{flex:none;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line-soft)}
+  .block{flex:none;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid var(--line-soft)}
 
   .eps-top{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);color:var(--ink-faint);
     font-size:11px;letter-spacing:.04em}
@@ -127,14 +131,18 @@
   .lrow .track i{display:block;height:100%;background:var(--warm-soft);transition:width .5s ease}
   .lrow.live .track i{background:var(--warm)}
 
-  #spark{width:100%;height:132px;display:block}
+  /* both plots are sized off the viewport, not off a breakpoint: the rail is one fixed-height
+     column, so a step change in chart height either overflows it onto the figure strip or leaves
+     the audit stream with nothing. A continuous ramp lets the charts take everything the room has. */
+  #spark{width:100%;height:clamp(118px,17vh,196px);display:block}
   .logwrap{min-height:96px}
   .spark-k{font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:.1em;
-    text-transform:uppercase;margin-top:8px;line-height:1.8}
+    text-transform:uppercase;margin-top:7px;line-height:1.7}
   /* the ROC plot sits beside the scalars: AUC is the area under it, so the headline number and
-     its geometry belong in one glance */
-  .diagtop{display:flex;gap:14px;align-items:flex-start}
-  #roc{flex:0 0 96px;width:96px;height:96px}
+     its geometry belong in one glance. Only one scalar survives beside it, so the plot takes the
+     room the dropped ones used to hold — it has to be legible from the back of a room. */
+  .diagtop{display:flex;gap:14px;align-items:center}
+  #roc{--s:clamp(92px,15vh,170px);flex:0 0 var(--s);width:var(--s);height:var(--s)}
   .diaggrid{flex:1;min-width:0;display:grid;grid-template-columns:1fr;gap:7px}
   .diag{min-width:0;display:flex;align-items:baseline;gap:6px}
   .diag .v{font:600 13px var(--mono);color:var(--ink);letter-spacing:-.03em}
@@ -202,10 +210,11 @@
   .fig .v{font-size:15px;font-weight:500;color:var(--ink);letter-spacing:-.01em}
   .fig .v.azure{color:var(--azure)} .fig .v.bone{color:var(--bone)} .fig .v.red{color:var(--red)}
   .figs .spacer{flex:1;min-width:20px}
-  .honesty{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);
+  .honesty{font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);
     text-align:right;line-height:1.8}
-  .honesty button{background:none;border:0;padding:0;font:inherit;color:var(--ink-soft);cursor:pointer;
-    border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.12em}
+  /* quieter than it was, but it is the only route to the caveat sheet — never hide it */
+  .honesty button{background:none;border:0;padding:0;font:inherit;color:var(--ink-faint);cursor:pointer;
+    border-bottom:1px solid var(--line-soft);text-transform:uppercase;letter-spacing:.12em}
   .honesty button:hover{color:var(--azure)}
 
   /* ---- sheets ---- */
@@ -243,27 +252,39 @@
   }
   /* short viewports: the caption, the headline figure and the rail all give ground before
      anything is allowed to overlap. The canvas reads the result rather than assuming it. */
-  @media (max-height:820px){
+  /* raised from 820: at 900 the rail was already overflowing its own bottom edge, and the taller
+     charts only make that worse. This is where the spacing gives way, not the plots. */
+  @media (max-height:940px){
     .caption{top:84px}
     .caption h1{font-size:clamp(21px,2.4vw,30px);margin-bottom:10px}
     .caption .idx{margin-bottom:11px}
     .hud{top:84px}
     .hud .auc{font-size:clamp(38px,4.4vw,58px)}
-    .rail{top:92px;bottom:78px}
-    .sec{padding-bottom:7px}
-    .block{padding-bottom:13px;margin-bottom:13px}
-    #spark{height:104px}
+    .rail{top:92px;bottom:54px}
+    .sec{padding-bottom:6px}
+    .block{padding-bottom:10px;margin-bottom:10px}
+    .oppoint{margin-top:10px} .matrix{margin-top:8px}
+    .impact{margin-top:8px;padding-top:8px}
+    #roc{--s:clamp(92px,13vh,140px)}
   }
-  @media (max-height:700px){
+  /* below this the fixed blocks alone nearly fill the rail, so the ramp has to steepen or the
+     audit stream is squeezed out entirely. The chart keeps its own in-plot labels either way. */
+  @media (max-height:860px){
+    .spark-k{display:none}
+    #spark{height:clamp(100px,14.5vh,140px)}
+    #roc{--s:clamp(80px,10.5vh,112px)}
+  }
+  @media (max-height:745px){
+    #spark{height:clamp(84px,12vh,118px)}
+    #roc{--s:clamp(70px,9.5vh,96px)}
     .wordmark,.topright{top:20px}
     .caption{top:96px;max-width:min(340px,30vw)}
     .caption .sub{display:none}
     .hud{top:96px}
     .hud .auc{font-size:clamp(32px,3.8vw,46px)}
     .hud .cmp{margin-top:9px}
-    .rail{top:96px;bottom:62px}
+    .rail{top:96px;bottom:44px}
     .spark-k{display:none}
-    #spark{height:86px}
     .figs{bottom:14px;gap:16px}
     .fig .v{font-size:13px}
   }
@@ -307,7 +328,7 @@
     <div class="auc dim" id="auc">—</div>
     <div class="k" id="aucK">federated AUC · locked test set</div>
     <div class="cmp" id="cmp">pooled centralized —</div>
-    <svg id="cmpBars" viewBox="0 0 300 74" aria-label="federated vs references"></svg>
+    <svg id="cmpBars" viewBox="0 0 300 50" aria-label="federated vs pooled centralized"></svg>
   </div>
 
   <div class="rail">
@@ -342,7 +363,8 @@
 
     <div class="sec">Federated vs pooled · per round</div>
     <div class="block">
-      <svg id="spark" viewBox="0 0 360 132" preserveAspectRatio="none"></svg>
+      <!-- viewBox height must track H in renderSpark, or the tree lane falls outside it -->
+      <svg id="spark" viewBox="0 0 360 196" preserveAspectRatio="none"></svg>
       <div class="spark-k" id="sparkK"></div>
     </div>
 
@@ -358,12 +380,11 @@
     </div>
     <div class="fig"><span class="k">Institutions</span><span class="v" id="fNodes">—</span></div>
     <div class="fig"><span class="k">Raw records transferred</span><span class="v bone" id="fRaw">0</span></div>
-    <div class="fig"><span class="k" id="fCellsK">Masked cells / round</span><span class="v azure" id="fCells">—</span></div>
-    <div class="fig"><span class="k">Non-private ceiling</span><span class="v" id="fCeil">—</span></div>
-    <div class="fig"><span class="k">Rejected</span><span class="v" id="fRej">—</span></div>
+    <!-- a rejected payload is a real safety signal, so it must never be silent; at zero it is just
+         noise on the strip, so the whole figure only appears once one has actually fired -->
+    <div class="fig hidden" id="fRejFig"><span class="k">Rejected</span><span class="v red" id="fRej">0</span></div>
     <div class="spacer"></div>
     <div class="honesty">
-      <span id="footLine">Held-out engineering evaluation — not clinical validation</span><br>
       <button id="caveatBtn" type="button">what this does and does not prove</button>
     </div>
   </div>
@@ -716,8 +737,6 @@ function ingestStatus(s){
   else if(S.soloShared){ $("saBadge").textContent="central-DP solo · shared"; $("saBadge").className="warn"; }
   else{ $("saBadge").textContent="central-DP solo · isolated"; $("saBadge").className="warn"; }
   $("sentLegend").textContent=S.secure?"pairwise-masked counts · sent":"leaf counts · sent to DP curator";
-  $("fCellsK").textContent=S.secure?"Masked cells / round":"Count cells / round";
-  $("footLine").textContent=`${s.dataset} · held-out engineering evaluation · not clinical validation`;
   $("aucK").textContent=`federated ${ML} · locked test set`;
   renderHud(); renderLedger(); renderSpark(); renderCaveat(ML);
 }
@@ -743,18 +762,18 @@ function ingestAudit(a){
 
 /* ============================ rendering ============================ */
 /* The claim of the whole demo is a distance: federated lands next to what pooling the data would
-   have achieved, and both sit below what dropping privacy entirely would. Two decimals and a signed
-   difference make a viewer do the subtraction; three bars on one scale do not. */
+   have achieved. Two decimals and a signed difference make a viewer do the subtraction; two bars on
+   one scale do not. The non-private ceiling used to be a third bar; it now lives only in the
+   caveat sheet, where the DP utility cost is actually explained. */
 function renderCmpBars(){
-  const svg=$("cmpBars"), fed=S.fedAuc, cen=S.central, ceil=S.ceiling;
+  const svg=$("cmpBars"), fed=S.fedAuc, cen=S.central;
   if(fed==null||cen==null){ svg.innerHTML=""; return; }
   const W=300, rowH=20, gap=5, labelW=104, barW=W-labelW-30;
-  const hi=Math.max(fed,cen,ceil??0), lo=Math.min(fed,cen,ceil??1);
+  const hi=Math.max(fed,cen), lo=Math.min(fed,cen);
   const base=Math.max(0,lo-(hi-lo)*0.6||lo-0.05);   // a floor that keeps the differences visible
   const span=Math.max(1e-6,hi-base);
   const MONO="'IBM Plex Mono',Consolas,monospace";
   const rows=[["FEDERATED",fed,"#4EA8FF"],["POOLED CENTRALIZED",cen,"#FFA95C"]];
-  if(ceil!=null) rows.push(["NON-PRIVATE",ceil,"#9BBCE5"]);
   svg.innerHTML=rows.map(([k,v,c],i)=>{
     const y=i*(rowH+gap), w=Math.max(2,(v-base)/span*barW);
     return `<text x="0" y="${y+rowH*0.72}" font-size="8" font-family="${MONO}" fill="#66809F" `+
@@ -805,10 +824,8 @@ function renderHud(){
 
   $("fNodes").textContent=S.nodes.length||"—";
   $("fRaw").textContent="0";
-  $("fCells").textContent=S.cells!=null?S.cells.toLocaleString():"—";
-  $("fCeil").textContent=S.ceiling!=null?S.ceiling.toFixed(3):"—";
   $("fRej").textContent=S.rejected;
-  $("fRej").className="v"+(S.rejected>0?" red":"");
+  $("fRejFig").classList.toggle("hidden",!(Number(S.rejected)>0));
   renderDiagnostics();
 }
 
@@ -872,22 +889,25 @@ function renderDiagnostics(){
     const total=Math.max(1,c.tn+c.fp+c.fn+c.tp);
     const seg=[["tn","TN",c.tn],["tp","TP",c.tp],["fp","FP",c.fp],["fn","FN",c.fn]];
     const right=Math.round(100*(c.tn+c.tp)/total);
+    // the bar already carries the four proportions; repeating them as counts made the key wrap to a
+    // second line and gave a viewer four numbers to subtract instead of one shape to read
     $("matrix").innerHTML=
       `<div class="mxbar">${seg.map(([cls,,v])=>
         `<i class="${cls}" style="width:${(100*v/total).toFixed(2)}%"></i>`).join("")}</div>`+
-      `<div class="mxk">${seg.map(([cls,k,v])=>
-        `<span><em class="mx-${cls}" style="background:var(--x)"></em>${k} <b>${esc(v)}</b></span>`
+      `<div class="mxk">${seg.map(([cls,k])=>
+        `<span><em class="mx-${cls}" style="background:var(--x)"></em>${k}</span>`
           .replace("var(--x)",{tn:"rgba(78,168,255,.55)",tp:"#4EA8FF",
                                fp:"rgba(255,169,92,.75)",fn:"rgba(255,107,107,.7)"}[cls])).join("")}`+
-        `<span style="margin-left:auto">${right}% placed correctly</span></div>`;
+        `<span style="margin-left:auto"><b>${right}%</b> placed correctly</span></div>`;
   }
   const hist=S.metrics||[], prev=hist.length>1?hist[hist.length-2]:null;
   if(!m||m.auc==null){ $("impact").textContent="Waiting for the first aggregation round"; return; }
   const delta=prev?.auc==null?null:Number(m.auc)-Number(prev.auc);
   const treeDelta=prev?.n_trees==null?Number(m.n_trees||0):Number(m.n_trees||0)-Number(prev.n_trees||0);
-  const lead=S.soloShared?"This node's latest update":"Latest cohort aggregation";
-  $("impact").innerHTML=`${lead} · <b>${delta==null?"first AUC snapshot":`ΔAUC ${delta>=0?"+":"−"}${Math.abs(delta).toFixed(3)}`}</b>`+
-    ` · +${treeDelta} trees · ε +${S.epsPerRound??"?"} · ${S.totalSamples} local samples represented`;
+  // one line, not three: the member sample counts are already a block higher up and the lead-in
+  // phrase told a reader nothing the section heading had not
+  $("impact").innerHTML=`<b>${delta==null?"first snapshot":`ΔAUC ${delta>=0?"+":"−"}${Math.abs(delta).toFixed(3)}`}</b>`+
+    ` · +${treeDelta} trees · ε +${S.epsPerRound??"?"}`;
 }
 
 function renderLedger(){
@@ -933,17 +953,22 @@ function renderLedger(){
 }
 
 /* The federated line alone says nothing without something to compare it against, and a line indexed
-   by round invites the reading that the model is "learning". So: draw both reference levels and
-   shade between them, mark every round, and give the growing tree count its own lane — the lane is
-   the honest explanation of why the line moves, not decoration. */
+   by round invites the reading that the model is "learning". So: draw the pooled-centralized
+   reference, mark every round, and give the growing tree count its own lane — the lane is the
+   honest explanation of why the line moves, not decoration. */
 function renderSpark(){
-  const svg=$("spark"), W=360,H=132,pad={l:32,r:8,t:10,b:36}, lane=14;
+  const svg=$("spark"), W=360,H=196,pad={l:34,r:10,t:14,b:40}, lane=18;
   const pm=S.metric, pts=S.metrics.map((m,i)=>({x:i,y:Number(m[pm])}))
     .filter(p=>Number.isFinite(p.y));
   if(!pts.length){ svg.innerHTML=""; $("sparkK").textContent=""; return; }
-  const refs=[S.central,S.ceiling].filter(v=>v!=null&&Number.isFinite(Number(v))).map(Number);
+  // scale to what is actually drawn. The non-private ceiling used to be in here and it sat far
+  // above both series, so hi was pinned near it and the whole federated climb collapsed into a
+  // flat smear across the bottom. A proportional margin keeps a tight race filling the box too.
+  const refs=[S.central].filter(v=>v!=null&&Number.isFinite(Number(v))).map(Number);
   const all=[...pts.map(p=>p.y),...refs];
-  const lo=Math.max(0,Math.min(...all)-0.05), hi=Math.min(1,Math.max(...all)+0.05);
+  const spread=Math.max(...all)-Math.min(...all);
+  const margin=Math.max(0.012,spread*0.3);
+  const lo=Math.max(0,Math.min(...all)-margin), hi=Math.min(1,Math.max(...all)+margin);
   const plotBottom=H-pad.b;
   const X=i=>pad.l+(pts.length<=1?(W-pad.l-pad.r)/2:i/(pts.length-1)*(W-pad.l-pad.r));
   const Y=v=>pad.t+(1-(v-lo)/Math.max(1e-6,hi-lo))*(plotBottom-pad.t);
@@ -951,39 +976,44 @@ function renderSpark(){
   let g="";
   [lo,hi].forEach(v=>{
     g+=`<line x1="${pad.l}" y1="${Y(v)}" x2="${W-pad.r}" y2="${Y(v)}" stroke="rgba(122,168,235,.09)"/>`;
-    g+=`<text x="${pad.l-6}" y="${Y(v)+3}" text-anchor="end" font-size="8" font-family="${MONO}" fill="#66809F">${v.toFixed(2)}</text>`;
+    g+=`<text x="${pad.l-6}" y="${Y(v)+3}" text-anchor="end" font-size="9" font-family="${MONO}" fill="#66809F">${v.toFixed(2)}</text>`;
   });
-  // the band between the two references: neutral label, since that gap has several causes
-  if(S.central!=null&&S.ceiling!=null){
-    const a=Y(Math.min(S.central,S.ceiling)), b=Y(Math.max(S.central,S.ceiling));
-    g+=`<rect x="${pad.l}" y="${b}" width="${W-pad.l-pad.r}" height="${Math.max(0,a-b).toFixed(1)}" fill="rgba(122,168,235,.06)"/>`;
-  }
   const ref=(v,color,label)=>{
     if(v==null||!Number.isFinite(Number(v)))return"";
     const y=Y(Number(v));
-    return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="${color}" stroke-width="1.2" stroke-dasharray="4 4"/>`+
-      `<text x="${W-pad.r}" y="${y-3}" text-anchor="end" font-size="7" font-family="${MONO}" fill="${color}" letter-spacing="1">${label}</text>`;
+    // Left-anchored, and on whichever side of the line the curve is not. Right-anchoring put the
+    // label exactly where the final dot lands, and the final dot is the one point on the chart
+    // that is always near this line — a rising curve ends beside the reference it is chasing.
+    const above=pts[0].y<Number(v);
+    return `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="${color}" stroke-width="1.4" stroke-dasharray="4 4"/>`+
+      `<text x="${pad.l+3}" y="${(above?y-5:y+11).toFixed(1)}" font-size="8.5" font-family="${MONO}" fill="${color}" letter-spacing="1">${label}</text>`;
   };
-  g+=ref(S.ceiling,"#9BBCE5","NON-PRIVATE");
   g+=ref(S.central,"#FFA95C","POOLED CENTRALIZED");
-  g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="1.6" stroke-linejoin="round"/>`;
+  g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="2.2" stroke-linejoin="round"/>`;
   pts.forEach((p,i)=>{
-    const r=i===pts.length-1?2.8:1.8;
+    const r=i===pts.length-1?4:2.4;
     g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${r}" fill="#4EA8FF"/>`;
   });
   // cumulative ensemble size, the actual reason the curve moves
   const trees=S.metrics.map(m=>Number(m.n_trees||0));
   const maxTrees=Math.max(1,...trees);
-  const laneTop=H-lane-12, colW=Math.max(2,(W-pad.l-pad.r)/Math.max(1,pts.length)*0.42);
+  // the lane sits at the very bottom with its caption above it, not below: the caption is a full
+  // line of text and the right-hand columns used to run alongside it at the same height
+  const laneTop=H-lane-5, colW=Math.max(2,(W-pad.l-pad.r)/Math.max(1,pts.length)*0.42);
   trees.slice(0,pts.length).forEach((t,i)=>{
     const h=Math.max(1,(t/maxTrees)*lane);
-    g+=`<rect x="${(X(i)-colW/2).toFixed(1)}" y="${(laneTop+lane-h).toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="rgba(122,168,235,.28)"/>`;
+    // clamp into the plot band: the first and last columns are centred on the axis ends, so half of
+    // each would otherwise sit under the y-axis label or off the right edge of the viewBox
+    const x=clamp(X(i)-colW/2,pad.l,W-pad.r-colW);
+    g+=`<rect x="${x.toFixed(1)}" y="${(laneTop+lane-h).toFixed(1)}" width="${colW.toFixed(1)}" height="${h.toFixed(1)}" fill="rgba(122,168,235,.28)"/>`;
   });
-  g+=`<text x="${pad.l-6}" y="${laneTop+lane}" text-anchor="end" font-size="7" font-family="${MONO}" fill="#4a6285">${maxTrees}</text>`;
-  g+=`<text x="${pad.l}" y="${H-2}" font-size="7" font-family="${MONO}" fill="#4a6285" letter-spacing="1">TREES IN ENSEMBLE · ROUND 1…${pts.length}</text>`;
+  // the count rides in the lane label rather than sitting alone beside the first column, which it
+  // collided with — and the label is also the "why the line moves" explanation, so the caption
+  // underneath the chart can stay a single line
+  g+=`<text x="${pad.l}" y="${plotBottom+10}" font-size="8" font-family="${MONO}" fill="#4a6285" letter-spacing="1">${maxTrees} TREES IN ENSEMBLE · ROUND 1…${pts.length}</text>`;
   svg.innerHTML=g;
-  $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; <span style="color:#FFA95C">-- pooled centralized</span> &nbsp; <span style="color:#9BBCE5">-- non-private</span><br>`+
-    `each point = one aggregation round · ensemble-size variance reduction, not iterative learning`;
+  $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; `+
+    `<span style="color:#FFA95C">-- pooled centralized</span> &nbsp; one dot = one round`;
 }
 
 function renderCaveat(ML){

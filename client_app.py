@@ -11,6 +11,7 @@ data never leaves this machine.
   uv run python client_app.py --selftest      # headless API smoke test (no GUI)
 """
 import argparse
+import base64
 import os
 import re
 import tempfile
@@ -167,6 +168,28 @@ class Api:
                 except OSError:
                     pass
 
+    def demo_clip(self, name, data=True):
+        """Read one named rehearsal clip out of demo_videos/ for the batch-import add-on.
+
+        pywebview serves the web view from static/, so the page cannot reach demo_videos/ over
+        its own origin; handing the bytes across this bridge reuses the transport the client
+        already has instead of inventing a second one. It deliberately never lists the folder:
+        the add-on has to name each clip, so a clip no batch names cannot be loaded by accident.
+        With data=False it only reports whether that clip is present, which is how the add-on
+        decides whether to show itself at all.
+        """
+        # The name comes from the add-on's fixed batch list, never from operator input, and the
+        # pattern keeps it that way so this can never be walked outside demo_videos/.
+        if not re.fullmatch(r"(asd|td)/[A-Za-z0-9][A-Za-z0-9._-]*\.(mp4|mov|m4v|webm)", str(name)):
+            return {"ok": False, "error": f"not a demo clip: {name}"}
+        path = os.path.join(HERE, "demo_videos", *str(name).split("/"))
+        if not os.path.isfile(path):
+            return {"ok": False, "error": f"missing clip: {name}"}
+        if not data:
+            return {"ok": True}
+        with open(path, "rb") as fh:
+            return {"ok": True, "data": base64.b64encode(fh.read()).decode("ascii")}
+
     def generate_demo(self, modality, n_per_class=40):
         """Make a folder of SYNTHETIC demo recordings for partners who want to try the flow
         without real data. Clearly synthetic; same format a real partner's data would take."""
@@ -301,6 +324,11 @@ def _selftest():
         assert not api.save_pose_npz(out, "TD", "bad.mp4", [[[0, 0, 0, 1]]])["ok"]
         print("save_pose_npz:", {"ok": True, "frames": saved["frames"],
                                   "scan": scanned["labels"]})
+    assert not api.demo_clip("../client_app.py")["ok"] and not api.demo_clip("asd/../x.mp4")["ok"]
+    assert not api.demo_clip("asd/nope.mp4")["ok"]
+    present = api.demo_clip("asd/asd_01.mp4", data=False)
+    assert not present["ok"] or len(api.demo_clip("asd/asd_01.mp4")["data"]) > 0
+    print("demo_clip:", {"asd/asd_01.mp4": present["ok"]})
     print("test_connect(bad):", api.test_connect("http://localhost:1")["ok"])
     print("selftest OK")
 

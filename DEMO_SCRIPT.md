@@ -102,13 +102,29 @@ then defaults its extracted-NPZ folder to the matching `demo_nodes/node_N`, so c
 camera land beside that baseline and train together. Pass `--video-out` to override, and note the
 advanced settings correctly report the folder as permanent — retention is a deliberate choice.
 
-`demo_videos/asd|td` holds clips screened for this rehearsal: one child, whole body in frame, no
-burned-in captions, no shot changes, roughly 5–20 s, audio stripped. `demo_videos/manifest.csv` lists
-length and resolution, and `demo_videos/npz/` the same clips already converted to pose NPZ so a second
-machine can stage them without re-extracting. **These are real recordings of real children.** They are
-committed on this branch so the rehearsal reproduces; keep the repository private, do not redistribute
-them, and treat every clone under the ethics coverage in
-[`wiki/human-critical-path.md`](wiki/human-critical-path.md).
+Each client shows a `Batch 1 / Batch 2 / Batch 3` bar; the batch matching its `--node-id` is
+highlighted. One click loads that operator's clips with no file dialog, flips the class selector
+between the ASD and TD groups on its own, and names the clip and queue position over the preview
+(`asd_01 · 1 / 2`) so the audience can follow which recording is being processed. All three buttons
+stay clickable on every client — the highlight is a suggestion, not a lock. Start each run from a
+clean `demo_nodes/` (`reset_demo.py --purge-videos`), or the client will write a second copy
+alongside the clips a previous rehearsal left behind.
+
+`demo_videos/asd|td` holds clips screened for this rehearsal: one child, no burned-in captions, no
+shot changes, audio stripped. `demo_videos/manifest.csv` lists length and resolution, and
+`demo_videos/npz/` the same clips already converted to pose NPZ so a second machine can stage them
+without re-extracting. **These are real recordings of real children.** They are committed on this
+branch so the rehearsal reproduces; keep the repository private, do not redistribute them, and treat
+every clone under the ethics coverage in [`wiki/human-critical-path.md`](wiki/human-critical-path.md).
+
+**Six of the eleven go on camera, and which six is fixed** — see
+[`demo_videos/BATCHES.md`](demo_videos/BATCHES.md). The screening criterion "whole body in frame" was
+applied visually and three clips slipped through it: `td_02`, `td_04` and `td_05` have the child's
+legs cropped out of shot, and MediaPipe extrapolates them, so the overlay paints legs the picture
+does not contain (46.7% / 31.7% / 46.9% of drawn lower-body landmark-slots, against 0.0–0.9% for the
+other eight — `rehearsal_studies/clip_pose_quality/`). Never show those three. `asd_06` is clean but
+38.7 s, so it is left out to keep on-stage extraction quick. The client's `Batch 1/2/3` buttons load
+only the six, so the excluded clips cannot be picked by accident.
 
 **Where the live upload goes, and why it matters.** Measured across four studies (~350 federations,
 summarised in the README): uploading a handful of clips raises no metric beyond its own noise, and
@@ -116,12 +132,14 @@ summarised in the README): uploading a handful of clips raises no metric beyond 
 
 - **The metric run** trains on `demo_nodes/node_N` (staged baseline only). This is what the headline
   number and the curve come from.
-- **The live upload** goes into ONE node's folder — one institution uploading, as it would be in
-  the field. At `--per-class 16` that is safe: 0.802 ± 0.008 with the clips against 0.804 ± 0.003
-  without, 4 of 4 runs above the reference either way. Spreading the same clips across all three
-  nodes is what previously pushed the headline below the reference, and the cause was file sort
-  order rather than the data (see the README). The client now writes `upload_<name>.npz` so uploads
-  land at the end of the sort; keep that convention if you stage clips by hand.
+- **The live upload** is one batch per operator, three institutions uploading at once. At
+  `--per-class 16` that is safe: 0.793 ± 0.003 with the clips against 0.801 ± 0.010 without, **5 of
+  5 runs above the reference either way**, the upload moving the final AUC by −0.008 — inside the
+  no-upload arm's own spread. Spreading used to push the headline *below* the reference; the cause
+  was file sort order, not the data, and it is fixed — the client writes `upload_<name>.npz` so
+  uploads land at the end of the sort. Keep that convention if you stage clips by hand. Re-measured
+  after the fix, concentrating all 11 on one node (0.802 ± 0.002) is still marginally the best
+  number, so use that if you only need one operator to upload.
 
 ### The one segment where the number moves on its own: alone versus together
 

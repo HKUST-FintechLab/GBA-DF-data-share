@@ -284,9 +284,26 @@ see. Three studies fed it, together ~140 real federations:
   uses. Two independent fixes stack — land uploads at the end of the sort (`client_app.py` now writes
   `upload_<name>.npz`, with the measurement in a comment there) and concentrate the upload on one
   node, which perturbs one node's assignment instead of three and halves the variance.
-- **The shipped configuration survives a live upload.** `--per-class 16` with all 11 clips on one
-  node: 0.802 ± 0.008 with clips versus 0.804 ± 0.003 without, 4 of 4 runs above the reference in
-  each arm, the upload moving the final AUC by −0.002 — inside the noise. Verified on fresh seeds.
+- **With the ordering fixed, spreading the upload is safe again — the concentration rule was a
+  workaround for the sort-order bug, not a finding about federation.** Re-measured at
+  `--per-class 16` once uploads landed at the end of the sort, 4 runs per arm: no upload
+  0.796 ± 0.003, all 11 clips on one node 0.802 ± 0.002, the same 11 spread across three nodes
+  0.796 ± 0.002, and 6 ASD-only clips spread across three nodes 0.793 ± 0.007. **All four arms put
+  4 of 4 runs above the reference**, including the ASD-only arm that previously collapsed. Keeping
+  the upload on one node is still marginally the best number; it is no longer a requirement.
+- **The shipped configuration survives a live upload.** `--per-class 16` with the six screened clips
+  split one batch per operator (see `demo_videos/BATCHES.md`), 5 runs per arm: 0.793 ± 0.003 with
+  clips versus 0.801 ± 0.010 without, **5 of 5 runs above the reference in each arm**. The upload
+  moves the final AUC by −0.008, which is inside the no-upload arm's own ±0.010 spread. The spread
+  arm is the *tighter* of the two.
+- **Three of the eleven clips draw limbs that are not in the camera frame** and must never be shown
+  on stage: `td_02`, `td_04` and `td_05` render confident lower-body landmarks outside the picture
+  in 46.7% / 31.7% / 46.9% of drawn lower-body landmark-slots, against 0.0–0.9% for the other eight.
+  The children's legs are cropped out and MediaPipe extrapolates them; every phantom sits below the
+  bottom edge. No visibility threshold separates "inferred off-screen" from "visible but occluded" —
+  clearing the phantoms costs 61% of the genuinely visible lower-body landmarks on the clean clips.
+  The visual screening pass recorded below let these through; `rehearsal_studies/clip_pose_quality/`
+  is the automated screen that catches them.
 - **One institution alone versus three together is the one comparison that does move, and it is the
   project's actual claim.** Across 28 paired runs at `--per-class 16`: solo 0.750 ± 0.029, above the
   reference in 5 of 28; the three together 0.794 ± 0.010, above it in 26 of 28. The federation wins

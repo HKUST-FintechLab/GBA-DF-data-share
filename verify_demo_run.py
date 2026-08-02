@@ -27,6 +27,12 @@ if not os.path.exists(PY):
     PY = sys.executable
 CLIPS = os.path.join(HERE, "demo_videos", "npz")
 
+# The on-stage upload plan, mirroring the BATCHES const in static/client_batchimport.js so this
+# rehearses the arrangement that will actually be performed. Five of the eleven clips are absent
+# deliberately: td_02/td_04/td_05 paint limbs outside the camera frame and must not be shown, and
+# asd_06 is 38.7 s. See demo_videos/BATCHES.md and rehearsal_studies/clip_pose_quality/.
+BATCHES = {1: ("asd_01", "td_01"), 2: ("asd_03", "td_03"), 3: ("asd_02", "asd_04")}
+
 
 def stage_arm(root, with_clips):
     """A node tree per arm: the staged baseline, optionally plus the screened clips."""
@@ -45,19 +51,15 @@ def stage_arm(root, with_clips):
                     shutil.copy2(os.path.join(source, name), os.path.join(dst, cls, name))
     if not with_clips:
         return
-    # All clips land on ONE node, which is also how a live demo goes: one institution uploads.
-    # Measured across 12 node-seed triples, concentrating the upload halves the variance of its
-    # effect (sd 0.007 spread vs 0.003 concentrated) because it perturbs one node's row->tree
-    # assignment instead of three. Spreading the same clips over three nodes is the arrangement
-    # that pushed the headline below the pooled-centralized reference.
-    for cls in ("asd", "td"):
-        folder = os.path.join(CLIPS, cls)
-        if not os.path.isdir(folder):
-            continue
-        target = os.path.join(root, "node_1", cls.upper())
-        os.makedirs(target, exist_ok=True)
-        for name in sorted(os.listdir(folder)):
-            shutil.copy2(os.path.join(folder, name), os.path.join(target, name))
+    for node, clips in BATCHES.items():
+        for clip in clips:
+            cls = clip.split("_")[0]
+            src = os.path.join(CLIPS, cls, f"upload_{clip}.npz")
+            if not os.path.isfile(src):
+                continue
+            target = os.path.join(root, f"node_{node}", cls.upper())
+            os.makedirs(target, exist_ok=True)
+            shutil.copy2(src, os.path.join(target, f"upload_{clip}.npz"))
 
 
 def run_once(stage, port, state):
@@ -107,7 +109,8 @@ def main():
     ap.add_argument("--port", type=int, default=8410)
     args = ap.parse_args()
     work = tempfile.mkdtemp(prefix="gba-df-verify-")
-    arms = {"baseline only": False, "baseline + 11 clips": True}
+    n_clips = sum(len(v) for v in BATCHES.values())
+    arms = {"baseline only": False, f"baseline + {n_clips} clips": True}
     results = {}
     try:
         for label, with_clips in arms.items():

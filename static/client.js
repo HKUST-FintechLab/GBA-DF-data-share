@@ -496,11 +496,11 @@ async function extractVideo(file,fileIndex,fileTotal){
       const totalProgress=(fileIndex+(i+1)/count)/fileTotal;
       setExtractProgress(totalProgress,`${t("video_processing")}: ${file.name}`,`${i+1} / ${count} · pose ${detected}`);
       if(i%10===0){
-        videoEvent("frame",{file,detected});
+        videoEvent("frame",{file,detected,index:i+1});
         await new Promise(resolve=>setTimeout(resolve,0));
       }
     }
-    videoEvent("frame",{file,detected});
+    videoEvent("frame",{file,detected,index:count});
     return fillMissingPose(frames);
   } finally {
     video.pause();video.removeAttribute("src");video.load();URL.revokeObjectURL(url);videoImport.activeVideo=null;
