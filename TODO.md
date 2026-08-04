@@ -82,7 +82,7 @@ institution owners; completing code does not complete them.
 
 ## Pilot delivery — remains the critical path
 
-- [ ] Freeze supported Windows/macOS versions and the installer/auto-update policy.
+- [x] Freeze supported Windows/macOS versions and the installer/auto-update policy.
 - [ ] Produce signed, notarized pilot packages and install them on the actual partner machines.
 - [ ] Complete large-video, proxy, offline, localization and accessibility E2E checks.
 - [x] Add session cleanup and measured load/body-size limits for the supported single-instance host.

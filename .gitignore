@@ -6,6 +6,8 @@ __pycache__/
 # generated data, partitions, node private keys (node_key.pem MUST never be committed)
 data/
 nodes/
+build/
+dist/
 
 # runtime
 *.log
