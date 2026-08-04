@@ -123,6 +123,8 @@ statistics do leave the nodes under the documented aggregation boundary.
 > **Important:** raw-folder supervised training fails closed when any recording lacks an explicit ASD/TD
 > label; it never treats `unlabeled/` as TD. Keep the unlabeled pool separate and score it locally with
 > `predict.py` for review; it cannot enter the supervised protocol until a governed label is attached.
+> The local importer also refuses byte-identical duplicate recordings, including copies with different
+> filenames or label directories.
 
 | Learning mode | Status |
 |---|---|

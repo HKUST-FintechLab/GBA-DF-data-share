@@ -27,6 +27,7 @@ summaries, not tuned biomarkers.
 """
 import csv
 import glob
+import hashlib
 import json
 import os
 import tempfile
@@ -42,6 +43,26 @@ def _list(path, exts):
     for ext in exts:
         out += glob.glob(os.path.join(path, "**", f"*{ext}"), recursive=True)
     return sorted(set(out))
+
+
+def _reject_duplicate_content(files):
+    """Fail closed if one raw recording was copied into a folder more than once.
+
+    A filename is not a stable identity: a copied ASD/TD file could otherwise duplicate a
+    local contribution or even create contradictory labels. Hashes are computed locally and
+    discarded immediately; neither the hash nor the source path is uploaded.
+    """
+    seen = {}
+    for path in files:
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(block)
+        previous = seen.get(digest.digest())
+        if previous is not None:
+            raise ValueError("duplicate raw recording content detected: "
+                             f"{os.path.relpath(path)} duplicates {os.path.relpath(previous)}")
+        seen[digest.digest()] = path
 
 
 def _label_of(fpath, root, classes):
@@ -168,6 +189,7 @@ def _gaze_features(xy, pupil):
 
 def _gaze_extract(path):
     files = _list(path, [".csv"])
+    _reject_duplicate_content(files)
     X, y, g = [], [], []
     for fp in files:
         xy, pup = _read_gaze_csv(fp)
@@ -240,6 +262,7 @@ ACTION_CLASSES = ["TD", "ASD"]
 
 def _action_extract(path):
     files = _list(path, [".npz"])
+    _reject_duplicate_content(files)
     X, y, g = [], [], []
     for fp in files:
         try:
@@ -304,6 +327,7 @@ ACTION_CDP_DIM = CDP_OUTPUT_DIM
 
 def _action_cdp_extract(path):
     files = _list(path, [".npz"])
+    _reject_duplicate_content(files)
     adapter = _load_cdp_adapter()
     X, y, g = [], [], []
     for fp in files:
@@ -397,6 +421,7 @@ def _neuro_features(ts):
 
 def _neuro_extract(path):
     files = _list(path, [".npz", ".csv"])
+    _reject_duplicate_content(files)
     X, y, g = [], [], []
     for fp in files:
         ts = _read_neuro(fp)

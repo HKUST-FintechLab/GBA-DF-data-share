@@ -65,7 +65,7 @@ institution owners; completing code does not complete them.
   supervised counts until a human or governed pseudo-label is attached.
 - [x] Make raw-folder inference return “truth unavailable” rather than a fabricated TD truth or
   meaningless accuracy.
-- [ ] Add regressions for unlabeled, misspelled labels, mixed labeled/unlabeled roots, duplicate files,
+- [x] Add regressions for unlabeled, misspelled labels, mixed labeled/unlabeled roots, duplicate files,
   and labels encoded only in filenames.
 - [x] Rename split metadata from generic “subject-level” to “recording/file-grouped” unless the input
   actually provides a subject id.
