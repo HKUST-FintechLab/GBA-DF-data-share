@@ -86,7 +86,7 @@ institution owners; completing code does not complete them.
 - [ ] Produce signed, notarized pilot packages and install them on the actual partner machines.
 - [ ] Complete large-video, proxy, offline, localization and accessibility E2E checks.
 - [x] Add session cleanup and measured load/body-size limits for the supported single-instance host.
-- [ ] Complete coordinator restart handling or freeze the reconnect-and-resubmit operator procedure.
+- [x] Freeze the reconnect-and-resubmit operator procedure for coordinator restart handling.
 - [ ] Run three full three-institution staging rehearsals and one backup/restore drill on the real host.
 - [ ] Obtain partner selection, data-processing approval, ethics coverage, TLS certificate, signing
   identities and independent security review as tracked in
