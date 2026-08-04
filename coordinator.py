@@ -27,6 +27,8 @@ Deployment knobs (env vars):
                  how long a partially-submitted round waits for the rest of the cohort before
                  it is discarded and its submitters may send it again (default 900). Nothing
                  was aggregated, so an abandoned round costs no epsilon.
+  FED_SESSION_IDLE_SECONDS / FED_MAX_ACTIVE_SESSIONS
+                 bounds in-memory per-guest solo-demo sessions (defaults 3600 seconds / 100).
   FED_COHORT     override the cohort published in meta.json. FED_COHORT=1 turns on
                  PER-GUEST ISOLATION by default: each client (keyed by its X-Fed-Session
                  header) gets its OWN private federation. Set FED_SOLO_SHARED=1 together
@@ -61,6 +63,7 @@ _LOGGED_DETAIL = frozenset({
     "round", "reason", "participants", "epsilon", "global_eps", "samples", "name",
     "invitation_id", "institution_name", "missing", "submitted", "timeout_seconds",
     "key_fingerprint", "n_samples", "global_trees", "discarded_incomplete_rounds",
+    "session_cleanup_reason",
 })
 
 def client_connection_config(coordinator_url: str) -> dict:
@@ -130,6 +133,8 @@ RATE_LIMIT_PER_MINUTE = _bounded_env_int("FED_RATE_LIMIT_PER_MINUTE", 600, 10, 1
 ROUND_TIMEOUT_SECONDS = _bounded_env_int("FED_ROUND_TIMEOUT_SECONDS", 900, 30, 86400)
 WRITE_RATE_LIMIT_PER_MINUTE = _bounded_env_int(
     "FED_WRITE_RATE_LIMIT_PER_MINUTE", 120, 5, 5000)
+SESSION_IDLE_SECONDS = _bounded_env_int("FED_SESSION_IDLE_SECONDS", 3600, 60, 604800)
+MAX_ACTIVE_SESSIONS = _bounded_env_int("FED_MAX_ACTIVE_SESSIONS", 100, 1, 10000)
 N_FEATURES = int(X_TEST.shape[1])
 if not SECURE_COHORT:
     print(f"WARNING: cohort={COHORT} < 3 — pairwise masking provides weak/no privacy "
@@ -261,6 +266,7 @@ def _check_still_invited(st: dict, node_id: str):
 # ---- per-room state: one federation per room. Group mode uses a single "default" room;
 #      solo/isolated mode gives each guest session its own room. ----
 SESSIONS = {}          # room_id -> state dict
+EVICTED_SESSION_ROOMS = {}  # room_id -> cleanup reason; memory-only bookkeeping
 
 
 def _state_path(room: str) -> str:
@@ -331,7 +337,7 @@ def _append_audit(room: str, st: dict, event: str, node: str, detail: dict,
     return entry
 
 
-def new_state(room: str):
+def new_state(room: str, session_resume_reason: str = ""):
     st = {
         "nodes": {}, "model": fc.GlobalModel(CLASSES), "audit": fc.Audit(COORD_KEY),
         "metrics": [], "rounds": {}, "round_done": {}, "global_eps": 0.0,
@@ -361,9 +367,12 @@ def new_state(room: str):
         st["rejected"] = int(saved.get("rejected", 0))
         if saved.get("model"):
             st["model"] = fc.GlobalModel.from_serialized(saved["model"])
-        _append_audit(room, st, "coordinator_restart", "coordinator",
-                      {"discarded_incomplete_rounds": True,
-                       "global_eps_restored": round(st["global_eps"], 4)})
+        event = "session_resumed" if session_resume_reason else "coordinator_restart"
+        detail = {"discarded_incomplete_rounds": True,
+                  "global_eps_restored": round(st["global_eps"], 4)}
+        if session_resume_reason:
+            detail["session_cleanup_reason"] = session_resume_reason
+        _append_audit(room, st, event, "coordinator", detail)
     else:
         _append_audit(room, st, "genesis", "coordinator",
                       {"dataset": DATASET, "cohort": COHORT,
@@ -414,12 +423,42 @@ def _invalidate_changed_cohort(room: str, st: dict, fingerprint: str):
         _discard_round(room, st, rnd, "cohort membership or masking keys changed")
 
 
+def _evict_session(room: str, reason: str):
+    """Discard a solo room's in-memory state without retaining masked vectors."""
+    st = SESSIONS.get(room)
+    if st is None:
+        return
+    for rnd in list(st["rounds"]):
+        _discard_round(room, st, rnd, "session cleanup", {"session_cleanup_reason": reason})
+    SESSIONS.pop(room, None)
+    EVICTED_SESSION_ROOMS[room] = reason
+    oplog("session_cleanup", room=fc.sha256_hex(room.encode())[:12], reason=reason)
+
+
+def _cleanup_idle_sessions(now=None):
+    """Bound isolated-demo memory; shared multi-institution rooms are never evicted here."""
+    if not ISOLATE:
+        return 0
+    now = time.time() if now is None else float(now)
+    stale = [room for room, st in SESSIONS.items()
+             if now - st.get("last_activity", st["started"]) >= SESSION_IDLE_SECONDS]
+    for room in stale:
+        _evict_session(room, "idle timeout")
+    return len(stale)
+
+
 def get_state(room: str):
     """Return the mutable federation state for a room, creating it on first use.
     Call while holding LOCK."""
+    now = time.time()
+    _cleanup_idle_sessions(now)
     st = SESSIONS.get(room)
     if st is None:
-        st = SESSIONS[room] = new_state(room)
+        if ISOLATE and len(SESSIONS) >= MAX_ACTIVE_SESSIONS:
+            oldest = min(SESSIONS, key=lambda item: SESSIONS[item].get("last_activity", 0))
+            _evict_session(oldest, "active session capacity")
+        st = SESSIONS[room] = new_state(room, EVICTED_SESSION_ROOMS.pop(room, ""))
+    st["last_activity"] = now
     return st
 
 

@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 ## Executive status
 
@@ -158,8 +158,9 @@ approval” is route-specific: an all-Hong-Kong pilot, Shenzhen→Hong Kong GBA 
 Kong transfer and EU/US→Hong Kong transfer require different documents. The matrix and immediate
 no-go conditions are in [`legal-and-policy.md`](legal-and-policy.md).
 
-Engineering's remaining pilot list is short: the unsigned packaging specification, session cleanup
-and load limits, and surviving a coordinator restart mid-round without resubmission. None of these is the long pole. **The pilot date
+Engineering's remaining pilot list is short: the unsigned packaging specification and surviving a
+coordinator restart mid-round without resubmission. Session cleanup and measured request-body/load
+limits are now implemented. None of these is the long pole. **The pilot date
 now moves only if the owner-required items start.**
 
 ## Scope boundary

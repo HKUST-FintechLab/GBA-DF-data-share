@@ -85,7 +85,7 @@ institution owners; completing code does not complete them.
 - [ ] Freeze supported Windows/macOS versions and the installer/auto-update policy.
 - [ ] Produce signed, notarized pilot packages and install them on the actual partner machines.
 - [ ] Complete large-video, proxy, offline, localization and accessibility E2E checks.
-- [ ] Add session cleanup and measured load/body-size limits for the supported single-instance host.
+- [x] Add session cleanup and measured load/body-size limits for the supported single-instance host.
 - [ ] Complete coordinator restart handling or freeze the reconnect-and-resubmit operator procedure.
 - [ ] Run three full three-institution staging rehearsals and one backup/restore drill on the real host.
 - [ ] Obtain partner selection, data-processing approval, ethics coverage, TLS certificate, signing

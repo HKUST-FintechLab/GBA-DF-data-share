@@ -294,6 +294,8 @@ FED_PASSWORD=<contributor-password> FED_READ_PASSWORD=<read-password> FED_COHORT
 | `FED_MAX_BODY_BYTES` | Maximum POST/PUT/PATCH body size; default 32 MiB, allowed range 1 KiB–128 MiB. |
 | `FED_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated reads; default 600/minute per client address. |
 | `FED_WRITE_RATE_LIMIT_PER_MINUTE` | Per-process pilot limit for authenticated writes; default 120/minute per client address. A shared limiter is still required for multi-instance production. |
+| `FED_SESSION_IDLE_SECONDS` | In isolated cohort-1 demo mode, removes an inactive in-memory session after this many seconds; default 3600, allowed range 60–604800. Its signed state remains on disk and a later request records `session_resumed`. |
+| `FED_MAX_ACTIVE_SESSIONS` | In isolated cohort-1 demo mode, maximum in-memory sessions; default 100, allowed range 1–10000. Capacity pressure discards only incomplete buffered rounds (no epsilon) before evicting the least-recent room. |
 | `FED_REQUIRE_INVITATION` | `1` additionally requires a coordinator-signed institution invitation at `/register`. Required for a pilot; default `0` for local demos. |
 | `FED_INVITATION_REGISTRY` | Path to the signed issuance/revocation ledger. Default: `<FED_STATE_DIR>/invitations.json`. |
 | `FED_ROUND_TIMEOUT_SECONDS` | How long a partially-submitted round waits for the rest of the cohort before it is discarded and may be submitted again; default 900, allowed range 30–86400. |

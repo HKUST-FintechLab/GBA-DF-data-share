@@ -1,6 +1,6 @@
 # Compressed Delivery Timeline
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 > **Read [`human-critical-path.md`](human-critical-path.md) alongside this page.** Since 2026-07-26
 > the engineering path has run ahead of schedule, and the binding constraint on the pilot date is now
@@ -83,7 +83,7 @@ completely.
 | **Aug 3–9** | ~~Signed institution invitations, roles, expiry/revocation~~ (done 07-26); finish secret handling | ~~Invitation import UX and pinning diagnostics~~ (done 07-26) | An uninvited or revoked node cannot register, read audit/model data, or invoke hosted inference |
 | **Aug 10–16** | ~~Idempotency, timeout, cancel/restart, reconnect, epsilon double-spend protection~~ (done 07-26); durable state for a coordinator restart mid-round | ~~Waiting/retry surfacing~~ (done 07-26); add offline detection and network-failure recovery | ~~Kill/restart/duplicate-submit tests never corrupt a round or spend epsilon twice~~ (covered by `verify_round_integrity.py`) |
 | **Aug 17–23** | ~~Structured logs, backup and restore commands~~ (done 07-27); **[owner]** TLS certificate and coordinator host | ~~Offline-asset tooling with hash verification~~ (done 07-27); packaging specification; **[owner]** code-signing identities, notarization, install on the real machines | Fresh hospital machine installs without Python; coordinator backup restores successfully |
-| **Aug 24–30** | ~~CI configuration, dependency/SBOM scanning~~ (done 07-27); load limits and session cleanup | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
+| **Aug 24–30** | ~~CI configuration, dependency/SBOM scanning~~ (done 07-27); ~~load limits and session cleanup~~ (done 08-04) | Windows/macOS E2E, large-video, proxy, offline, localization, and accessibility checks | All P0 CI jobs green; no known high-severity dependency issue |
 | **Aug 31–Sep 6** | Fix findings from staging | **[owner]** staging deployment, three full three-institution rehearsals, soak and restore drill on the real host; finalize partner runbook | Go/no-go checklist passes |
 | **Sep 7** | **Start monitored three-institution research pilot** | **[owner]** named operator and rollback owner on duty | Pilot only; no clinical claims |
 

@@ -1,6 +1,7 @@
 """Regression checks for the coordinator HTTP security boundary."""
 import os
 import tempfile
+import time
 
 
 _state_tmp = tempfile.TemporaryDirectory(prefix="gba-df-api-security-")
@@ -12,6 +13,8 @@ os.environ["FED_RATE_LIMIT_PER_MINUTE"] = "600"
 os.environ["FED_WRITE_RATE_LIMIT_PER_MINUTE"] = "120"
 os.environ["FED_REQUIRE_INVITATION"] = "1"
 os.environ["FED_COHORT"] = "1"
+os.environ["FED_SESSION_IDLE_SECONDS"] = "60"
+os.environ["FED_MAX_ACTIVE_SESSIONS"] = "2"
 
 from fastapi.testclient import TestClient
 
@@ -195,6 +198,26 @@ second = coordinator._rate_allowed("test-client", "test", 2, 100.1)
 third = coordinator._rate_allowed("test-client", "test", 2, 100.2)
 check("rate limiter rejects requests after the configured bucket is full",
       first[0] and second[0] and not third[0] and third[1] >= 1)
+
+print("== single-instance session and load bounds ==")
+with coordinator.LOCK:
+    expired = coordinator.get_state("expired-demo-session")
+    expired["last_activity"] = time.time() - coordinator.SESSION_IDLE_SECONDS - 1
+    cleaned = coordinator._cleanup_idle_sessions()
+check("idle solo sessions are removed from process memory", cleaned >= 1
+      and "expired-demo-session" not in coordinator.SESSIONS)
+with coordinator.LOCK:
+    coordinator.get_state("capacity-a")
+    coordinator.get_state("capacity-b")
+    coordinator.get_state("capacity-c")
+check("solo session capacity evicts the least-recent in-memory room",
+      len(coordinator.SESSIONS) <= coordinator.MAX_ACTIVE_SESSIONS)
+
+started = time.monotonic()
+statuses = [client.get("/status", headers=read).status_code for _ in range(20)]
+elapsed = time.monotonic() - started
+print(f"  measured 20 authenticated status reads in {elapsed:.3f}s")
+check("bounded authenticated read burst completes", all(code == 200 for code in statuses))
 
 print("\nRESULT:", "API SECURITY CHECKS PASSED" if ok_all else "FAILURES PRESENT")
 raise SystemExit(0 if ok_all else 1)
