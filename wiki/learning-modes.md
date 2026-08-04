@@ -89,6 +89,9 @@ propagation 或主动学习。伪标签不是 self-supervised；它是模型对�
   仍需额外 subject id 才能实现真正 subject-level split。`prepare_data.py` 默认将该事实写入
   split metadata 并保留 test artifact 的 groups；只有提供完整的本地
   `recording,subject_id` CSV 映射时，才标记为 subject-grouped。
+- 当前 DP 的贡献单位明确为一个 feature row。具备 recording/subject groups 的 schema 会在节点
+  本地确定性地限制每 group 的行数（默认 8），防止长视频主导 counts；这不是 video/person-level
+  DP 声明，后者仍需要 group adjacency 的 sensitivity/noise 重新证明。
 
 ### 文件夹约定
 

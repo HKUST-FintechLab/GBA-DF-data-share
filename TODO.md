@@ -71,7 +71,7 @@ institution owners; completing code does not complete them.
   actually provides a subject id.
 - [x] Preserve group IDs in the coordinator test artifact so evaluation can aggregate windows by
   recording and, when available, subject.
-- [ ] Document and enforce the DP contribution unit. Add per-video/per-subject caps before claiming
+- [x] Document and enforce the DP contribution unit. Add per-video/per-subject caps before claiming
   video-level or person-level privacy.
 - [ ] Split the current EEG-like `neuro` POC from a future TR-aware fMRI schema; document or remove the
   20 reserved zero dimensions before a real neuro study.

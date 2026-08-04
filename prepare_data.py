@@ -24,6 +24,7 @@ from sklearn.model_selection import GroupShuffleSplit, StratifiedShuffleSplit
 
 import data_loaders
 import modalities
+from contribution_limits import cap_rows_by_group, validate_max_rows_per_group
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 NODE_NAMES = [
@@ -118,6 +119,8 @@ def main():
     ap.add_argument("--noniid", action="store_true", help="skew label mix across nodes")
     ap.add_argument("--subject-group-map", default=None,
                     help="local CSV (recording,subject_id) for a true subject-grouped split")
+    ap.add_argument("--max-rows-per-group", type=int, default=None,
+                    help="local cap per recording/subject group (default 8 when groups exist; 0 disables)")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
     if args.dp_depth is None:
@@ -142,6 +145,14 @@ def main():
             raise ValueError("--subject-group-map requires a dataset with recording groups")
         groups = apply_subject_group_map(groups, load_subject_group_map(args.subject_group_map))
         group_kind = "subject"
+    cap = (8 if groups is not None else 0) if args.max_rows_per_group is None else \
+        validate_max_rows_per_group(args.max_rows_per_group)
+    if cap and groups is None:
+        raise ValueError("--max-rows-per-group requires recording or subject groups")
+    if cap:
+        X, y, groups, dropped = cap_rows_by_group(X, y, groups, cap)
+        if dropped:
+            print(f"  contribution cap: retained {len(X)} rows (dropped {dropped}; {cap}/group)")
     classes = sorted(np.unique(y).tolist())
     print(f"  {X.shape[0]} samples, {X.shape[1]} features, classes={classes}")
 
@@ -251,7 +262,8 @@ def main():
         "centralized_nonprivate": central_np,  # non-private ceiling, for context
         "dp": {"epsilon_per_round": args.epsilon, "depth": args.dp_depth,
                "trees_per_round": args.dp_trees, "budget": args.budget,
-               "structure_seed": 2024},        # PUBLIC seed for the shared secure-agg forest
+               "structure_seed": 2024, "contribution_unit": "feature row",
+               "max_rows_per_group": cap},      # PUBLIC seed + local cap for the shared forest
         "cohort": args.nodes,                   # secure aggregation needs all enrolled nodes per round
         "seed": args.seed,
     }

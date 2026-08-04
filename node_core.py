@@ -11,6 +11,7 @@ import httpx
 import numpy as np
 
 import client_config as ccfg
+import contribution_limits as climit
 import dp as dpmod
 import fed_common as fc
 import invitations as invites
@@ -144,13 +145,14 @@ def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
             raise ValueError("federation published no modality; choose one explicitly")
         m = mods.get(mod_key)
         on_log(f"extracting '{mod_key}' features locally from {folder} …")
-        X, y, _ = m.extract_folder(folder)
+        X, y, groups = m.extract_folder(folder)
         y = np.asarray(y).astype(str)
         key_dir = folder
     else:
         data_path = data if os.path.isabs(data) else os.path.join(HERE, data)
         d = np.load(data_path)
         X, y = d["X"], np.asarray(d["y"]).astype(str)
+        groups = np.asarray(d["groups"]).astype(str) if "groups" in d else None
         key_dir = os.path.dirname(data_path)
 
     if X.shape[0] == 0:
@@ -171,6 +173,15 @@ def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
             raise ValueError(message)
         raise ValueError(f"labels {unknown} not in federation classes {classes}; put "
                          f"recordings under class subfolders (e.g. asd/ td/)")
+    cap = climit.validate_max_rows_per_group(sch.get("dp", {}).get("max_rows_per_group", 0))
+    if cap:
+        if groups is None:
+            raise ValueError("federation requires a per-recording contribution cap, but this "
+                             "legacy data.npz has no groups array; re-prepare the local data")
+        X, y, _, dropped = climit.cap_rows_by_group(X, y, groups, cap)
+        if dropped:
+            on_log(f"applied local contribution cap: retained {len(X)} rows across recording "
+                   f"groups (dropped {dropped}; max {cap} rows/group)")
     return X, y, key_dir
 
 

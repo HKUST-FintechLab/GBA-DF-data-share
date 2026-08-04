@@ -586,14 +586,16 @@ Run `uv run python verify_security.py` to see all of this pass (and the attacks 
 - **The "convergence" curve is ensemble-size variance reduction, not round-over-round learning** —
   tree-merge has no iterative training; the dashboard labels the axis accordingly.
 - **The privacy unit is a feature row/window under add/remove adjacency, not automatically a video or
-  person.** A person contributing several files or windows needs contribution clipping and a new
-  group-level analysis before a person-level DP claim is valid.
+  person.** The schema declares a row-level contribution unit and, when recording/subject groups are
+  available, nodes deterministically cap each local group (default: 8 rows). This prevents a long
+  recording from dominating training, but it is still **not** recording- or person-level DP: either
+  claim needs recalibrated noise and a group-adjacency proof.
 - **Current training is labeled only.** A file without an ASD/TD path or filename token currently
-  falls back to TD; never place unlabeled files under a training root. Active learning,
+  is rejected by supervised training; it never falls back to TD. Active learning,
   pseudo-labeling and SSL are documented roadmap items, not shipped training modes.
 - **HAR uses a window-level stratified, IID, single-seed split** (the OpenML variant has no subject
   ids). Absolute ~0.96/0.97 is optimistic; the federated-vs-centralized *gap* is the honest result.
-  The optional `pose` loader uses a subject-level split when you supply seed data.
+  The optional `pose` loader uses recording/file grouping unless an explicit subject map is supplied.
 - **The eyegaze / action / action_cdp / neuro demo cohorts are SYNTHETIC** — recordings generated with class-dependent
   statistics (graded, *overlapping* severities so accuracy is realistic, not trivially separable). They
   validate the pipeline and the privacy mechanism **end-to-end on each modality**; they are **not** a

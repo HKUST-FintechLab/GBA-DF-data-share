@@ -11,6 +11,7 @@ import modalities
 import node_core
 import predict
 import prepare_data
+from contribution_limits import cap_rows_by_group
 
 
 def check(label, condition):
@@ -72,5 +73,13 @@ with tempfile.TemporaryDirectory() as root:
         check("incomplete subject map fails closed", True)
     else:
         check("incomplete subject map fails closed", False)
+
+    capped_X, capped_y, capped_groups, dropped = cap_rows_by_group(
+        np.arange(7)[:, None], np.array(["TD"] * 5 + ["ASD"] * 2),
+        np.array(["recording_a"] * 5 + ["recording_b"] * 2), 2)
+    check("recording cap is deterministic and bounds long recordings",
+          capped_X[:, 0].tolist() == [0, 4, 5, 6] and capped_y.tolist() == ["TD", "TD", "ASD", "ASD"]
+          and capped_groups.tolist() == ["recording_a", "recording_a", "recording_b", "recording_b"]
+          and dropped == 3)
 
 print("data contract checks passed")
