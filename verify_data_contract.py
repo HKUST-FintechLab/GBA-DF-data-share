@@ -10,6 +10,7 @@ import numpy as np
 import modalities
 import node_core
 import predict
+import prepare_data
 
 
 def check(label, condition):
@@ -60,5 +61,16 @@ with tempfile.TemporaryDirectory() as root:
     check("unlabelled inference reports truth unavailable instead of TD",
           rows[0]["truth_status"] == "truth unavailable" and rows[0]["label"] == "")
     check("labelled inference retains the explicit truth", rows[1]["label"] == "ASD")
+
+    mapping = {"recording_a": "subject_01", "recording_b": "subject_01"}
+    mapped = prepare_data.apply_subject_group_map(
+        np.array(["recording_a", "recording_b"]), mapping)
+    check("explicit subject map permits a true subject group", mapped.tolist() == ["subject_01"] * 2)
+    try:
+        prepare_data.apply_subject_group_map(np.array(["recording_missing"]), mapping)
+    except ValueError:
+        check("incomplete subject map fails closed", True)
+    else:
+        check("incomplete subject map fails closed", False)
 
 print("data contract checks passed")

@@ -3,7 +3,7 @@
   har  : UCI Human Activity Recognition (real action data, 6 activities, 561
          features, 10299 windows) — the canonical federated-learning benchmark.
   pose : the project's own ASD action/pose seeds (real, on-brand, but a small
-         65-subject seed set → weaker signal; kept as an option).
+         recording-grouped seed set → weaker signal; kept as an option).
 
 Each loader returns (X float32, y str-labels, groups or None).
 """
@@ -36,7 +36,7 @@ def load_har():
 
 
 def load_pose():
-    """Project ASD pose seeds -> ('ASD'/'TD') labels, subject-level groups.
+    """Project ASD pose seeds -> ('ASD'/'TD') labels, source-recording groups.
     The seed data lives in the parent research project and is NOT part of this open-source
     release; use --dataset har or a --modality (eyegaze/action/neuro) instead."""
     if not (os.path.isdir(os.path.join(SEEDS, "asd")) and os.path.isdir(os.path.join(SEEDS, "td"))):

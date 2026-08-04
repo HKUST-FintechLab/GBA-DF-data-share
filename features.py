@@ -50,7 +50,7 @@ def extract_features(win: np.ndarray) -> np.ndarray:
 
 
 def load_dataset(asd_dir: str, td_dir: str):
-    """Return X (n,d), y (n,), groups (n,) where group = subject/file id."""
+    """Return X (n,d), y (n,), groups (n,) where group = source recording file."""
     X, y, groups = [], [], []
     for label, d in [(1, asd_dir), (0, td_dir)]:
         for f in sorted(glob.glob(os.path.join(d, "*.npz"))):

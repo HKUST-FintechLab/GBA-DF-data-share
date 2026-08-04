@@ -488,7 +488,7 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `cdp_features.py` | pure-NumPy CDP 33→17 mapping, 230/1150 branch features, pinned JSON validation, and 104-feature transform |
 | `assets/cdp_adapter_v1.json` | allow-listed, hash-pinned CDP scaler/selector metadata; no participant IDs, executable model, or classifier trees |
 | `export_cdp_adapter.py` | explicit hash-pinned, local-only migration tool from a trusted historical pickle to the data-only adapter |
-| `prepare_data.py` | recording/file-grouped coordinator test split when groups exist, node partitioning, centralized references (`--modality` or `--dataset`) |
+| `prepare_data.py` | recording/file-grouped coordinator test split when groups exist, with optional explicit `recording,subject_id` mapping for a true subject-grouped split; preserves test groups, partitions nodes, and builds centralized references (`--modality` or `--dataset`) |
 | `fed_common.py` | Ed25519 signing, signature-verified hash-chained `Audit`, global JSON-forest ensemble and binary diagnostics |
 | `dp.py` | DP random forest: data-independent splits, leaf counts, shared-forest + curator noise |
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |

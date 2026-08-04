@@ -13,6 +13,7 @@ SAME front end (modalities.py) a real partner's folder would use — so the sche
 coordinator publishes is exactly what the desktop client will validate against.
 """
 import argparse
+import csv
 import json
 import os
 
@@ -70,6 +71,34 @@ def dp_metrics(fd, Xte, yte, classes):
             "bacc": float(balanced_accuracy_score(yte, pred)), "auc": auc}
 
 
+def load_subject_group_map(path):
+    """Read an explicit local ``recording,subject_id`` CSV mapping."""
+    with open(path, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows or not {"recording", "subject_id"}.issubset(rows[0]):
+        raise ValueError("--subject-group-map must be a CSV with recording,subject_id columns")
+    mapping = {}
+    for row in rows:
+        recording = (row.get("recording") or "").strip()
+        subject = (row.get("subject_id") or "").strip()
+        if not recording or not subject:
+            raise ValueError("--subject-group-map has an empty recording or subject_id")
+        if recording in mapping and mapping[recording] != subject:
+            raise ValueError(f"--subject-group-map maps {recording!r} to multiple subjects")
+        mapping[recording] = subject
+    return mapping
+
+
+def apply_subject_group_map(groups, mapping):
+    """Use subject grouping only when every source recording is explicitly mapped."""
+    groups = np.asarray(groups).astype(str)
+    missing = sorted(set(groups.tolist()) - set(mapping))
+    if missing:
+        example = ", ".join(repr(item) for item in missing[:3])
+        raise ValueError(f"--subject-group-map is missing {len(missing)} recording group(s): {example}")
+    return np.asarray([mapping[group] for group in groups], dtype=str)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", choices=["har", "pose"], default="har",
@@ -87,6 +116,8 @@ def main():
     ap.add_argument("--dp-trees", type=int, default=20, help="DP trees per node per round")
     ap.add_argument("--budget", type=float, default=10.0, help="per-node cumulative epsilon cap")
     ap.add_argument("--noniid", action="store_true", help="skew label mix across nodes")
+    ap.add_argument("--subject-group-map", default=None,
+                    help="local CSV (recording,subject_id) for a true subject-grouped split")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
     if args.dp_depth is None:
@@ -105,6 +136,12 @@ def main():
         ds_label = args.dataset
         mod_info = None
     y = np.asarray(y).astype(str)          # fixed-width unicode, not object -> npz needs no pickle
+    group_kind = "recording/file"
+    if args.subject_group_map:
+        if groups is None:
+            raise ValueError("--subject-group-map requires a dataset with recording groups")
+        groups = apply_subject_group_map(groups, load_subject_group_map(args.subject_group_map))
+        group_kind = "subject"
     classes = sorted(np.unique(y).tolist())
     print(f"  {X.shape[0]} samples, {X.shape[1]} features, classes={classes}")
 
@@ -112,7 +149,7 @@ def main():
     if groups is not None:
         tr, te = next(GroupShuffleSplit(1, test_size=args.test_frac,
                                         random_state=args.seed).split(X, y, groups))
-        split_kind = "subject-level (grouped)"
+        split_kind = f"{group_kind}-grouped"
     else:
         tr, te = next(StratifiedShuffleSplit(1, test_size=args.test_frac,
                                              random_state=args.seed).split(X, y))
@@ -152,7 +189,10 @@ def main():
                 buckets[i % args.nodes].append(int(j))
 
     os.makedirs(os.path.join(HERE, "data"), exist_ok=True)
-    np.savez_compressed(os.path.join(HERE, "data", "test.npz"), X=Xte, y=yte)
+    test_payload = {"X": Xte, "y": yte}
+    if groups is not None:
+        test_payload["groups"] = np.asarray(groups[te]).astype(str)
+    np.savez_compressed(os.path.join(HERE, "data", "test.npz"), **test_payload)
 
     meta_nodes = []
     for n in range(args.nodes):
@@ -160,7 +200,10 @@ def main():
         Xn, yn = Xtr[idx], ytr[idx]
         nd = os.path.join(HERE, "nodes", f"node_{n+1}")
         os.makedirs(nd, exist_ok=True)
-        np.savez_compressed(os.path.join(nd, "data.npz"), X=Xn, y=yn)
+        node_payload = {"X": Xn, "y": yn}
+        if gtr is not None:
+            node_payload["groups"] = np.asarray(gtr[idx]).astype(str)
+        np.savez_compressed(os.path.join(nd, "data.npz"), **node_payload)
         dist = {c: int((yn == c).sum()) for c in classes}   # printed only, NOT persisted
         name = NODE_NAMES[n % len(NODE_NAMES)]
         meta_nodes.append({"node_id": f"node_{n+1}", "name": name, "samples": int(Xn.shape[0])})
@@ -194,7 +237,11 @@ def main():
         "classes": classes,
         "primary_metric": "auc" if len(classes) == 2 else "acc",
         "split": split_kind,
-        "partition": "subject-level" if gtr is not None else ("non-IID" if args.noniid else "IID"),
+        "partition": (f"{group_kind}-grouped" if gtr is not None
+                      else ("non-IID" if args.noniid else "IID")),
+        "grouping": {"kind": group_kind,
+                     "test_groups_preserved": groups is not None,
+                     "subject_group_map": bool(args.subject_group_map)},
         "nodes": meta_nodes,
         "test_windows": int(Xte.shape[0]),
         "n_features": int(X.shape[1]),

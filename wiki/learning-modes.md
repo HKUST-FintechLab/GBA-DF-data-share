@@ -85,8 +85,10 @@ propagation 或主动学习。伪标签不是 self-supervised；它是模型对�
 - 一个机构可以只持有一个类别，但全体 cohort 最好覆盖全部类别；
 - coordinator 的 locked test set 必须覆盖两个类别，才能计算二分类 AUC、灵敏度和特异度；
 - 同一受试者/视频的衍生窗口应绑定同一 group，不能跨 train/test；
-- 当前前端 group 是文件路径，因此它只能保证 file/recording-grouped；同一人若有多个文件，
-  仍需额外 subject id 才能实现真正 subject-level split。
+- 当前前端 group 是文件路径，因此默认只能保证 file/recording-grouped；同一人若有多个文件，
+  仍需额外 subject id 才能实现真正 subject-level split。`prepare_data.py` 默认将该事实写入
+  split metadata 并保留 test artifact 的 groups；只有提供完整的本地
+  `recording,subject_id` CSV 映射时，才标记为 subject-grouped。
 
 ### 文件夹约定
 

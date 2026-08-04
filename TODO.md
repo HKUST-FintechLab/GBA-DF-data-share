@@ -67,9 +67,9 @@ institution owners; completing code does not complete them.
   meaningless accuracy.
 - [ ] Add regressions for unlabeled, misspelled labels, mixed labeled/unlabeled roots, duplicate files,
   and labels encoded only in filenames.
-- [ ] Rename split metadata from generic “subject-level” to “recording/file-grouped” unless the input
+- [x] Rename split metadata from generic “subject-level” to “recording/file-grouped” unless the input
   actually provides a subject id.
-- [ ] Preserve group IDs in the coordinator test artifact so evaluation can aggregate windows by
+- [x] Preserve group IDs in the coordinator test artifact so evaluation can aggregate windows by
   recording and, when available, subject.
 - [ ] Document and enforce the DP contribution unit. Add per-video/per-subject caps before claiming
   video-level or person-level privacy.
