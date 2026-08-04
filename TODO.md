@@ -61,9 +61,9 @@ institution owners; completing code does not complete them.
 
 - [x] Change raw-folder training to fail closed when a file has no explicit ASD/TD label; never
   silently assign unlabeled data to TD.
-- [ ] Add an explicit `unlabeled/` contract that is accepted for inference/review but excluded from
+- [x] Add an explicit `unlabeled/` contract that is accepted for inference/review but excluded from
   supervised counts until a human or governed pseudo-label is attached.
-- [ ] Make raw-folder inference return “truth unavailable” rather than a fabricated TD truth or
+- [x] Make raw-folder inference return “truth unavailable” rather than a fabricated TD truth or
   meaningless accuracy.
 - [ ] Add regressions for unlabeled, misspelled labels, mixed labeled/unlabeled roots, duplicate files,
   and labels encoded only in filenames.

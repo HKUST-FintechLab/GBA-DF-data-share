@@ -9,6 +9,7 @@ import numpy as np
 
 import modalities
 import node_core
+import predict
 
 
 def check(label, condition):
@@ -52,5 +53,12 @@ with tempfile.TemporaryDirectory() as root:
     # marker and can score the local recording without manufacturing an accuracy label.
     check("inference keeps all recordings including truth-unknown ones",
           X.shape[0] == 4 and int(np.count_nonzero(y == "")) == 2)
+
+    rows = predict.summarize_recording_predictions(
+        [[0.8, 0.2], [0.3, 0.7]], np.array(["", "ASD"]),
+        np.array(["unlabeled/case_002.csv", "asd/case_001.csv"]), ["TD", "ASD"])
+    check("unlabelled inference reports truth unavailable instead of TD",
+          rows[0]["truth_status"] == "truth unavailable" and rows[0]["label"] == "")
+    check("labelled inference retains the explicit truth", rows[1]["label"] == "ASD")
 
 print("data contract checks passed")

@@ -113,8 +113,9 @@ my_training_data/unlabeled/video_001.npz
 ```
 
 现在会被标为“truth unavailable”，而不是作为 TD。`node.py` 和桌面端训练会拒绝包含这种
-文件的目录；`predict.py` 可将独立的 `unlabeled/` 目录用于本地推理/审核，但不会生成训练
-更新。无标签池仍应与有标签训练目录分开保存，直到显式 review/provenance schema 实现。
+文件的目录；`predict.py` 可将独立的 `unlabeled/` 目录用于本地推理/审核，并在 CSV/终端
+输出中明确标记 `truth unavailable`，且不将其纳入 accuracy。它不会生成训练更新。无标签池
+仍应与有标签训练目录分开保存，直到显式 review/provenance schema 实现。
 
 预计算的 X-only `data.npz` 和 raw-folder 都可用于有限的本地无标签推理；两者都不产生训练
 更新。因此当前文档不能声称“无标签数据已经可以共享训练”。

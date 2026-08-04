@@ -50,6 +50,38 @@ def load_features(meta, folder=None, data=None, modality=None):
     return np.asarray(d["X"], float), y, np.array([str(i) for i in range(d["X"].shape[0])])
 
 
+def summarize_recording_predictions(proba, y, groups, classes):
+    """Aggregate window predictions without inventing a truth label.
+
+    A group is labelled only if every derived row carries the same explicit class.  Empty
+    or mixed labels are reported as ``truth unavailable`` and are excluded from accuracy.
+    This permits local scoring of an ``unlabeled/`` review pool while keeping its outputs
+    visibly separate from evaluated, labelled recordings.
+    """
+    proba = np.asarray(proba, float)
+    y = np.asarray(y).astype(str)
+    groups = np.asarray(groups).astype(str)
+    order, seen = [], set()
+    for group in groups.tolist():
+        if group not in seen:
+            seen.add(group)
+            order.append(group)
+    rows = []
+    for group in order:
+        selected = groups == group
+        mean_proba = proba[selected].mean(0)
+        labels = sorted(set(y[selected].tolist()) - {""})
+        truth = labels[0] if len(labels) == 1 and np.all(y[selected] != "") else ""
+        status = "labelled" if truth else "truth unavailable"
+        rows.append({"recording": group,
+                     "prediction": classes[int(mean_proba.argmax())],
+                     "confidence": round(float(mean_proba.max()), 4),
+                     **{f"p_{label}": round(float(mean_proba[i]), 4)
+                        for i, label in enumerate(classes)},
+                     "truth_status": status, "label": truth})
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--coord", required=True, help="coordinator URL")
@@ -106,28 +138,22 @@ def main():
         pred = [classes[i] for i in proba.argmax(1)]
         mode = "local (data-stays-local)"
 
-    # per-recording aggregate (mean probability over that recording's windows)
-    order, seen = [], set()
-    for g in groups.tolist():
-        if g not in seen:
-            seen.add(g); order.append(g)
+    # Per-recording aggregate.  Unlabelled review recordings remain scoreable locally,
+    # but are explicit about truth being unavailable and never enter accuracy.
     print(f"Predictions ({mode}):")
-    rows = []
-    for g in order:
-        sel = groups == g
-        mp = proba[sel].mean(0)
-        top = classes[int(mp.argmax())]
-        conf = float(mp.max())
-        truth = y[sel][0] if len(y[sel]) and y[sel][0] else ""
-        rows.append({"recording": g, "prediction": top, "confidence": round(conf, 4),
-                     **{f"p_{c}": round(float(mp[i]), 4) for i, c in enumerate(classes)},
-                     "label": truth})
-        mark = "" if not truth else (" ✓" if truth == top else " ✗")
-        print(f"  {g:<40} -> {top:<5} ({conf:.2f}){(' [label ' + truth + ']' + mark) if truth else ''}")
+    rows = summarize_recording_predictions(proba, y, groups, classes)
+    for row in rows:
+        truth = row["label"]
+        mark = "" if not truth else (" ✓" if truth == row["prediction"] else " ✗")
+        truth_text = (f" [label {truth}]{mark}" if truth
+                      else " [truth unavailable — local review only]")
+        print(f"  {row['recording']:<40} -> {row['prediction']:<5} "
+              f"({row['confidence']:.2f}){truth_text}")
 
-    if any(rr["label"] for rr in rows):
-        acc = np.mean([rr["prediction"] == rr["label"] for rr in rows if rr["label"]])
-        print(f"Accuracy on labelled recordings: {acc:.3f} ({len(rows)} recordings)")
+    labelled = [row for row in rows if row["truth_status"] == "labelled"]
+    if labelled:
+        acc = np.mean([row["prediction"] == row["label"] for row in labelled])
+        print(f"Accuracy on labelled recordings: {acc:.3f} ({len(labelled)} recordings)")
 
     if args.out:
         with open(args.out, "w", newline="") as f:
