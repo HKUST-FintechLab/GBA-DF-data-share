@@ -1,6 +1,6 @@
 # 有标签、无标签与学习模式 / Learning Modes
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 本页区分五个容易混淆的概念：监督学习、无标签推理、无监督学习、自监督预训练和半监督学习。
 当前 GBA-DF 的**已实现训练路径是有标签监督分类**。无标签、自监督和半监督部分是可以沿现有
@@ -112,12 +112,12 @@ my_training_data/
 my_training_data/unlabeled/video_001.npz
 ```
 
-目前会被错误当成 TD，而不是作为 unlabeled。不要把无标签文件放在传给桌面端或 `node.py`
-的训练根目录内。无标签池应放在完全独立的目录，直到显式 unlabeled schema 与 fail-closed
-校验实现。
+现在会被标为“truth unavailable”，而不是作为 TD。`node.py` 和桌面端训练会拒绝包含这种
+文件的目录；`predict.py` 可将独立的 `unlabeled/` 目录用于本地推理/审核，但不会生成训练
+更新。无标签池仍应与有标签训练目录分开保存，直到显式 review/provenance schema 实现。
 
-预计算的 X-only `data.npz` 可以用于有限的无标签推理，但 raw-folder 推理仍受上述标签回退影响。
-因此当前文档不能声称“无标签数据已经可以共享训练”。
+预计算的 X-only `data.npz` 和 raw-folder 都可用于有限的本地无标签推理；两者都不产生训练
+更新。因此当前文档不能声称“无标签数据已经可以共享训练”。
 
 ## “共享有标签数据”到底共享了什么
 

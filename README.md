@@ -120,10 +120,9 @@ The current training protocol is supervised: every local feature row needs an AS
 node builds leaf×class integer counts. Raw labels are not uploaded row by row, but pooled class-conditioned
 statistics do leave the nodes under the documented aggregation boundary.
 
-> **Important:** the current raw-folder parser does not implement an unlabeled class. A file whose path
-> and filename contain neither `asd` nor `td` falls back to TD for legacy demo compatibility. Do not put
-> an `unlabeled/` directory under a training root; it will contaminate TD. Fail-closed unlabeled handling
-> is the first item in [`TODO.md`](TODO.md).
+> **Important:** raw-folder supervised training fails closed when any recording lacks an explicit ASD/TD
+> label; it never treats `unlabeled/` as TD. Keep the unlabeled pool separate and score it locally with
+> `predict.py` for review; it cannot enter the supervised protocol until a governed label is attached.
 
 | Learning mode | Status |
 |---|---|

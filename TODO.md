@@ -1,6 +1,6 @@
 # GBA-DF TODO
 
-Last updated: 2026-08-01
+Last updated: 2026-08-04
 
 This backlog separates the monitored-pilot path from post-pilot model research. A checked item means
 the repository contains the implementation and proportionate verification; prose in a design page
@@ -59,7 +59,7 @@ institution owners; completing code does not complete them.
 
 ## U0 — mandatory before any unlabeled-data release
 
-- [ ] Change raw-folder training to fail closed when a file has no explicit ASD/TD label; never
+- [x] Change raw-folder training to fail closed when a file has no explicit ASD/TD label; never
   silently assign unlabeled data to TD.
 - [ ] Add an explicit `unlabeled/` contract that is accepted for inference/review but excluded from
   supervised counts until a human or governed pseudo-label is attached.

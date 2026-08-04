@@ -91,15 +91,19 @@ class Api:
             X, y, g = m.extract_folder(path)
             if len(X) == 0:
                 return {"ok": False, "error": "no usable recordings found — check the file "
-                        "format and that recordings sit under asd/ and td/ subfolders"}
+                        "format"}
             y = np.asarray(y).astype(str)
             g = np.asarray(g).astype(str)
             labels, counts = np.unique(y, return_counts=True)
             label_files = {str(label): int(len(np.unique(g[y == label]))) for label in labels}
+            unlabeled = int(label_files.pop("", 0))
+            label_counts = dict(zip(labels.tolist(), counts.tolist()))
+            label_counts.pop("", None)
             return {"ok": True, "path": path, "n_files": len(set(g.tolist())),
                     "n_samples": int(X.shape[0]), "n_features": int(X.shape[1]),
-                    "labels": dict(zip(labels.tolist(), counts.tolist())),
-                    "label_files": label_files}
+                    "labels": label_counts,
+                    "label_files": label_files, "unlabeled_files": unlabeled,
+                    "training_ready": unlabeled == 0}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 

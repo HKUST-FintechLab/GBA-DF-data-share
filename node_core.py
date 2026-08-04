@@ -160,6 +160,15 @@ def load_local(sch: dict, data=None, folder=None, modality=None, on_log=print):
                          f"{sch['n_features']} — align the modality/pipeline")
     unknown = sorted(set(y.tolist()) - set(classes))
     if unknown:
+        if "" in unknown:
+            unknown.remove("")
+            message = ("supervised training requires an explicit ASD/TD label for every "
+                       "recording; found unlabelled or misspelled-label files. Keep "
+                       "unlabelled/ recordings in a separate inference/review folder, "
+                       "or place labelled recordings under asd/ or td/.")
+            if unknown:
+                message += f" Other unsupported labels: {unknown}."
+            raise ValueError(message)
         raise ValueError(f"labels {unknown} not in federation classes {classes}; put "
                          f"recordings under class subfolders (e.g. asd/ td/)")
     return X, y, key_dir

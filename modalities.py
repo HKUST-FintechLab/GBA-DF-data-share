@@ -45,8 +45,13 @@ def _list(path, exts):
 
 
 def _label_of(fpath, root, classes):
-    """Label a file by the first path component under `root` that matches a class,
-    else by a class token in the filename, else the first class (unlabeled -> class 0)."""
+    """Return an explicit class label, or ``""`` when a recording is unlabelled.
+
+    Extraction is shared by supervised training and local inference.  An empty label lets
+    inference report that the truth is unavailable, while ``node_core.load_local`` rejects
+    it before a supervised leaf-count update can be constructed.  Never choose a default
+    class here: doing so silently turns an unlabelled recording into a TD training example.
+    """
     rel = os.path.relpath(fpath, root)
     parts = [p.lower() for p in rel.replace("\\", "/").split("/")]
     lc = {c.lower(): c for c in classes}
@@ -57,7 +62,7 @@ def _label_of(fpath, root, classes):
     for c in classes:
         if c.lower() in stem:
             return c
-    return classes[0]
+    return ""
 
 
 
