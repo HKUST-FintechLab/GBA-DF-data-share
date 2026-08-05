@@ -145,7 +145,8 @@ class Api:
             os.replace(tmp, out)
             tmp = None
             return {"ok": True, "path": out, "root": os.path.abspath(root),
-                    "label": label, "frames": int(arr.shape[0])}
+                    "label": label, "frames": int(arr.shape[0]),
+                    "points": int(arr.shape[1]), "bytes": os.path.getsize(out)}
         except Exception as e:
             return {"ok": False, "error": f"{type(e).__name__}: {e}"}
         finally:
@@ -271,6 +272,7 @@ def _selftest():
                                   "sample video.mp4", body.tolist())
         assert saved["ok"] and os.path.exists(saved["path"]), saved
         assert saved["root"] == temporary_output["path"]
+        assert saved["points"] == 33 and saved["bytes"] > 0
         assert np.load(saved["path"])["body"].shape == (8, 33, 4)
         scanned = api.scan_folder("action", temporary_output["path"])
         assert scanned["ok"] and scanned["labels"] == {"ASD": 1}, scanned

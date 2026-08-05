@@ -297,6 +297,9 @@ function setExtractProgress(fraction, status, count){
   $("#extractFill").style.width=(Math.max(0,Math.min(1,fraction))*100).toFixed(1)+"%";
   $("#extractStatus").textContent=status||"—"; $("#extractCount").textContent=count||"";
 }
+function videoEvent(phase,detail={}){
+  document.dispatchEvent(new CustomEvent("gbadf:video",{detail:{phase,...detail}}));
+}
 function setVideoBusy(busy){
   videoImport.running=busy;
   ["#pick","#pickvideo","#gendemo","#videoLabel","#videoFps","#changeVideoOutput","#resetVideoOutput"]
@@ -478,6 +481,8 @@ async function extractVideo(file,fileIndex,fileTotal){
     if(!Number.isFinite(video.duration)||video.duration<=0) throw new Error(`Invalid duration: ${file.name}`);
     const count=Math.min(12000,Math.max(2,Math.floor(video.duration*fps)+1));
     const step=video.duration/Math.max(1,count-1), frames=[]; let detected=0;
+    videoEvent("start",{file,fps,count,duration:video.duration,
+      width:video.videoWidth,height:video.videoHeight});
     $("#previewEmpty").classList.add("hidden");
     const holistic=await ensureHolistic();
     for(let i=0;i<count;i++){
@@ -488,8 +493,12 @@ async function extractVideo(file,fileIndex,fileTotal){
       frames.push(pose);
       const totalProgress=(fileIndex+(i+1)/count)/fileTotal;
       setExtractProgress(totalProgress,`${t("video_processing")}: ${file.name}`,`${i+1} / ${count} · pose ${detected}`);
-      if(i%10===0) await new Promise(resolve=>setTimeout(resolve,0));
+      if(i%10===0){
+        videoEvent("frame",{file,detected,index:i+1});
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
     }
+    videoEvent("frame",{file,detected,index:count});
     return fillMissingPose(frames);
   } finally {
     video.pause();video.removeAttribute("src");video.load();URL.revokeObjectURL(url);videoImport.activeVideo=null;
@@ -501,6 +510,7 @@ $("#cancelVideo").onclick=()=>{videoImport.cancelled=true;};
 async function runVideoBatch(files,dest){
   videoImport.cancelled=false; setVideoBusy(true); $("#extractLog").innerHTML=""; $("#s2msg").innerHTML="";
   videoImport.pendingFiles=files;videoImport.pendingDest=dest;
+  videoEvent("batch",{files,dest,label:$("#videoLabel").value});
   appendExtractLog(`${t("video_output")} ${dest.path}`);
   let saved=0,cdnError=null;
   try{
@@ -512,8 +522,13 @@ async function runVideoBatch(files,dest){
         setExtractProgress((i+0.98)/files.length,t("video_saving"),`${body.length} frames`);
         const r=await api().save_pose_npz(dest.path,$("#videoLabel").value,file.name,body);
         if(!r.ok) throw new Error(r.error); saved++; appendExtractLog(`✓ ${r.path}`);
+        videoEvent("saved",{file,result:r,frames:body.length});
       }catch(e){
-        if(e.message==="__cancelled__")break;
+        if(e.message==="__cancelled__"){
+          videoEvent("cancelled",{file});
+          break;
+        }
+        videoEvent("failed",{file,error:e.message});
         if(e.isMediaPipeLoad){
           cdnError=e;videoImport.pendingFiles=files.slice(i);appendExtractLog(`✗ ${cdnFailureDetail(e)}`,true);break;
         }
@@ -530,7 +545,10 @@ async function runVideoBatch(files,dest){
       setExtractProgress(1,`${t("video_done")}: ${saved}/${files.length}`,"");
       await scan(dest.path);
     }else{hideCdnLoad();msg("#s2msg","bad",isChinese()?t("video_no_output"):"No usable NPZ file was generated.");}
-  } finally { setVideoBusy(false); }
+  } finally {
+    videoEvent("batch_finished",{files,cancelled:videoImport.cancelled,saved});
+    setVideoBusy(false);
+  }
 }
 $("#retryCdn").onclick=async()=>{
   if(!videoImport.pendingFiles?.length||!videoImport.pendingDest)return;
