@@ -638,6 +638,7 @@ async function poll(){
     $("#stEps").textContent=`ε ${s.global_eps??0} / ${bud}`;
     renderTraffic(s);
   }
+  document.dispatchEvent(new CustomEvent("gbadf:run",{detail:{state:st,summary:s}}));
   if(st.done){
     clearInterval(pollTimer); pollTimer=null;
     $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
