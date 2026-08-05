@@ -130,9 +130,11 @@
   .logwrap{min-height:96px}
   .spark-k{font-family:var(--mono);font-size:9px;color:var(--ink-faint);letter-spacing:.1em;
     text-transform:uppercase;margin-top:8px;line-height:1.8}
-  .diaggrid{display:grid;grid-template-columns:repeat(4,1fr);gap:11px 8px}
+  .diagtop{display:flex;gap:10px;align-items:center}
+  #roc{flex:0 0 88px;width:88px;height:88px}
+  .diaggrid{flex:1;min-width:0;display:grid;grid-template-columns:repeat(4,1fr);gap:8px 6px}
   .diag{min-width:0}
-  .diag .v{font:600 17px var(--mono);color:var(--ink);letter-spacing:-.03em}
+  .diag .v{font:600 14px var(--mono);color:var(--ink);letter-spacing:-.03em}
   .diag .v.azure{color:var(--azure)} .diag .v.warm{color:var(--warm)}
   .diag .k{font:8px var(--mono);color:var(--ink-faint);letter-spacing:.12em;
     text-transform:uppercase;margin-top:3px;white-space:nowrap}
@@ -154,7 +156,12 @@
   .e .tx{color:var(--ink-soft);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .e .h{color:var(--ink-faint)}
   .ev-submit{color:var(--azure)} .ev-aggregate{color:var(--warm)} .ev-register{color:#A78BFA}
+  .ev-rejoin{color:#A78BFA} .ev-round_discarded{color:var(--amber)}
   .ev-genesis{color:var(--ink-soft)} .ev-rejected{color:var(--red)}
+  .sharebar{display:flex;height:5px;overflow:hidden;background:rgba(255,255,255,.06);margin-bottom:5px}
+  .sharebar i{display:block;height:100%}.sharebar i:nth-child(3n+1){background:var(--warm)}
+  .sharebar i:nth-child(3n+2){background:var(--warm-soft)}
+  .sharebar i:nth-child(3n){background:#C98A4B}
 
   /* ---- bottom strip: legend, figures, honesty ---- */
   .legend{display:flex;gap:16px;font-family:var(--mono);font-size:9px;color:var(--ink-faint);
@@ -288,7 +295,10 @@
 
     <div class="sec">Model diagnostics · positive <span class="n" id="positiveClass">ASD</span></div>
     <div class="block">
-      <div class="diaggrid" id="diagGrid"></div>
+      <div class="diagtop">
+        <svg id="roc" viewBox="0 0 108 108" aria-label="ROC curve"></svg>
+        <div class="diaggrid" id="diagGrid"></div>
+      </div>
       <div class="matrix" id="matrix"></div>
       <div class="impact" id="impact">Waiting for the first aggregation round</div>
     </div>
@@ -544,6 +554,8 @@ function evText(e){
   if(e.event==="aggregate") return `r${d.round} · ${d.participants} members · ε=${d.epsilon} · AUC ${d.auc??d.fed_auc??"—"}`;
   if(e.event==="register")  return `${d.name} · key ${d.key_fingerprint}`;
   if(e.event==="genesis")   return `${d.dataset} · cohort ${d.cohort} · pooled ${d.centralized_auc}`;
+  if(e.event==="rejoin")    return `${d.name??"member"} re-enrolled · ${d.samples??"—"} local · masks rebuilt`;
+  if(e.event==="round_discarded") return `r${d.round} discarded · ${d.reason??"cohort changed"} · no ε spent`;
   return Object.entries(d).map(([k,v])=>`${k}=${v}`).join(" ").slice(0,72);
 }
 function logEvent(e){
@@ -744,6 +756,22 @@ function renderHud(){
   renderDiagnostics();
 }
 
+function renderRoc(){
+  const svg=$("roc"), roc=(S.latest||{}).roc, W=108, pad=10;
+  const fpr=Array.isArray(roc?.fpr)?roc.fpr.map(Number):[];
+  const tpr=Array.isArray(roc?.tpr)?roc.tpr.map(Number):[];
+  if(fpr.length<2||fpr.length!==tpr.length||fpr.some(v=>!Number.isFinite(v))||
+      tpr.some(v=>!Number.isFinite(v))){ svg.innerHTML=""; return; }
+  const P=v=>pad+clamp(v,0,1)*(W-pad*2), Q=v=>W-pad-clamp(v,0,1)*(W-pad*2);
+  const points=fpr.map((value,i)=>`${P(value).toFixed(1)} ${Q(tpr[i]).toFixed(1)}`);
+  svg.innerHTML=
+    `<rect x="${pad}" y="${pad}" width="${W-pad*2}" height="${W-pad*2}" fill="none" stroke="rgba(122,168,235,.12)"/>`+
+    `<line x1="${P(0)}" y1="${Q(0)}" x2="${P(1)}" y2="${Q(1)}" stroke="rgba(122,168,235,.22)" stroke-dasharray="3 3"/>`+
+    `<path d="M${P(0).toFixed(1)} ${Q(0).toFixed(1)} L${points.join(" L")} L${P(1).toFixed(1)} ${Q(0).toFixed(1)} Z" fill="rgba(78,168,255,.13)"/>`+
+    `<path d="M${points.join(" L")}" fill="none" stroke="#4EA8FF" stroke-width="1.6" stroke-linejoin="round"/>`+
+    `<text x="${W/2}" y="${W-1}" text-anchor="middle" font-size="6.5" font-family="'IBM Plex Mono',Consolas,monospace" fill="#66809F" letter-spacing="1">ROC · AREA = AUC</text>`;
+}
+
 function renderDiagnostics(){
   const m=S.latest||{}, fmt=v=>v==null||!Number.isFinite(Number(v))?"—":Number(v).toFixed(3);
   $("positiveClass").textContent=m.positive_class||"ASD";
@@ -755,6 +783,7 @@ function renderDiagnostics(){
   ];
   $("diagGrid").innerHTML=values.map(([k,v,c])=>
     `<div class="diag"><div class="v ${c}">${fmt(v)}</div><div class="k">${k}</div></div>`).join("");
+  renderRoc();
   const c=m.confusion;
   $("matrix").innerHTML=c?[["TN",c.tn],["FP",c.fp],["FN",c.fn],["TP",c.tp]].map(([k,v])=>
     `<span><b>${esc(v)}</b>${k}</span>`).join(""):"";
@@ -796,11 +825,13 @@ function renderLedger(){
     }).join("");
   }
 
-  const max=Math.max(1,...S.nodes.map(n=>n.samples||0));
-  $("ledgerRows").innerHTML=S.nodes.map(n=>
+  const pooled=Math.max(1,S.nodes.reduce((sum,n)=>sum+Number(n.samples||0),0));
+  $("ledgerRows").innerHTML=`<div class="sharebar">${S.nodes.map(n=>
+      `<i style="width:${(100*Number(n.samples||0)/pooled).toFixed(2)}%"></i>`).join("")}</div>`+
+    S.nodes.map(n=>
     `<div class="lrow${n.state==="active"?" live":""}">
-       <span class="nm"><span>${esc(n.name)}</span><b>${esc(n.samples)}</b></span>
-       <span class="track"><i style="width:${(100*(n.samples||0)/max).toFixed(1)}%"></i></span>
+       <span class="nm"><span>${esc(n.name)}</span><b>${esc(n.samples)} · ${(100*Number(n.samples||0)/pooled).toFixed(1)}%</b></span>
+       <span class="track"><i style="width:${(100*Number(n.samples||0)/pooled).toFixed(1)}%"></i></span>
      </div>`).join("");
 }
 
@@ -809,7 +840,7 @@ function renderSpark(){
   const pm=S.metric, pts=S.metrics.map((m,i)=>({x:i,y:m[pm]}));
   if(!pts.length||S.central==null){ svg.innerHTML=""; $("sparkK").textContent=""; return; }
   const lo=Math.max(0,Math.min(S.central,...pts.map(p=>p.y))-0.05), hi=Math.min(1,Math.max(S.central,...pts.map(p=>p.y))+0.05);
-  const X=i=>pad.l+(pts.length<=1?0:i/(pts.length-1))*(W-pad.l-pad.r);
+  const X=i=>pad.l+(pts.length<=1?(W-pad.l-pad.r)/2:i/(pts.length-1))*(W-pad.l-pad.r);
   const Y=v=>pad.t+(1-(v-lo)/Math.max(1e-6,hi-lo))*(H-pad.t-pad.b);
   const MONO="'IBM Plex Mono',Consolas,monospace";
   let g="";
@@ -820,11 +851,12 @@ function renderSpark(){
   const cy=Y(S.central);
   g+=`<line x1="${pad.l}" y1="${cy}" x2="${W-pad.r}" y2="${cy}" stroke="#FFA95C" stroke-width="1.2" stroke-dasharray="4 4"/>`;
   g+=`<path d="${pts.map((p,i)=>`${i?"L":"M"}${X(i).toFixed(1)} ${Y(p.y).toFixed(1)}`).join(" ")}" fill="none" stroke="#4EA8FF" stroke-width="1.6"/>`;
-  const last=pts[pts.length-1];
-  g+=`<circle cx="${X(pts.length-1).toFixed(1)}" cy="${Y(last.y).toFixed(1)}" r="2.6" fill="#4EA8FF"/>`;
+  pts.forEach((p,i)=>{ g+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(p.y).toFixed(1)}" r="${i===pts.length-1?2.8:1.8}" fill="#4EA8FF"/>`; });
   svg.innerHTML=g;
+  const latestTrees=S.metrics[S.metrics.length-1]?.n_trees;
   $("sparkK").innerHTML=`<span style="color:#4EA8FF">— federated</span> &nbsp; <span style="color:#FFA95C">-- pooled centralized</span><br>`+
-    `each point = one aggregation round · ensemble-size variance reduction, not iterative learning`;
+    `each point = one aggregation round${latestTrees!=null?` · latest ensemble ${esc(latestTrees)} trees`:""}<br>`+
+    `ensemble-size variance reduction, not iterative gradient learning`;
 }
 
 function renderCaveat(ML){
