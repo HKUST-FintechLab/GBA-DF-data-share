@@ -508,6 +508,7 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `static/client.html` | the client's English / 简体中文 / 繁體中文 4-step desktop wizard |
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
+| `stage_demo_nodes.py` | safely prepare distinct synthetic folders for a multi-desktop rehearsal; manifest-based refresh preserves local additions |
 | `verify_security.py` | reproducible audit-tamper / signature-binding / payload-schema / DP / secure-agg / modality checks |
 | `verify_cdp_adapter.py` | CDP mapping/dimensions, adapter pin/tamper, exporter allow-list, and folder-ingestion regression checks |
 | `verify_api_security.py` | coordinator endpoint-authentication, invitation-enforcement, request-size, rate-limit, and identity-pinning regression checks |

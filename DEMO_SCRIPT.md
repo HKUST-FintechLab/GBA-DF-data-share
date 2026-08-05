@@ -84,6 +84,18 @@ front end that reads your recordings changes; your raw data never leaves this wi
 > pipeline end-to-end per modality, not clinical accuracy. Point the client at real recordings in the
 > documented format (§4/§5 of the Partner Guide) and the identical path runs on real data.
 
+For a three-desktop video rehearsal, prepare a different labelled synthetic baseline for each node:
+
+```bash
+uv run python stage_demo_nodes.py --modality action --nodes 3 --per-class 10
+```
+
+Choose `data/staged_nodes/node_1`, `node_2`, and `node_3` on the corresponding clients. To add
+locally extracted videos, set each client's Advanced settings → extracted NPZ folder to that same
+node folder. `--refresh` replaces only files listed in the staging manifest; it preserves extracted
+videos, keys, and unrelated files. These baselines and their metrics are synthetic engineering-demo
+artifacts, not clinical results.
+
 ## Re-record / reset
 
 ```bash
