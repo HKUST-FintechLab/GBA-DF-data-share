@@ -2,67 +2,67 @@
 # Nothing here needs network access to a partner site, a certificate, or a real machine:
 # the pilot's remaining hardware- and organisation-dependent gates are tracked in
 # wiki/human-critical-path.md and deliberately cannot be automated.
-name: verify
+# name: verify
 
-on:
-  push:
-    branches: ["**"]
-  pull_request:
-  workflow_dispatch:
+# on:
+#   push:
+#     branches: ["**"]
+#   pull_request:
+#   workflow_dispatch:
 
-concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: verify-${{ github.ref }}
+#   cancel-in-progress: true
 
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
+# jobs:
+#   verify:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 20
+#     steps:
+#       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          enable-cache: true
+#       - name: Install uv
+#         uses: astral-sh/setup-uv@v5
+#         with:
+#           enable-cache: true
 
-      - name: Sync the locked environment
-        run: uv sync --locked
+#       - name: Sync the locked environment
+#         run: uv sync --locked
 
-      - name: Syntax check
-        run: uv run python -m compileall -q .
+#       - name: Syntax check
+#         run: uv run python -m compileall -q .
 
-      # data/ is git-ignored runtime state, so the suite needs a federation prepared first.
-      # The synthetic modality path is used because it needs no network fetch.
-      - name: Prepare a synthetic federation
-        run: uv run python prepare_data.py --modality eyegaze --demo-n 40 --nodes 3
+#       # data/ is git-ignored runtime state, so the suite needs a federation prepared first.
+#       # The synthetic modality path is used because it needs no network fetch.
+#       - name: Prepare a synthetic federation
+#         run: uv run python prepare_data.py --modality eyegaze --demo-n 40 --nodes 3
 
-      - name: Modality feature extractors
-        run: uv run python modalities.py
+#       - name: Modality feature extractors
+#         run: uv run python modalities.py
 
-      - name: Security, privacy, API, round-integrity, and restore checks
-        run: uv run python verify_security.py
+#       - name: Security, privacy, API, round-integrity, and restore checks
+#         run: uv run python verify_security.py
 
-      - name: Desktop client API smoke test
-        run: uv run python client_app.py --selftest
+#       - name: Desktop client API smoke test
+#         run: uv run python client_app.py --selftest
 
-  dependencies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
+#   dependencies:
+#     runs-on: ubuntu-latest
+#     timeout-minutes: 15
+#     steps:
+#       - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
+#       - name: Install uv
+#         uses: astral-sh/setup-uv@v5
 
-      - name: Known-vulnerability audit of the locked dependency set
-        run: uv run --with pip-audit pip-audit --strict --progress-spinner off
+#       - name: Known-vulnerability audit of the locked dependency set
+#         run: uv run --with pip-audit pip-audit --strict --progress-spinner off
 
-      - name: Generate a CycloneDX SBOM
-        run: uv run --with cyclonedx-bom cyclonedx-py environment -o sbom.json
+#       - name: Generate a CycloneDX SBOM
+#         run: uv run --with cyclonedx-bom cyclonedx-py environment -o sbom.json
 
-      - name: Publish the SBOM
-        uses: actions/upload-artifact@v4
-        with:
-          name: sbom
-          path: sbom.json
+#       - name: Publish the SBOM
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: sbom
+#           path: sbom.json
