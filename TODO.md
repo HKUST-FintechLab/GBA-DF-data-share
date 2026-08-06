@@ -1,6 +1,6 @@
 # GBA-DF TODO
 
-Last updated: 2026-08-04
+Last updated: 2026-08-06
 
 This backlog separates the monitored-pilot path from post-pilot model research. A checked item means
 the repository contains the implementation and proportionate verification; prose in a design page
