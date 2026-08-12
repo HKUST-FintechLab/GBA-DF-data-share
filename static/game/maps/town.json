@@ -1,0 +1,78 @@
+{
+  "compressionlevel": -1,
+  "height": 32,
+  "infinite": false,
+  "layers": [
+    {
+      "draworder": "topdown",
+      "id": 1,
+      "name": "collisions",
+      "objects": [
+        {"id": 1, "name": "north-forest", "x": 0, "y": 0, "width": 1536, "height": 92},
+        {"id": 2, "name": "west-river-north", "x": 0, "y": 90, "width": 255, "height": 360},
+        {"id": 3, "name": "west-river-south", "x": 0, "y": 565, "width": 225, "height": 459},
+        {"id": 4, "name": "central-building", "x": 565, "y": 300, "width": 420, "height": 292},
+        {"id": 5, "name": "clinic", "x": 370, "y": 145, "width": 205, "height": 158},
+        {"id": 6, "name": "community", "x": 1130, "y": 145, "width": 230, "height": 165},
+        {"id": 7, "name": "library", "x": 278, "y": 682, "width": 250, "height": 155},
+        {"id": 8, "name": "workshop", "x": 1150, "y": 520, "width": 235, "height": 155},
+        {"id": 9, "name": "market", "x": 1115, "y": 760, "width": 275, "height": 162},
+        {"id": 10, "name": "south-forest", "x": 0, "y": 985, "width": 1536, "height": 39},
+        {"id": 11, "name": "east-forest", "x": 1455, "y": 0, "width": 81, "height": 1024}
+      ],
+      "opacity": 1,
+      "type": "objectgroup",
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "draworder": "topdown",
+      "id": 2,
+      "name": "interactions",
+      "objects": [
+        {"id": 20, "name": "central-data-center", "type": "interior", "x": 690, "y": 575, "width": 170, "height": 105, "properties": [{"name": "label", "type": "string", "value": "中央机房"}, {"name": "target", "type": "string", "value": "data-center"}]},
+        {"id": 21, "name": "clinic", "type": "interior", "x": 420, "y": 285, "width": 110, "height": 80, "properties": [{"name": "label", "type": "string", "value": "安心诊所"}, {"name": "target", "type": "string", "value": "clinic"}]},
+        {"id": 22, "name": "community", "type": "interior", "x": 1185, "y": 285, "width": 115, "height": 80, "properties": [{"name": "label", "type": "string", "value": "伙伴之家"}, {"name": "target", "type": "string", "value": "community"}]},
+        {"id": 23, "name": "library", "type": "interior", "x": 345, "y": 810, "width": 125, "height": 80, "properties": [{"name": "label", "type": "string", "value": "隐私图书馆"}, {"name": "target", "type": "string", "value": "library"}]},
+        {"id": 24, "name": "workshop", "type": "interior", "x": 1200, "y": 650, "width": 130, "height": 80, "properties": [{"name": "label", "type": "string", "value": "学习工坊"}, {"name": "target", "type": "string", "value": "workshop"}]},
+        {"id": 25, "name": "market", "type": "interior", "x": 1180, "y": 885, "width": 145, "height": 80, "properties": [{"name": "label", "type": "string", "value": "装扮市集"}, {"name": "target", "type": "string", "value": "market"}]},
+        {"id": 30, "name": "plot-north", "type": "plot", "x": 650, "y": 105, "width": 200, "height": 145, "properties": [{"name": "label", "type": "string", "value": "林间空地"}]},
+        {"id": 31, "name": "plot-west", "type": "plot", "x": 390, "y": 380, "width": 155, "height": 145, "properties": [{"name": "label", "type": "string", "value": "河畔空地"}]},
+        {"id": 32, "name": "plot-east", "type": "plot", "x": 1070, "y": 385, "width": 205, "height": 135, "properties": [{"name": "label", "type": "string", "value": "花园空地"}]},
+        {"id": 33, "name": "plot-south", "type": "plot", "x": 850, "y": 690, "width": 205, "height": 145, "properties": [{"name": "label", "type": "string", "value": "湖畔空地"}]}
+      ],
+      "opacity": 1,
+      "type": "objectgroup",
+      "visible": true,
+      "x": 0,
+      "y": 0
+    },
+    {
+      "draworder": "topdown",
+      "id": 3,
+      "name": "npcs",
+      "objects": [
+        {"id": 40, "name": "小禾", "type": "guide", "x": 630, "y": 700, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "欢迎来到联邦小镇！每家机构在自己的屋子里照料数据，小镇一起收获更好的模型。"}]},
+        {"id": 41, "name": "阿盾", "type": "privacy", "x": 1010, "y": 615, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "我负责巡视隐私工坊。走进中央机房，就能看见一次训练怎样从本地箱子走到共同模型。"}]},
+        {"id": 42, "name": "芽芽", "type": "builder", "x": 735, "y": 265, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "靠近带石角的空地按 E，就能挑选喜欢的机构建筑。小镇会记住你的布置。"}]}
+      ],
+      "opacity": 1,
+      "type": "objectgroup",
+      "visible": true,
+      "x": 0,
+      "y": 0
+    }
+  ],
+  "nextlayerid": 4,
+  "nextobjectid": 43,
+  "orientation": "orthogonal",
+  "renderorder": "right-down",
+  "tiledversion": "1.11.2",
+  "tileheight": 32,
+  "tilesets": [],
+  "tilewidth": 32,
+  "type": "map",
+  "version": "1.10",
+  "width": 48
+}

@@ -21,7 +21,7 @@ canvas { display: block; image-rendering: pixelated; }
   pointer-events: none;
 }
 
-.brand, .hud-stats, .primary-action, .game-hint, .dialogue-panel, .guide-card {
+.brand, .hud-stats, .primary-action, .game-hint, .dialogue-panel, .guide-card, .activity-card {
   border: 3px solid #513e2d;
   border-radius: 10px;
   background: #183d31ee;
@@ -45,7 +45,7 @@ canvas { display: block; image-rendering: pixelated; }
 
 .game-hint { position: fixed; z-index: 8; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 8px 14px; font-size: 12px; }
 .dialogue-panel { position: fixed; z-index: 12; left: 50%; bottom: 65px; transform: translateX(-50%); display: grid; grid-template-columns: auto 1fr auto; gap: 14px; width: min(680px, calc(100% - 34px)); padding: 16px; }
-.dialogue-panel[hidden], .guide-shell[hidden] { display: none; }
+.dialogue-panel[hidden], .guide-shell[hidden], .activity-shell[hidden] { display: none; }
 .portrait { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 6px; background: #f2c45e; color: #183d31; font-weight: 900; }
 .dialogue-panel p { margin: 6px 0 0; line-height: 1.5; }
 .dialogue-panel button, .guide-card button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 22px; }
@@ -56,6 +56,16 @@ canvas { display: block; image-rendering: pixelated; }
 .guide-card h2 { margin: 2px 0 0; font-size: 18px; }
 .eyebrow { color: #f2c45e; font-size: 10px; letter-spacing: .14em; }
 #guide-content { height: calc(100% - 70px); }
+
+.activity-shell { position: fixed; z-index: 18; inset: 0; display: grid; place-items: center; padding: 24px; background: #08130fa8; }
+.activity-card { position: relative; width: min(560px, 100%); padding: 24px; color: #2b4539; background: #fff1c9; }
+.activity-card h2 { margin: 5px 34px 8px 0; color: #173b30; }
+.activity-card p { min-height: 48px; margin: 0 0 18px; line-height: 1.65; }
+.activity-close { position: absolute; top: 10px; right: 12px; border: 0; background: transparent; color: #28483b; cursor: pointer; font-size: 24px; }
+.activity-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.activity-actions button { border: 3px solid #513e2d; border-radius: 7px; padding: 12px 10px; color: #fff8d8; background: #2b6852; box-shadow: 0 4px 0 #173b30; cursor: pointer; font-weight: 800; }
+.activity-actions button:hover { transform: translateY(-1px); background: #367d63; }
+.activity-actions small { display: block; margin-top: 4px; color: #f3d988; font-size: 9px; font-weight: 400; }
 
 .loading-screen { position: fixed; z-index: 30; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: #142d24; transition: opacity .45s ease, visibility .45s ease; }
 .loading-screen strong { font-size: 18px; }

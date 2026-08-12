@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import type { RuntimeMode } from "../runtime/mode";
 import { BootScene } from "./scenes/BootScene";
 import { TownScene } from "./scenes/TownScene";
+import { InteriorScene } from "./scenes/InteriorScene";
 
 export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): Phaser.Game {
   return new Phaser.Game({
@@ -22,6 +23,6 @@ export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): P
       mode: Phaser.Scale.RESIZE,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [new BootScene(runtimeMode), new TownScene(runtimeMode)],
+    scene: [new BootScene(runtimeMode), new TownScene(runtimeMode), new InteriorScene()],
   });
 }
