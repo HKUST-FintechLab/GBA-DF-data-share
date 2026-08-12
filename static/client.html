@@ -11,6 +11,9 @@ try {
     document.documentElement.dataset.theme = savedTheme;
   }
 } catch (_error) {}
+if (new URLSearchParams(location.search).get("embedded") === "1") {
+  document.documentElement.dataset.embedded = "true";
+}
 </script>
 <link rel="stylesheet" href="client.css"/>
 <link rel="stylesheet" href="client_console.css"/>

@@ -1,5 +1,5 @@
 const I18N = window.GBA_DF_I18N;
-let LANG="en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null, invitation:null};
+let LANG=document.documentElement.dataset.embedded==="true"?"zh":"en", MODS=[], sel={modality:null, mInfo:null, folder:null, scan:null, sch:null, invitation:null};
 let videoOutput={path:"",temporary:true};
 let conn={state:"off", host:""};      // off | on | run | done
 const HOLISTIC_VERSION="0.5.1675471629";
@@ -29,7 +29,27 @@ async function sha256Hex(buffer){
 }
 const videoImport={running:false,cancelled:false,holistic:null,ready:false,lastResults:null,activeVideo:null,
   pendingFiles:null,pendingDest:null};
-const api = () => window.pywebview.api;
+let rpcSequence=0;
+const rpcPending=new Map();
+function directApi(){
+  try{return window.pywebview?.api||window.parent?.pywebview?.api||null;}catch(_error){return null;}
+}
+const parentApi=new Proxy({}, {get:(_target,method)=>(...args)=>new Promise((resolve,reject)=>{
+  const id=++rpcSequence;rpcPending.set(id,{resolve,reject});
+  window.parent.postMessage({source:"gba-df-client",type:"rpc",id,method:String(method),args},"*");
+})});
+const api = () => directApi()||parentApi;
+function notifyTown(type,detail={}){
+  if(window.parent!==window)window.parent.postMessage({source:"gba-df-client",type,detail},"*");
+}
+window.addEventListener("message",event=>{
+  const data=event.data;
+  if(data?.source!=="gba-df-town")return;
+  if(data.type==="bridge-ready")init();
+  if(data.type!=="rpc-result")return;
+  const pending=rpcPending.get(data.id);if(!pending)return;rpcPending.delete(data.id);
+  if(data.error)pending.reject(new Error(data.error));else pending.resolve(data.result);
+});
 const t = k => (I18N[LANG][k] ?? k);
 const $ = s => document.querySelector(s);
 const isChinese = () => LANG === "zh" || LANG === "zh-Hant";
@@ -58,7 +78,7 @@ function renderStatus(){
   $("#stConn").textContent = t(map[conn.state]) + (conn.host?` · ${conn.host}`:"");
   updateConsoleChrome();
 }
-function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; renderStatus(); }
+function setConn(state, host){ conn.state=state; if(host!=null) conn.host=host; renderStatus(); notifyTown("connection",{state,host:conn.host}); }
 function renderTraffic(s){
   const total=s?.application_bytes_sent||0, masked=s?.masked_payload_bytes_sent||0;
   const metadata=s?.protocol_metadata_bytes_sent||0;
@@ -129,6 +149,7 @@ function goStep(n){
   renderSteps();
   updateConsoleChrome();
   window.GBADFTheme?.step(n);
+  notifyTown("step",{step:n});
 }
 document.querySelectorAll("[data-back]").forEach(b=>b.onclick=()=>goStep(+b.getAttribute("data-back")));
 $("#consoleBack").onclick=()=>{if(curStep>1&&curStep<4)goStep(curStep-1);};
@@ -657,6 +678,7 @@ async function poll(){
     renderTraffic(s);
   }
   document.dispatchEvent(new CustomEvent("gbadf:run",{detail:{state:st,summary:s}}));
+  notifyTown("run",{state:st,summary:s});
   if(st.done){
     clearInterval(pollTimer); pollTimer=null;
     $("#stop").classList.add("hidden"); $("#restart").classList.remove("hidden");
@@ -669,7 +691,9 @@ async function poll(){
 $("#stop").onclick=async()=>{ $("#stop").disabled=true; await api().stop(); };
 $("#restart").onclick=()=>goStep(3);
 
+let initStarted=false;
 async function init(){
+  if(initStarted)return;initStarted=true;
   try{ MODS=await api().list_modalities(); }catch(e){ MODS=[]; }
   await refreshVideoOutput();
   try{ const d=await api().defaults();
@@ -680,4 +704,4 @@ async function init(){
 }
 window.addEventListener("pywebviewready", init);
 // fallback if opened in a plain browser (no pywebview): still render UI
-setTimeout(()=>{ if(!MODS.length && window.pywebview) init(); }, 300);
+setTimeout(()=>{ if(!MODS.length && (directApi()||window.parent!==window)) init(); }, 300);

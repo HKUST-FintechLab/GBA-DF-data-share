@@ -16,6 +16,7 @@ import re
 import tempfile
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 
@@ -298,9 +299,10 @@ def main():
 
     import webview
     api = Api(default_coord=args.coord, default_node=args.node_id)
+    game_url = Path(HERE, "static", "game", "index.html").resolve().as_uri() + "?mode=client"
     webview.create_window(
-        "GBA-DF Federated Node", url=os.path.join(HERE, "static", "client.html"),
-        js_api=api, width=1040, height=760, min_size=(880, 620))
+        "GBA-DF Federated Town", url=game_url,
+        js_api=api, width=1180, height=780, min_size=(920, 640))
     webview.start()
 
 

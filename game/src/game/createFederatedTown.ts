@@ -4,6 +4,7 @@ import { BootScene } from "./scenes/BootScene";
 import { TownScene } from "./scenes/TownScene";
 import { InteriorScene } from "./scenes/InteriorScene";
 import { CoordinatorApi } from "../services/CoordinatorApi";
+import { ClientGuide } from "../services/ClientGuide";
 
 export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): Phaser.Game {
   const game = new Phaser.Game({
@@ -27,5 +28,6 @@ export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): P
     scene: [new BootScene(runtimeMode), new TownScene(runtimeMode), new InteriorScene()],
   });
   if (runtimeMode === "coordinator") new CoordinatorApi(game).start();
+  else new ClientGuide(game).start();
   return game;
 }

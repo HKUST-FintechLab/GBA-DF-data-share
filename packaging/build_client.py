@@ -27,6 +27,7 @@ SOURCES = (
     ROOT / "public_scales.json",
     ROOT / "assets" / "cdp_adapter_v1.json",
     ROOT / "static" / "client.html",
+    ROOT / "static" / "game" / "index.html",
     ROOT / "static" / "vendor" / "mediapipe" / "manifest.json",
 )
 

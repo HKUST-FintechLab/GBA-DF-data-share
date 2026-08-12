@@ -274,3 +274,12 @@
   @media (max-width:760px){
     .sidebar{width:174px;padding:14px 9px}.content{padding:22px 18px}.mods{grid-template-columns:1fr}.titlebar{padding:0 16px}.tsub{display:none}.videoopts{width:100%;justify-content:flex-start}.preview canvas{max-height:260px}
   }
+html[data-embedded="true"] #themeStage,
+html[data-embedded="true"] .themeVignette,
+html[data-embedded="true"] .console-chrome{display:none!important}
+html[data-embedded="true"] body{background:#f7f1dc!important}
+html[data-embedded="true"] .app{min-height:100vh;height:100vh}
+html[data-embedded="true"] .titlebar{height:54px;padding-inline:18px}
+html[data-embedded="true"] .workspace{min-height:0}
+html[data-embedded="true"] .content{padding:20px 24px 26px}
+html[data-embedded="true"] .statusbar{height:30px}

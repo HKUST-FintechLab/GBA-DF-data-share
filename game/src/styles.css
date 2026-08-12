@@ -61,6 +61,8 @@ html[data-mode="client"] .hud-actions { display: none; }
 .guide-card h2 { margin: 2px 0 0; font-size: 18px; }
 .eyebrow { color: #f2c45e; font-size: 10px; letter-spacing: .14em; }
 #guide-content { height: calc(100% - 70px); }
+#guide-content iframe { display: block; width: 100%; height: 100%; border: 0; background: #f7f1dc; }
+.guide-progress { margin-left: auto; margin-right: 18px; padding: 6px 9px; border: 1px solid #f1d38a66; border-radius: 5px; color: #f2d785; font-size: 10px; }
 
 .activity-shell { position: fixed; z-index: 18; inset: 0; display: grid; place-items: center; padding: 24px; background: #08130fa8; }
 .activity-card { position: relative; width: min(560px, 100%); padding: 24px; color: #2b4539; background: #fff1c9; }
