@@ -42,6 +42,12 @@ check("liveness is public and contains no federation state",
       client.get("/health").json() == {"ok": True, "service": "gba-df-coordinator"})
 check("readiness is public", client.get("/ready").status_code == 200)
 check("coordinator public key remains public", client.get("/pubkey").status_code == 200)
+town_shell = client.get("/")
+console_shell = client.get("/console")
+check("pixel-town and legacy console shells are public but contain no embedded room state",
+      town_shell.status_code == 200 and "GBA-DF · 联邦小镇" in town_shell.text
+      and console_shell.status_code == 200 and "Federation Console" in console_shell.text
+      and '"nodes":' not in town_shell.text and '"audit_entries":' not in town_shell.text)
 check("unclassified routes fail closed behind read/operator access",
       client.get("/docs").status_code == 401
       and client.get("/docs", headers=read).status_code == 200)

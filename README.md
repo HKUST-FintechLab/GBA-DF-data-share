@@ -191,12 +191,27 @@ uv run python run_demo.py --nodes 3 --rounds 5                 # HAR benchmark
 uv run python run_demo.py --modality eyegaze --prepare         # eye-tracking federation
 uv run python run_demo.py --modality action_cdp --prepare      # experimental CDP adapter
 uv run python run_demo.py --modality neuro --prepare           # EEG-like time-series POC
-# open the dashboard URL it prints (http://localhost:8055), then start your screen recorder
+# open the pixel-town URL it prints (http://localhost:8055), then start your screen recorder
 ```
 
 > The first run creates two **git-ignored working directories**: `data/` (the fetched HAR cache, the
 > coordinator's held-out test set, per-node partitions, and any figures `bench.py` writes) and `nodes/`
 > (each node's local data + its `0600` private signing key). Nothing in them is committed.
+
+### Federated pixel town
+
+The coordinator root now opens an optional game-like presentation layer at
+`http://localhost:8055`. Walk with **WASD / arrow keys**, press **E** near a building or NPC, build
+cosmetic institution spaces on empty plots, and enter the central machine room to inspect the real
+authenticated `/status` and `/audit` state. Registered federation nodes appear as town institutions;
+new signed submission events can award browser-local decoration coins after the player explicitly
+binds their character to a node.
+
+The town is a visualization and engagement layer only. Its coins, buildings, furniture, character
+binding, and chat history are browser-local and never alter training data, participant weights,
+privacy accounting, invitations, audit evidence, or model release. The NPC is currently an offline
+rule-based guide and sends no conversation to an external model. The information-dense operator
+console remains available at `http://localhost:8055/console`.
 
 Re-prepare / change dataset or modality:
 
@@ -506,6 +521,7 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
 | `client_app.py` | **desktop node client** (pywebview): pick modality → folder picker → node info → connect, live progress |
 | `static/client.html` | the client's English / 简体中文 / 繁體中文 4-step desktop wizard |
+| `static/town.html` | playable pixel-town coordinator UI: open map, building placement, local-data processing room, authenticated central dashboard, cosmetic rewards, and offline guide NPC |
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `stage_demo_nodes.py` | safely prepare distinct synthetic folders for a multi-desktop rehearsal; manifest-based refresh preserves local additions |
@@ -517,7 +533,7 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `admin_backup.py` | back up / inspect / restore the coordinator key, signed state, and invitation registry |
 | `fetch_offline_assets.py` | mirror + hash-pin the browser MediaPipe assets for offline/CDN-free operation |
 | `.github/workflows/verify.yml` | CI: full verification suite, known-vulnerability audit, CycloneDX SBOM |
-| `static/dashboard.html` | full-canvas topology console: cohort/privacy mode, AUC and deltas, sensitivity/specificity, calibration, confusion matrix, ε ledger, signed audit replay and package download |
+| `static/dashboard.html` | information-dense topology console at `/console`: cohort/privacy mode, AUC and deltas, sensitivity/specificity, calibration, confusion matrix, ε ledger, signed audit replay and package download |
 | `DEMO_SCRIPT.md` | recording guide + narration for internal / partner demos |
 | `PARTNER_GUIDE.md` | **cross-group experiment guide for a partner institution** (deploy, prepare data, run a node) |
 | `TODO.md` | prioritized pilot and post-pilot backlog, including active/semi/self-supervised learning gates |

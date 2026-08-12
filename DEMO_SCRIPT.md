@@ -20,8 +20,9 @@ rm -rf data nodes            # optional: clean slate for a fresh recording
 uv run python run_demo.py --prepare --nodes 3 --rounds 5
 ```
 
-Open **http://localhost:8055** and start the screen recorder. The nodes finish in seconds; the
-dashboard stays live for the whole recording.
+Open **http://localhost:8055** for the playable federated pixel town, or
+**http://localhost:8055/console** for the information-dense operator view, and start the screen
+recorder. The nodes finish in seconds; both views stay live for the whole recording.
 
 ### Narration → what's on screen → which claim it proves
 

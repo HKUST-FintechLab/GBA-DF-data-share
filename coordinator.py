@@ -475,7 +475,7 @@ app = FastAPI(title="GBA-DF Federated Coordinator (secure aggregation)")
 
 # Public endpoints intentionally carry no institution/model/audit information. Any route not
 # explicitly classified below defaults to read/operator access so newly added endpoints fail closed.
-_PUBLIC_PATHS = ("/", "/health", "/ready", "/pubkey")
+_PUBLIC_PATHS = ("/", "/console", "/health", "/ready", "/pubkey")
 _CONTRIBUTE_PATHS = ("/schema", "/participants", "/register", "/submit", "/round")
 _READ_PATHS = ("/status", "/audit", "/model", "/predict")
 _RATE_LOCK = threading.Lock()
@@ -564,6 +564,12 @@ async def _security_boundary(request: Request, call_next):
 
 @app.get("/")
 async def dashboard():
+    return FileResponse(os.path.join(HERE, "static", "town.html"))
+
+
+@app.get("/console")
+async def legacy_dashboard():
+    """Serve the information-dense operator console alongside the game-like town UI."""
     return FileResponse(os.path.join(HERE, "static", "dashboard.html"))
 
 

@@ -1,6 +1,6 @@
 # State of Project
 
-Last updated: 2026-08-04
+Last updated: 2026-08-12
 
 ## Executive status
 
@@ -67,6 +67,17 @@ Verified on 2026-07-30:
 | P0 | Governance is not encoded in the product | Complete the route-specific admission pack in `legal-and-policy.md`: data-flow and role maps, ethics/consent, DPIA/PIPIA, applicable transfer contract/filing, retention/incident/onward-transfer terms, and institution approvals |
 
 ## Recently completed
+
+- **2026-08-12 — Federated pixel-town presentation layer:** the coordinator root is now a playable,
+  browser-local pixel town with an explorable river/road map, cosmetic institution construction,
+  furniture placement, institution interiors that visualize local storage → fixed feature/leaf-count
+  processing → masked-count transmission, a central machine-room dashboard backed by the existing
+  authenticated `/status` and `/audit` endpoints, and an offline rule-based guide NPC. Real enrolled
+  nodes appear as town institutions. A player can explicitly bind their character to a node and earn
+  browser-local decoration coins for new signed `submit` events; these coins never change participant
+  weight, the model, ε accounting, or evidence. The former full-canvas operator console remains at
+  `/console`. This is demo/engagement UX outside the September pilot critical path and does not change
+  any privacy, security, scientific, or clinical claim.
 
 - **2026-08-01 — Contribution-impact and transparent coordinator console:** the coordinator now
   reports binary held-out diagnostics with ASD explicitly treated as the positive class: AUC,

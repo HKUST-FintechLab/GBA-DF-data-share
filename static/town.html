@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>GBA-DF · 联邦小镇</title>
+<style>
+  :root{
+    --ink:#26363b;--cream:#fff4cf;--paper:#fff9df;--edge:#5b4939;--shadow:#2e3b36;
+    --green:#65a85c;--green2:#92c96c;--blue:#49aab7;--cyan:#79f2e2;--gold:#f4c54b;
+    --red:#d96353;--purple:#8d71be;--pixel:ui-monospace,"SFMono-Regular","Cascadia Mono",monospace;
+  }
+  *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#172b31;color:var(--ink)}
+  body{font-family:var(--pixel);image-rendering:pixelated;user-select:none}
+  button,input,select{font:inherit}button{color:inherit}
+  #game{position:fixed;inset:0;width:100%;height:100%;display:block;image-rendering:pixelated;cursor:crosshair}
+  .grain{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.09;background-image:
+    repeating-linear-gradient(0deg,transparent 0 3px,#fff 3px 4px);mix-blend-mode:soft-light}
+  .hud{position:fixed;z-index:4;pointer-events:none}.hud>*{pointer-events:auto}
+  .topbar{left:18px;right:18px;top:16px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+  .brand,.stats,.toolbar,.hintbox,.minicard,.dpad,.toast{border:4px solid var(--edge);box-shadow:0 5px 0 rgba(32,42,37,.45);background:var(--cream)}
+  .brand{padding:9px 13px;display:flex;align-items:center;gap:10px;min-width:225px}
+  .brand .crest{width:38px;height:38px;display:grid;place-items:center;background:#327a78;border:3px solid var(--edge);color:var(--cyan);font-size:21px}
+  .brand b{display:block;font-size:15px;letter-spacing:.08em}.brand small{font-size:10px;color:#6b735d}
+  .stats{display:flex;gap:18px;padding:9px 13px;align-items:center}
+  .stat{display:grid;grid-template-columns:auto auto;gap:1px 6px;align-items:center}.stat i{font-style:normal;font-size:17px}.stat b{font-size:14px}.stat small{grid-column:2;font-size:8px;color:#77725d;text-transform:uppercase}
+  .toolbar{right:18px;top:86px;padding:7px;display:flex;flex-direction:column;gap:7px}
+  .pxbtn{border:3px solid var(--edge);background:#f8e8b1;padding:8px 10px;min-width:108px;cursor:pointer;box-shadow:inset 0 -3px rgba(121,91,54,.15);font-size:11px;text-align:left}
+  .pxbtn:hover,.pxbtn.on{background:#ffe06c;transform:translate(-1px,-1px)}.pxbtn:active{transform:translateY(2px)}
+  .pxbtn.primary{background:#83d2a1}.pxbtn.danger{background:#e9947d}.pxbtn:disabled{opacity:.5;cursor:not-allowed}
+  .hintbox{left:50%;bottom:20px;transform:translateX(-50%);padding:10px 15px;min-width:min(520px,82vw);text-align:center;font-size:11px;line-height:1.5}
+  .hintbox b{color:#207a78}.hintbox kbd{border:2px solid var(--edge);background:#fff8dc;padding:2px 5px;box-shadow:0 2px var(--edge)}
+  .minicard{left:18px;bottom:18px;width:180px;padding:10px;font-size:10px;line-height:1.6}
+  .minicard .live{color:#267b56}.minicard .warn{color:#b4533f}.privacybar{height:10px;border:2px solid var(--edge);background:#d8d0aa;margin-top:5px}.privacybar i{display:block;height:100%;background:#4bb6a6;width:0}
+  .dpad{right:18px;bottom:18px;width:132px;height:132px;padding:8px;display:none;grid-template:repeat(3,1fr)/repeat(3,1fr);gap:4px}
+  .dpad button{border:2px solid var(--edge);background:#f4df9c}.dpad .up{grid-column:2}.dpad .left{grid-row:2;grid-column:1}.dpad .act{grid-row:2;grid-column:2;background:#83d2a1}.dpad .right{grid-row:2;grid-column:3}.dpad .down{grid-row:3;grid-column:2}
+  .toast{position:fixed;z-index:15;left:50%;top:85px;transform:translate(-50%,-16px);padding:10px 16px;opacity:0;transition:.25s;pointer-events:none;font-size:11px}.toast.show{opacity:1;transform:translate(-50%,0)}
+  .modal{position:fixed;inset:0;z-index:20;background:rgba(25,39,41,.72);display:grid;place-items:center;padding:20px;backdrop-filter:blur(2px)}
+  .modal.hidden{display:none}.window{position:relative;width:min(760px,96vw);max-height:88vh;overflow:auto;background:var(--paper);border:5px solid var(--edge);box-shadow:10px 10px 0 rgba(25,32,29,.55);padding:22px}
+  .window.wide{width:min(980px,96vw)}.window h2{margin:0 36px 7px 0;font-size:19px}.window h3{font-size:13px}.window p{font:12px/1.8 system-ui,"PingFang SC",sans-serif}.close{position:absolute;right:10px;top:9px;border:3px solid var(--edge);background:#ed806d;width:32px;height:30px;cursor:pointer;font-weight:bold}
+  .tag{display:inline-block;border:2px solid var(--edge);background:#d6e8bd;padding:3px 6px;margin:3px;font-size:9px}.tag.cyan{background:#b7eee5}.tag.warn{background:#f5d195}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}.card{border:3px solid var(--edge);background:#f8ecc2;padding:13px;cursor:pointer;min-height:128px}.card:hover{background:#ffe58b;transform:translateY(-2px)}.card b{display:block;margin:6px 0}.card small{font:10px/1.5 system-ui,sans-serif;color:#655c4e}.card .cost{color:#9a5b13;margin-top:8px;font-weight:bold}
+  .room{position:relative;height:330px;border:5px solid var(--edge);overflow:hidden;background:#e9d7a9;margin:15px 0;image-rendering:pixelated}.room:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(87,65,43,.08) 2px,transparent 2px),linear-gradient(rgba(87,65,43,.08) 2px,transparent 2px);background-size:32px 32px}
+  .roomitem{position:absolute;border:4px solid var(--edge);display:grid;place-items:center;text-align:center;font-size:11px;line-height:1.45;z-index:2}.vault{left:5%;top:15%;width:27%;height:64%;background:#f4c86a;color:#563f28;box-shadow:inset 0 0 0 8px #e8a951}.machine{left:39%;top:23%;width:24%;height:50%;background:#87a889;color:#fff}.port{right:6%;top:25%;width:22%;height:46%;background:#357d82;color:#d8fff5}.rainbowline{position:absolute;left:28%;right:13%;top:47%;height:18px;z-index:1;background:linear-gradient(#f09a8d 0 22%,#f4ca63 22% 44%,#78c987 44% 66%,#6fd7df 66% 82%,#9f8bd2 82%);border:3px solid var(--edge);opacity:.72}.cube{position:absolute;width:16px;height:16px;background:var(--cyan);border:2px solid #285d66;z-index:4;animation:flow 2.2s linear infinite}.cube:before{content:"";position:absolute;left:3px;top:-7px;width:6px;height:7px;border:2px solid #285d66;border-bottom:0}.cube.c2{animation-delay:.7s}.cube.c3{animation-delay:1.4s}@keyframes flow{0%{left:28%;top:49%;opacity:0}15%{opacity:1}50%{left:49%;top:49%}100%{left:82%;top:49%;opacity:0}}
+  .localstamp{position:absolute;left:5%;bottom:5%;z-index:3;background:#fff1a6;border:3px solid var(--edge);padding:5px 8px;font-size:9px}.roomnote{font:11px/1.7 system-ui,sans-serif;background:#eef1cf;border:2px solid var(--edge);padding:10px}.roomnote strong{color:#257767}
+  .dashgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:12px 0}.metric{border:3px solid var(--edge);background:#e6e3b6;padding:10px}.metric b{display:block;font-size:19px;color:#267a76}.metric small{font-size:8px}.events{max-height:180px;overflow:auto;border:3px solid var(--edge);background:#233b3c;color:#d8f4dc;padding:8px;font-size:10px;line-height:1.8}.events div{border-bottom:1px dashed #4f7370}.events em{color:#7cf1dd;font-style:normal}.events .bad{color:#ff927f}
+  .chatlog{height:250px;overflow:auto;border:3px solid var(--edge);background:#fff3c5;padding:10px}.bubble{max-width:83%;padding:8px 10px;margin:7px 0;border:2px solid var(--edge);font:11px/1.6 system-ui,sans-serif;background:#e5edbd}.bubble.me{margin-left:auto;background:#bde9de}.chatrow{display:flex;gap:8px;margin-top:10px}.chatrow input,.profilegrid input,.profilegrid select{border:3px solid var(--edge);background:#fffbe8;padding:9px;min-width:0}.chatrow input{flex:1}.quick{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.quick button{border:2px solid var(--edge);background:#f5df9c;padding:5px 7px;cursor:pointer;font-size:9px}
+  .profilegrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.profilegrid label{display:grid;gap:5px;font-size:10px}.actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px;flex-wrap:wrap}.fine{font:10px/1.7 system-ui,sans-serif;color:#6e6756}.welcomehero{display:grid;grid-template-columns:110px 1fr;gap:17px;align-items:center}.mascot{width:105px;height:105px;border:4px solid var(--edge);display:grid;place-items:center;background:#8fd0a4;font-size:48px}
+  .assurance{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.assure{border:3px solid var(--edge);padding:12px;background:#fff0ae;text-align:center;font:11px/1.6 system-ui,sans-serif}.assure:nth-child(2){background:#bdece2}.assure:nth-child(3){background:#dce9ad}.assure i{display:block;font-style:normal;font-size:26px;margin-bottom:5px}
+  .swatches,.optionrow{display:flex;gap:7px;flex-wrap:wrap;margin:6px 0 13px}.swatch,.choice{border:3px solid var(--edge);background:#f5e7b7;padding:7px;cursor:pointer;font-size:10px}.swatch{width:34px;height:30px}.swatch.on,.choice.on{outline:3px solid #3f9d88;outline-offset:2px}.customgrid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.customgrid label{font-size:10px}.customgrid input{width:100%;border:3px solid var(--edge);background:#fffbe8;padding:9px;margin-top:6px}
+  .librarygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.book{border:3px solid var(--edge);background:#f6e9ba;padding:13px;min-height:145px;font:11px/1.65 system-ui,sans-serif}.book i{font-style:normal;font-size:28px}.book b{display:block;margin:6px 0}.book.cyan{background:#c7eee5}.book.green{background:#dcebb7}.book.gold{background:#ffe29a}.librarydetails{margin-top:14px;border:3px solid var(--edge);background:#fff8dc;padding:10px;font:10px/1.75 system-ui,sans-serif}.librarydetails summary{cursor:pointer;font-weight:bold}
+  .collection{display:grid;grid-template-columns:1fr 1fr;gap:14px}.badgecase,.lettercase{border:3px solid var(--edge);background:#f5e7b7;padding:13px}.badge{display:inline-flex;align-items:center;gap:5px;border:3px solid var(--edge);background:#ffe078;padding:7px;margin:4px;font-size:10px}.letter{border:3px solid #8a6b44;background:#fff7d8;padding:12px;margin:8px 0;font:11px/1.7 system-ui,sans-serif;box-shadow:4px 4px #d3bd84}.treecard{display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center;border:3px solid var(--edge);background:#dcebb7;padding:10px;margin:12px 0}.treeicon{height:100px;display:grid;place-items:end center;font-size:64px;background:linear-gradient(transparent 65%,#90c86e 65%)}
+  .celebrate{position:fixed;inset:0;z-index:12;pointer-events:none;display:grid;place-items:start center;padding-top:100px;opacity:0}.celebrate.show{animation:celebrate 3.2s ease}.celebrate span{border:4px solid var(--edge);background:#fff1a8;padding:12px 18px;box-shadow:6px 6px rgba(38,52,43,.35);font-weight:bold}@keyframes celebrate{0%{opacity:0;transform:translateY(-20px)}15%,75%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-12px)}}
+  @media(max-width:780px){.stats{gap:8px}.stat:nth-child(3),.stat:nth-child(4){display:none}.brand{min-width:0}.brand small{display:none}.toolbar{top:auto;right:10px;bottom:165px}.toolbar .pxbtn{min-width:46px;width:46px;font-size:0;text-align:center}.toolbar .pxbtn:first-letter{font-size:18px}.minicard{display:none}.dpad{display:grid}.hintbox{bottom:10px;min-width:0;width:calc(100% - 180px);left:10px;transform:none}.cards,.assurance,.librarygrid,.customgrid,.collection{grid-template-columns:1fr}.dashgrid{grid-template-columns:1fr 1fr}.profilegrid{grid-template-columns:1fr}.room{height:270px}.topbar{left:8px;right:8px;top:8px}.brand,.stats{padding:6px}.brand .crest{width:32px;height:32px}.brand b{font-size:11px}}
+  @media(prefers-reduced-motion:reduce){.cube{animation:none}.toast{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="GBA-DF 联邦小镇游戏地图"></canvas><div class="grain"></div>
+<div class="hud topbar">
+  <div class="brand"><div class="crest">⌂</div><div><b>联邦小镇</b><small>GBA-DF PIXEL FEDERATION</small></div></div>
+  <div class="stats"><div class="stat"><i>🪙</i><b id="coins">180</b><small>装饰币</small></div><div class="stat"><i>🏥</i><b id="nodeCount">0/0</b><small>机构</small></div><div class="stat"><i>◈</i><b id="roundCount">0</b><small>聚合轮次</small></div><div class="stat"><i>☀</i><b id="clock">09:00</b><small>小镇时间</small></div></div>
+</div>
+<div class="hud toolbar">
+  <button class="pxbtn" id="buildBtn">🏗 建设</button><button class="pxbtn" id="shopBtn">🛒 家具店</button><button class="pxbtn" id="dashBtn">🏛 中央机房</button><button class="pxbtn" id="libraryBtn">📚 隐私图书馆</button><button class="pxbtn" id="collectionBtn">🎁 纪念册</button><button class="pxbtn" id="profileBtn">🧑 角色</button><a class="pxbtn" href="/console" style="text-decoration:none">📊 经典看板</a>
+</div>
+<div class="hud minicard"><b id="modeLabel">正在连接协调器…</b><div id="datasetLabel">—</div><div>隐私预算 ε <span id="epsLabel">0 / 0</span></div><div class="privacybar"><i id="epsBar"></i></div><div id="chainLabel">审计链 —</div></div>
+<div class="hud hintbox" id="hint"><kbd>WASD</kbd> / 方向键移动 · 靠近建筑或 NPC 按 <kbd>E</kbd></div>
+<div class="hud dpad"><button class="up" data-key="ArrowUp">▲</button><button class="left" data-key="ArrowLeft">◀</button><button class="act" id="touchAct">E</button><button class="right" data-key="ArrowRight">▶</button><button class="down" data-key="ArrowDown">▼</button></div>
+<div class="toast" id="toast"></div>
+<div class="celebrate" id="celebrate"><span>🎉 共同模型长大啦！知识树冒出了新叶子</span></div>
+
+<div class="modal hidden" id="welcomeModal"><div class="window"><button class="close" data-close>×</button><div class="welcomehero"><div class="mascot">🌱</div><div><h2>欢迎来到联邦小镇</h2><p>沿着河流散步、建设自己的机构、认识小镇伙伴，也和大家一起培育中央广场的知识树。</p></div></div><div class="assurance"><div class="assure"><i>🏠</i><b>原始数据留在你的医院</b></div><div class="assure"><i>🔐</i><b>送出的是受保护的统计积木</b></div><div class="assure"><i>🌱</i><b>大家共同培育一个模型</b></div></div><div><span class="tag">河流与道路</span><span class="tag">自由建造</span><span class="tag cyan">安心协作</span><span class="tag">NPC 对话</span></div><p class="fine">装饰币、家具和角色进度只保存在这个浏览器。想了解小镇机器如何工作，随时去中央广场的隐私图书馆。</p><div class="actions"><button class="pxbtn primary" id="startTown">开心出发</button></div></div></div>
+
+<div class="modal hidden" id="authModal"><form class="window" id="authForm"><h2>小镇通行证</h2><p>输入协调器的只读或操作员密码。密码只保存在这个浏览器标签页。</p><div class="profilegrid"><label>只读密码<input id="authKey" type="password" autocomplete="current-password"></label></div><div id="authError" class="fine"></div><div class="actions"><button class="pxbtn primary" type="submit">进入</button></div></form></div>
+
+<div class="modal hidden" id="buildModal"><div class="window"><button class="close" data-close>×</button><h2>选择机构蓝图</h2><p>建造的是本地游戏空间；只有真正注册到协调器的节点才会显示为在线数据机构。</p><div class="cards" id="buildingCards"></div></div></div>
+
+<div class="modal hidden" id="shopModal"><div class="window"><button class="close" data-close>×</button><h2>苔藓角家具店</h2><p>选择装饰后，在地图上点击喜欢的位置放下。装饰币不会兑换现实利益。</p><div class="cards" id="shopCards"></div></div></div>
+
+<div class="modal hidden" id="profileModal"><div class="window"><button class="close" data-close>×</button><h2>角色与机构</h2><p>认领你的机构，选一套喜欢的工作服。每个研究项目完成首次确认贡献后，会收到一次小镇纪念礼包。</p><div class="profilegrid"><label>角色名字<input id="playerName" maxlength="24"></label><label>我的机构<select id="myNode"><option value="">尚未绑定</option></select></label></div><h3>工作服</h3><div class="optionrow" id="outfitChoices"></div><p class="fine">纪念礼包与数据量、诊断类别和训练轮次无关；暂不参与不会失去已有建筑、家具或徽章。</p><div class="actions"><button class="pxbtn primary" id="saveProfile">保存角色</button></div></div></div>
+
+<div class="modal hidden" id="roomModal"><div class="window wide"><button class="close" data-close>×</button><h2 id="roomTitle">机构内部</h2><div id="roomBody"></div></div></div>
+
+<div class="modal hidden" id="dashModal"><div class="window wide"><button class="close" data-close>×</button><h2>中央机房 · 小镇总览</h2><div class="assurance"><div class="assure"><i>🏠</i><b>原始记录安心住在本地</b></div><div class="assure"><i>🔐</i><b>保护通道正在工作</b></div><div class="assure"><i>🌱</i><b>共同模型持续成长</b></div></div><p id="dashSummary">正在读取小镇状态…</p><div class="dashgrid" id="dashGrid"></div><div class="treecard"><div class="treeicon" id="dashTree">🌱</div><div><h3>知识树</h3><p id="treeMessage">每一次成功聚合都会让知识树多长出一些叶子。</p></div></div><h3>成长节奏</h3><div class="privacybar" style="height:18px"><i id="dashEpsBar"></i></div><p class="fine" id="dashPrivacy"></p><details class="librarydetails"><summary>查看签名审计纪要</summary><div class="events" id="eventList"></div></details><div class="actions"><button class="pxbtn" id="openLibraryFromDash">📚 参观隐私图书馆</button><button class="pxbtn" id="downloadModel">⬇ 模型 JSON</button><button class="pxbtn" id="downloadAudit">⬇ 审计包</button></div></div></div>
+
+<div class="modal hidden" id="chatModal"><div class="window"><button class="close" data-close>×</button><h2>Agent 芽芽 · 小镇向导</h2><div class="chatlog" id="chatlog"></div><div class="quick"><button data-q="原始数据住在哪里？">我的数据仓</button><button data-q="统计积木怎样去中央机房？">统计积木</button><button data-q="知识树怎样长大？">知识树</button><button data-q="我怎样获得纪念礼包？">纪念礼包</button></div><form class="chatrow" id="chatForm"><input id="chatInput" maxlength="200" placeholder="和芽芽聊聊小镇…"><button class="pxbtn primary">发送</button></form><p class="fine">芽芽是离线小镇向导，对话不会发送给外部模型。</p></div></div>
+
+<div class="modal hidden" id="libraryModal"><div class="window wide"><button class="close" data-close>×</button><h2>隐私图书馆 · 安心协作指南</h2><p>这里收藏着联邦小镇的工作说明。主流程可以轻松游玩，想多了解时再翻开这些书。</p><div class="librarygrid"><div class="book gold"><i>🏠</i><b>本地数据仓</b>原始视频、眼动记录和信号文件留在机构自己的设备里。本地机器在这里完成特征与叶计数处理。</div><div class="book cyan"><i>🔐</i><b>保护通道</b>多机构小镇把整数叶计数做成成对掩码的青色统计积木，再送往中央机房。</div><div class="book green"><i>🌱</i><b>共同模型</b>中央机房汇集完整小镇的统计积木、加入差分隐私保护，并把共同模型送回伙伴。</div></div><details class="librarydetails"><summary>打开技术说明书</summary><p><b>本轮发送：</b>受保护的整数叶计数以及节点 ID、轮次、自报样本数、cohort fingerprint 和数字签名等协议信息。</p><p><b>小镇证明：</b>每次注册、提交和聚合都会进入协调器签名的哈希审计链；纪要与模型都可以下载。</p><p><b>模式标识：</b>三家或以上机构时显示“安全聚合小镇”；单节点体验会明确显示“中央 DP 单节点”。</p></details><div class="actions"><button class="pxbtn" id="libraryAudit">⬇ 收藏审计纪要</button><button class="pxbtn primary" data-close>读完啦</button></div></div></div>
+
+<div class="modal hidden" id="customModal"><div class="window"><button class="close" data-close>×</button><h2>机构装扮工坊</h2><p id="customTitle">给机构换上最喜欢的样子。</p><div class="customgrid"><div><h3>屋顶颜色</h3><div class="swatches" id="roofChoices"></div><h3>庭院</h3><div class="optionrow" id="yardChoices"></div></div><div><h3>研究主题</h3><div class="optionrow" id="themeChoices"></div><label>门前招牌<input id="customSign" maxlength="18"></label></div></div><div class="actions"><button class="pxbtn primary" id="saveCustom">保存装扮</button></div></div></div>
+
+<div class="modal hidden" id="collectionModal"><div class="window wide"><button class="close" data-close>×</button><h2>我的小镇纪念册</h2><p>这里保存贡献纪念徽章和来自小镇的感谢信。它们属于你的游戏角色，会一直留在本地存档中。</p><div class="collection"><div class="badgecase"><h3>纪念徽章</h3><div id="badgeList"></div></div><div class="lettercase"><h3>感谢信</h3><div id="letterList"></div></div></div></div></div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const cv=$("game"),x=cv.getContext("2d",{alpha:false});x.imageSmoothingEnabled=false;
+const WORLD={w:1920,h:1280}, CENTRAL={x:930,y:500,w:210,h:170,name:"中央机房"};
+const LIBRARY={x:1270,y:610,w:155,h:120,name:"隐私图书馆"}, KNOWLEDGE_TREE={x:1195,y:505};
+const PLOTS=[
+  {id:"p1",x:520,y:250,w:180,h:145},{id:"p2",x:805,y:220,w:180,h:145},{id:"p3",x:1225,y:250,w:180,h:145},
+  {id:"p4",x:1480,y:390,w:180,h:145},{id:"p5",x:540,y:790,w:180,h:145},{id:"p6",x:825,y:880,w:180,h:145},
+  {id:"p7",x:1235,y:850,w:180,h:145},{id:"p8",x:1490,y:760,w:180,h:145}
+];
+const blueprints=[
+  {kind:"hospital",icon:"🏥",name:"社区医院",cost:120,desc:"温暖的医疗机构，包含本地数据仓和特征与计数工坊。"},
+  {kind:"research",icon:"🔬",name:"研究中心",cost:150,desc:"适合眼动、动作与神经模态研究的像素实验楼。"},
+  {kind:"clinic",icon:"✚",name:"伙伴诊所",cost:90,desc:"小巧的合作节点，为新成员预留联邦接入空间。"}
+];
+const shopItems=[
+  {kind:"tree",icon:"🌳",name:"橡树",cost:20,desc:"让空地多一点树荫。"},{kind:"bench",icon:"🪑",name:"长椅",cost:28,desc:"给研究员休息的地方。"},{kind:"lamp",icon:"🏮",name:"青灯",cost:35,desc:"夜里会发出联邦青光。"},{kind:"flower",icon:"🌼",name:"花圃",cost:12,desc:"一小片耐看的野花。"}
+];
+const ROOFS=[{id:"terracotta",color:"#c65f4c",name:"陶土红"},{id:"teal",color:"#4e8580",name:"湖水青"},{id:"violet",color:"#8067a6",name:"丁香紫"},{id:"sun",color:"#d9a83f",name:"向日金"}];
+const YARDS=[{id:"meadow",icon:"🌿",name:"青草庭院"},{id:"flowers",icon:"🌼",name:"花香庭院"},{id:"orchard",icon:"🍎",name:"果树庭院"},{id:"pond",icon:"💧",name:"小池庭院"}];
+const THEMES=[{id:"care",icon:"❤",name:"健康关怀"},{id:"gaze",icon:"◉",name:"眼动研究"},{id:"action",icon:"★",name:"动作研究"},{id:"neuro",icon:"⌁",name:"神经研究"}];
+const OUTFITS=[{id:"blue",color:"#3c7290",name:"海湾蓝"},{id:"mint",color:"#5b9d7b",name:"薄荷绿"},{id:"rose",color:"#b66f78",name:"晚霞粉"},{id:"gold",color:"#c3923d",name:"麦穗金"}];
+const CONTRIBUTION_GIFT=60;
+const defaultSave={coins:180,builders:[],decorations:[],playerName:"小镇访客",myNode:"",outfit:"blue",buildingStyles:{},rewardedProjects:{},badges:[],letters:[],welcome:false};
+let save=loadSave(), status=null,audit={verified:false,entries:[]},readKey=sessionStorage.getItem("gba-df-read-key")||"";
+let W=0,H=0,DPR=1,scale=1,camera={x:0,y:0},player={x:1035,y:820,dir:0,walk:0},keys={},nearest=null,mode="walk",selectedPlot=null,placing=null,toastTimer=0,seen=new Set(),packets=[],fireworks=[];
+let last=performance.now(),gameMinutes=9*60,interactions=[],decorSeed=[],customBuilding=null,customDraft=null,celebrateTimer=0;
+
+function loadSave(){try{const old=JSON.parse(localStorage.getItem("gba-df-town-save")||"{}");return {...defaultSave,...old,buildingStyles:{...defaultSave.buildingStyles,...(old.buildingStyles||{})},rewardedProjects:{...defaultSave.rewardedProjects,...(old.rewardedProjects||{})},badges:Array.isArray(old.badges)?old.badges:[],letters:Array.isArray(old.letters)?old.letters:[]};}catch(_){return {...defaultSave}}}
+function storeSave(){localStorage.setItem("gba-df-town-save",JSON.stringify(save));$("coins").textContent=save.coins}
+function showToast(text){const t=$("toast");t.textContent=text;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400)}
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+"px";cv.style.height=H+"px";x.setTransform(DPR,0,0,DPR,0,0);scale=clamp(Math.min(W/820,H/620),.72,1.18)}
+addEventListener("resize",resize);resize();
+
+function seeded(n){const v=Math.sin(n*127.1+78.233)*43758.5453;return v-Math.floor(v)}
+for(let i=0;i<170;i++){const px=30+seeded(i)*1840,py=45+seeded(i+300)*1170;if(px<420||px>470)decorSeed.push({x:px,y:py,t:seeded(i+600)>.72?"flower":"tree",s:.7+seeded(i+900)*.45})}
+function riverX(y){return 335+Math.sin(y/145)*48+Math.sin(y/53)*13}
+function onBridge(px,py){return py>570&&py<690}
+function blocked(px,py){const rx=riverX(py);if(!onBridge(px,py)&&Math.abs(px-rx)<92)return true;return false}
+
+function roundRect(c,px,py,w,h,r,fill,stroke){c.beginPath();c.roundRect(px,py,w,h,r);if(fill){c.fillStyle=fill;c.fill()}if(stroke){c.strokeStyle=stroke;c.lineWidth=4;c.stroke()}}
+function drawGround(){
+  x.fillStyle="#79b85f";x.fillRect(0,0,WORLD.w,WORLD.h);
+  for(let gy=0;gy<WORLD.h;gy+=32)for(let gx=0;gx<WORLD.w;gx+=32){const n=seeded(gx*3+gy*7);x.fillStyle=n>.66?"#83bf65":n<.18?"#6dab59":"#79b85f";x.fillRect(gx,gy,32,32)}
+  x.strokeStyle="#c99d5c";x.lineWidth=54;x.lineCap="round";x.beginPath();x.moveTo(420,620);x.bezierCurveTo(720,610,780,590,1035,585);x.bezierCurveTo(1270,580,1450,610,1800,605);x.stroke();
+  x.lineWidth=40;x.beginPath();x.moveTo(1025,80);x.lineTo(1025,1160);x.stroke();
+  x.lineWidth=30;PLOTS.forEach(p=>{x.beginPath();x.moveTo(1025,605);x.lineTo(p.x+p.w/2,p.y+p.h);x.stroke()});
+  x.strokeStyle="#3f9baa";x.lineWidth=180;x.beginPath();for(let y=0;y<=WORLD.h;y+=24){const px=riverX(y);if(y===0)x.moveTo(px,y);else x.lineTo(px,y)}x.stroke();
+  x.strokeStyle="#65bfca";x.lineWidth=8;x.beginPath();for(let y=0;y<=WORLD.h;y+=30){const px=riverX(y)-25;if(y===0)x.moveTo(px,y);else x.lineTo(px,y)}x.stroke();
+  x.fillStyle="#9f6f3d";x.fillRect(riverX(630)-120,585,240,95);x.fillStyle="#d7a95c";for(let i=-100;i<110;i+=24)x.fillRect(riverX(630)+i,592,16,80);
+}
+function drawTree(o){x.save();x.translate(o.x,o.y);x.scale(o.s||1,o.s||1);x.fillStyle="#634a2f";x.fillRect(-5,7,10,22);x.fillStyle="#326d48";x.fillRect(-20,-18,40,28);x.fillStyle="#4f9652";x.fillRect(-14,-28,30,28);x.fillStyle="#74b35b";x.fillRect(-7,-23,12,10);x.restore()}
+function drawFlower(o){x.fillStyle="#4e8b48";x.fillRect(o.x-1,o.y,3,9);x.fillStyle=["#f4df76","#ef9aa8","#d8c8ff"][Math.floor(seeded(o.x)*3)];x.fillRect(o.x-5,o.y-5,10,7)}
+function drawScenery(){decorSeed.forEach(o=>{if(Math.abs(o.x-riverX(o.y))<125||Math.abs(o.y-605)<70||Math.abs(o.x-1025)<60)return;o.t==="tree"?drawTree(o):drawFlower(o)});save.decorations.forEach(drawDecoration)}
+function plotBuildings(){
+  const nodes=status?.nodes||[], all=[];
+  nodes.slice(0,PLOTS.length).forEach((n,i)=>all.push({...PLOTS[i],kind:["hospital","research","clinic"][i%3],name:n.name||n.node_id,node:n,online:true}));
+  save.builders.forEach(b=>{if(!all.some(a=>a.id===b.plotId)){const p=PLOTS.find(q=>q.id===b.plotId);if(p)all.push({...p,...b,name:b.name||blueprints.find(z=>z.kind===b.kind)?.name,online:false})}});
+  return all;
+}
+function drawPlot(p,used){if(used)return;x.setLineDash([10,8]);x.strokeStyle=mode==="build"?"#ffe573":"rgba(255,244,185,.7)";x.lineWidth=4;x.strokeRect(p.x,p.y,p.w,p.h);x.setLineDash([]);x.fillStyle="rgba(255,244,185,.12)";x.fillRect(p.x,p.y,p.w,p.h);x.fillStyle="#5b583e";x.font="12px "+getComputedStyle(document.body).fontFamily;x.fillText("空地 · 可建设",p.x+32,p.y+p.h/2)}
+function palette(kind){return kind==="hospital"?["#f6e1b5","#c65f4c"]:kind==="research"?["#d9d7bc","#557a8c"]:["#f0d6a2","#7c68a4"]}
+function buildingKey(b){return b.node?`node:${b.node.node_id}`:`plot:${b.plotId||b.id}`}
+function buildingStyle(b){return {roof:"",yard:"meadow",theme:"care",sign:"",...(save.buildingStyles[buildingKey(b)]||{})}}
+function drawYard(b,style){const cx=b.x+b.w/2,base=b.y+b.h+8;if(style.yard==="flowers"){for(let i=-62;i<=62;i+=20)drawFlower({x:cx+i,y:base+seeded(i+cx)*12})}else if(style.yard==="orchard"){drawTree({x:b.x+24,y:base+5,s:.55});drawTree({x:b.x+b.w-24,y:base+5,s:.55})}else if(style.yard==="pond"){x.fillStyle="#58aeb8";x.fillRect(cx-38,base-3,76,20);x.fillStyle="#89d5c5";x.fillRect(cx-24,base+3,16,5)}else{x.fillStyle="#9bd276";for(let i=-70;i<70;i+=17)x.fillRect(cx+i,base,4,9)}}
+function drawBuilding(b){
+  const [wall,baseRoof]=palette(b.kind),style=buildingStyle(b),roof=ROOFS.find(r=>r.id===style.roof)?.color||baseRoof,px=b.x,py=b.y,w=b.w,h=b.h;drawYard(b,style);x.fillStyle="rgba(42,56,45,.24)";x.fillRect(px+12,py+18,w,h);
+  x.fillStyle=wall;x.fillRect(px+12,py+45,w-24,h-45);x.strokeStyle="#5b4939";x.lineWidth=5;x.strokeRect(px+12,py+45,w-24,h-45);
+  x.fillStyle=roof;x.beginPath();x.moveTo(px,py+52);x.lineTo(px+w/2,py);x.lineTo(px+w,py+52);x.closePath();x.fill();x.stroke();
+  x.fillStyle="#38566a";x.fillRect(px+w/2-17,py+h-51,34,51);x.fillStyle="#9fdbe0";x.fillRect(px+31,py+72,28,24);x.fillRect(px+w-59,py+72,28,24);
+  x.fillStyle="#fff3c6";x.fillRect(px+w/2-16,py+20,32,26);x.fillStyle="#2f7776";x.font="bold 18px "+getComputedStyle(document.body).fontFamily;x.fillText(THEMES.find(t=>t.id===style.theme)?.icon||"❤",px+w/2-9,py+41);
+  x.fillStyle="#4d4336";x.font="bold 12px "+getComputedStyle(document.body).fontFamily;const label=String(style.sign||b.name).slice(0,18);x.fillText(label,px+8,py-10);
+  if(b.online){x.fillStyle="#64f0c8";x.fillRect(px+w-20,py+8,12,12);x.strokeStyle="#285f58";x.strokeRect(px+w-20,py+8,12,12)}
+  interactions.push({x:px+w/2,y:py+h,name:`进入 ${b.name}`,action:()=>openRoom(b)});
+}
+function drawCentral(){const b=CENTRAL,glow=packets.length?8:0;x.fillStyle="rgba(32,54,50,.26)";x.fillRect(b.x+16,b.y+20,b.w,b.h);x.fillStyle="#d8d2b1";x.fillRect(b.x,b.y+52,b.w,b.h-52);x.strokeStyle="#493f36";x.lineWidth=6;x.strokeRect(b.x,b.y+52,b.w,b.h-52);x.fillStyle="#456f76";x.beginPath();x.moveTo(b.x-10,b.y+58);x.lineTo(b.x+b.w/2,b.y);x.lineTo(b.x+b.w+10,b.y+58);x.closePath();x.fill();x.stroke();x.fillStyle="#183f48";x.fillRect(b.x+b.w/2-24,b.y+b.h-62,48,62);x.fillStyle="#7effe3";x.fillRect(b.x+b.w/2-12-glow/2,b.y+22-glow/2,24+glow,24+glow);x.strokeStyle="#2a5b5c";x.strokeRect(b.x+b.w/2-12,b.y+22,24,24);x.fillStyle="#433d34";x.font="bold 13px "+getComputedStyle(document.body).fontFamily;x.fillText("中央机房 · 联邦广场",b.x+15,b.y-12);interactions.push({x:b.x+b.w/2,y:b.y+b.h,name:"进入中央机房",action:openDashboard})}
+function drawLibrary(){const b=LIBRARY;x.fillStyle="rgba(35,53,43,.2)";x.fillRect(b.x+10,b.y+13,b.w,b.h);x.fillStyle="#f3dfae";x.fillRect(b.x,b.y+36,b.w,b.h-36);x.strokeStyle="#5b4939";x.lineWidth=5;x.strokeRect(b.x,b.y+36,b.w,b.h-36);x.fillStyle="#4f897d";x.beginPath();x.moveTo(b.x-8,b.y+40);x.lineTo(b.x+b.w/2,b.y);x.lineTo(b.x+b.w+8,b.y+40);x.closePath();x.fill();x.stroke();x.fillStyle="#3b5f65";x.fillRect(b.x+b.w/2-16,b.y+b.h-43,32,43);x.fillStyle="#fff3b0";x.font="bold 18px "+getComputedStyle(document.body).fontFamily;x.fillText("▤",b.x+b.w/2-9,b.y+31);x.fillStyle="#4d4336";x.font="bold 12px "+getComputedStyle(document.body).fontFamily;x.fillText("隐私图书馆",b.x+30,b.y-9);interactions.push({x:b.x+b.w/2,y:b.y+b.h,name:"参观隐私图书馆",action:()=>openModal("libraryModal")})}
+function drawKnowledgeTree(){const rounds=(status?.metrics||[]).length,level=clamp(rounds,0,8),t=KNOWLEDGE_TREE;x.fillStyle="#63462d";x.fillRect(t.x-7,t.y,14,72);x.fillRect(t.x-31,t.y+24,32,8);x.fillRect(t.x,t.y+10,31,8);for(let i=0;i<Math.max(1,level*3);i++){const a=i*2.4,r=18+(i%4)*8,lx=t.x+Math.cos(a)*r,ly=t.y+14+Math.sin(a)*r*.65;x.fillStyle=["#4e9654","#72b65e","#92ca66","#f2c94d"][i%4];x.fillRect(lx-8,ly-7,16,14)}x.fillStyle="#fff1ad";x.font="bold 11px "+getComputedStyle(document.body).fontFamily;x.fillText(rounds?`知识树 · ${rounds} 圈新叶`:`知识树 · 等待第一片新叶`,t.x-61,t.y-22);interactions.push({x:t.x,y:t.y+65,name:"看看知识树",action:openDashboard})}
+function drawDecoration(d){if(d.kind==="tree")drawTree({x:d.x,y:d.y,s:.85});else if(d.kind==="flower")drawFlower(d);else if(d.kind==="bench"){x.fillStyle="#6e4d31";x.fillRect(d.x-18,d.y-4,36,10);x.fillRect(d.x-14,d.y+6,5,10);x.fillRect(d.x+9,d.y+6,5,10)}else{x.fillStyle="#554436";x.fillRect(d.x-3,d.y-18,6,28);x.fillStyle="#6ff4d4";x.fillRect(d.x-9,d.y-25,18,12)}}
+function drawNpc(px,py,color,label){x.fillStyle="rgba(28,46,38,.22)";x.fillRect(px-13,py+17,26,8);x.fillStyle="#f2bf8f";x.fillRect(px-9,py-19,18,17);x.fillStyle=color;x.fillRect(px-11,py-2,22,25);x.fillStyle="#4b3930";x.fillRect(px-10,py-24,20,8);x.fillStyle="#fff1b9";x.font="10px "+getComputedStyle(document.body).fontFamily;x.fillText(label,px-32,py-32)}
+function drawPlayer(){const bob=Math.sin(player.walk)*2,outfit=OUTFITS.find(o=>o.id===save.outfit)?.color||"#3c7290";x.fillStyle="rgba(28,46,38,.28)";x.fillRect(player.x-12,player.y+16,24,7);x.fillStyle="#f0bd8a";x.fillRect(player.x-8,player.y-18+bob,16,16);x.fillStyle="#3d3432";x.fillRect(player.x-9,player.y-23+bob,18,8);x.fillStyle=outfit;x.fillRect(player.x-10,player.y-2+bob,20,22);x.fillStyle="#26393e";x.fillRect(player.x-9,player.y+20+bob,7,9);x.fillRect(player.x+2,player.y+20+bob,7,9)}
+function drawPackets(dt){packets.forEach(p=>p.t+=dt*.00025);packets=packets.filter(p=>p.t<1.05);packets.forEach(p=>{const t=p.t,px=p.sx+(CENTRAL.x+CENTRAL.w/2-p.sx)*t,py=p.sy+(CENTRAL.y+CENTRAL.h/2-p.sy)*t-Math.sin(t*Math.PI)*80;x.globalAlpha=.55;["#f09a8d","#f4ca63","#71d8df"].forEach((c,i)=>{x.fillStyle=c;x.fillRect(px-15-i*3,py+7+i*3,8,4)});x.globalAlpha=1;x.fillStyle="#71ffe2";x.fillRect(px-8,py-8,16,16);x.strokeStyle="#245f64";x.lineWidth=2;x.strokeRect(px-8,py-8,16,16);x.beginPath();x.arc(px,py-10,4,Math.PI,0);x.stroke()})}
+function spawnCelebration(){for(let i=0;i<56;i++)fireworks.push({x:CENTRAL.x+CENTRAL.w/2,y:CENTRAL.y+30,vx:(seeded(i+performance.now())-.5)*.24,vy:-.12-seeded(i+77)*.24,life:1,color:["#f3c94e","#72ead7","#ef8c8f","#b79be3"][i%4]});const c=$("celebrate");c.classList.remove("show");void c.offsetWidth;c.classList.add("show");clearTimeout(celebrateTimer);celebrateTimer=setTimeout(()=>c.classList.remove("show"),3300)}
+function drawFireworks(dt){fireworks.forEach(f=>{f.x+=f.vx*dt;f.y+=f.vy*dt;f.vy+=.00042*dt;f.life-=dt*.00055;x.globalAlpha=clamp(f.life,0,1);x.fillStyle=f.color;x.fillRect(f.x,f.y,7,7)});x.globalAlpha=1;fireworks=fireworks.filter(f=>f.life>0)}
+function drawWorld(dt){interactions=[];drawGround();drawScenery();const buildings=plotBuildings();PLOTS.forEach(p=>drawPlot(p,buildings.some(b=>b.id===p.id)));buildings.forEach(drawBuilding);drawCentral();drawLibrary();drawKnowledgeTree();drawNpc(1165,735,"#78ad70","Agent 芽芽");interactions.push({x:1165,y:735,name:"和 Agent 芽芽对话",action:openChat});drawNpc(1450,705,"#9b79aa","馆员书禾");interactions.push({x:1450,y:705,name:"请馆员介绍安心协作",action:()=>openModal("libraryModal")});drawNpc(riverX(630)-5,735,"#c8904e","桥梁工程师");interactions.push({x:riverX(630)-5,y:735,name:"和桥梁工程师交谈",action:()=>npcLine("桥梁工程师","这座彩虹桥运送的是上锁的统计积木。原始记录舒舒服服地住在每家机构自己的数据仓里。")});drawPackets(dt);drawFireworks(dt);drawPlayer()}
+function worldToScreen(){camera.x=clamp(player.x-W/(2*scale),0,Math.max(0,WORLD.w-W/scale));camera.y=clamp(player.y-H/(2*scale),0,Math.max(0,WORLD.h-H/scale));x.setTransform(DPR*scale,0,0,DPR*scale,-camera.x*DPR*scale,-camera.y*DPR*scale)}
+function screenReset(){x.setTransform(DPR,0,0,DPR,0,0)}
+
+function update(dt){
+  if(!document.querySelector(".modal:not(.hidden)")){
+    let dx=(keys.ArrowRight||keys.d?1:0)-(keys.ArrowLeft||keys.a?1:0),dy=(keys.ArrowDown||keys.s?1:0)-(keys.ArrowUp||keys.w?1:0);if(dx||dy){const l=Math.hypot(dx,dy),spd=.19*dt,nx=clamp(player.x+dx/l*spd,18,WORLD.w-18),ny=clamp(player.y+dy/l*spd,28,WORLD.h-18);if(!blocked(nx,ny)){player.x=nx;player.y=ny}player.walk+=dt*.018}
+  }
+  gameMinutes=(gameMinutes+dt*.0018)%(24*60);const hh=String(Math.floor(gameMinutes/60)).padStart(2,"0"),mm=String(Math.floor(gameMinutes%60/10)*10).padStart(2,"0");$("clock").textContent=hh+":"+mm;
+  nearest=null;let best=92;for(const it of interactions){const d=Math.hypot(it.x-player.x,it.y-player.y);if(d<best){best=d;nearest=it}}
+  if(mode==="build")$("hint").innerHTML="选择发光空地，然后点击建设 · <b>Esc</b> 退出建设模式";else if(placing)$("hint").innerHTML=`在地图上点击放置 <b>${placing.name}</b> · Esc 取消`;else if(nearest)$("hint").innerHTML=`按 <kbd>E</kbd> ${nearest.name}`;else $("hint").innerHTML="<kbd>WASD</kbd> / 方向键移动 · 靠近建筑或 NPC 按 <kbd>E</kbd>";
+}
+function frame(now){const dt=Math.min(40,now-last);last=now;update(dt);screenReset();x.fillStyle="#172b31";x.fillRect(0,0,W,H);worldToScreen();drawWorld(dt);screenReset();requestAnimationFrame(frame)}requestAnimationFrame(frame);
+
+addEventListener("keydown",e=>{if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key))e.preventDefault();keys[e.key]=true;if(e.key.toLowerCase()==="e"&&!e.repeat)interact();if(e.key==="Escape"){mode="walk";placing=null;$("buildBtn").classList.remove("on")}});addEventListener("keyup",e=>keys[e.key]=false);
+document.querySelectorAll(".dpad [data-key]").forEach(b=>{const k=b.dataset.key;["pointerdown","touchstart"].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[k]=true}));["pointerup","pointercancel","touchend"].forEach(ev=>b.addEventListener(ev,e=>{e.preventDefault();keys[k]=false}))});$("touchAct").onclick=interact;
+function interact(){if(nearest&&mode==="walk"&&!placing)nearest.action()}
+cv.addEventListener("click",e=>{const rect=cv.getBoundingClientRect(),wx=camera.x+(e.clientX-rect.left)/scale,wy=camera.y+(e.clientY-rect.top)/scale;if(mode==="build"){const buildings=plotBuildings(),p=PLOTS.find(q=>wx>=q.x&&wx<=q.x+q.w&&wy>=q.y&&wy<=q.y+q.h&&!buildings.some(b=>b.id===q.id));if(p){selectedPlot=p;openModal("buildModal")}else showToast("这里不是可建设空地");return}if(placing){if(blocked(wx,wy)){showToast("河道里不能摆家具");return}if(save.coins<placing.cost){showToast("装饰币不足");return}save.coins-=placing.cost;save.decorations.push({kind:placing.kind,x:Math.round(wx),y:Math.round(wy)});storeSave();showToast(`${placing.name} 已放置`);placing=null}});
+
+function openModal(id){$(id).classList.remove("hidden")}function closeModal(el){(el.closest(".modal")||el).classList.add("hidden")}document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>closeModal(b));document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click",e=>{if(e.target===m&&m.id!=="authModal")m.classList.add("hidden")}));
+$("buildBtn").onclick=()=>{mode=mode==="build"?"walk":"build";placing=null;$("buildBtn").classList.toggle("on",mode==="build");showToast(mode==="build"?"请选择一块发光空地":"已退出建设模式")};
+$("shopBtn").onclick=()=>openModal("shopModal");$("dashBtn").onclick=openDashboard;$("libraryBtn").onclick=()=>openModal("libraryModal");$("collectionBtn").onclick=openCollection;$("profileBtn").onclick=openProfile;
+$("buildingCards").innerHTML=blueprints.map((b,i)=>`<div class="card" data-blueprint="${i}"><div style="font-size:28px">${b.icon}</div><b>${b.name}</b><small>${b.desc}</small><div class="cost">🪙 ${b.cost}</div></div>`).join("");
+$("buildingCards").onclick=e=>{const card=e.target.closest("[data-blueprint]");if(!card)return;const b=blueprints[+card.dataset.blueprint];if(save.coins<b.cost){showToast("装饰币不足");return}save.coins-=b.cost;save.builders.push({plotId:selectedPlot.id,kind:b.kind,name:b.name});storeSave();closeModal(card);mode="walk";$("buildBtn").classList.remove("on");showToast(`${b.name} 建成了！`)};
+$("shopCards").innerHTML=shopItems.map((b,i)=>`<div class="card" data-shop="${i}"><div style="font-size:28px">${b.icon}</div><b>${b.name}</b><small>${b.desc}</small><div class="cost">🪙 ${b.cost}</div></div>`).join("");
+$("shopCards").onclick=e=>{const card=e.target.closest("[data-shop]");if(!card)return;placing=shopItems[+card.dataset.shop];mode="walk";closeModal(card);showToast(`请在地图上点击放置 ${placing.name}`)};
+
+function openRoom(b){const n=b.node,title=n?`${b.name} · 安心在线`:b.name;$("roomTitle").textContent=title;$("roomBody").innerHTML=`<div><span class="tag">${b.kind}</span>${n?'<span class="tag cyan">保护通道已连接</span>':'<span class="tag">我的小镇建筑</span>'}</div><div class="room"><div class="rainbowline"></div><div class="roomitem vault">🏠<br><b>温暖的本地数据仓</b><br>原始记录住在这里</div><div class="roomitem machine">⚙<br><b>特征与计数工坊</b><br>做成统计积木</div><div class="roomitem port">🔐<br><b>${status?.secure_aggregation?"成对掩码闸门":"中央 DP 通道"}</b><br>安心送往中央机房</div><i class="cube"></i><i class="cube c2"></i><i class="cube c3"></i><div class="localstamp">🏠 原始数据留在你的医院</div></div><div class="roomnote"><strong>安心协作：</strong>原始数据留在机构自己的设备里，送出的是受保护的统计积木，大家一起培育共同模型。</div><div class="actions"><button class="pxbtn" id="roomLibrary">📚 看看它怎样工作</button><button class="pxbtn primary" id="roomCustomize">🎨 装扮这家机构</button></div>`;openModal("roomModal");$("roomLibrary").onclick=()=>{closeModal($("roomLibrary"));openModal("libraryModal")};$("roomCustomize").onclick=()=>openCustomize(b)}
+function openDashboard(){renderDashboard();openModal("dashModal")}
+function renderDashboard(){const s=status||{},metric=s.primary_metric||"共同模型",rounds=(s.metrics||[]).length,eps=Number(s.global_eps||0),bud=Number(s.epsilon_budget||0);$("dashSummary").textContent=s.dataset?`${s.dataset} 小镇 · ${s.nodes?.length||0} 家伙伴机构正在一起培育共同模型。`:"中央机房正在等待伙伴们到来。";const vals=[["伙伴机构",`${s.nodes?.length||0}/${s.cohort||0}`],["共同成长",`${rounds} 轮`],[metric,s.fed_primary==null?"萌芽中":Number(s.fed_primary).toFixed(3)],["知识树枝叶",s.global_trees||0],["安心守护",audit.verified?"✓ 已验证":"连接中"],["原始记录","住在本地"],["保护通道",s.secure_aggregation?"安全聚合":"中央 DP"],["小镇状态",s.nodes?.length?"温暖在线":"等待伙伴"]];$("dashGrid").innerHTML=vals.map(v=>`<div class="metric"><b>${v[1]}</b><small>${v[0]}</small></div>`).join("");$("dashEpsBar").style.width=(bud?clamp(eps/bud*100,0,100):0)+"%";$("dashPrivacy").textContent=bud?`小镇已完成 ${rounds} 次共同成长，当前保护预算进度为 ε ${eps} / ${bud}。`:"小镇正在准备成长节奏。";$("dashTree").textContent=rounds>=5?"🌳":rounds>=2?"🌿":"🌱";$("treeMessage").textContent=rounds?`伙伴们已经完成 ${rounds} 次聚合，知识树拥有 ${s.global_trees||0} 片模型枝叶。`:"第一批伙伴完成聚合时，这里会长出第一片新叶。";$("eventList").innerHTML=(audit.entries||[]).slice(-40).reverse().map(e=>`<div><em>#${esc(e.seq)} ${esc(e.event)}</em> · ${esc(e.node)} · ${eventText(e)}</div>`).join("")||"暂无纪要"}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function eventText(e){const d=e.detail||{};if(e.event==="submit")return `提交 round ${esc(d.round)}`;if(e.event==="aggregate")return `聚合 round ${esc(d.round)} · ε ${esc(d.global_eps)}`;if(e.event==="register")return "机构注册";if(e.event==="rejected")return `<span class="bad">拒绝：${esc(d.reason)}</span>`;return esc(d.reason||d.name||"")}
+function npcLine(name,text){$("roomTitle").textContent=name;$("roomBody").innerHTML=`<div class="welcomehero"><div class="mascot">🧑‍🔧</div><p>${text}</p></div>`;openModal("roomModal")}
+
+function openChat(){if(!$("chatlog").children.length)addBubble("agent","嗨，"+save.playerName+"！我是芽芽。你的原始数据安心住在自己的医院里，我们送出上锁的统计积木，一起让中央广场的知识树长大。今天想先逛哪里？");openModal("chatModal")}
+function addBubble(who,text){const d=document.createElement("div");d.className="bubble"+(who==="me"?" me":"");d.textContent=text;$("chatlog").appendChild(d);$("chatlog").scrollTop=$("chatlog").scrollHeight}
+function answer(q){const t=q.toLowerCase();if(/原始|raw|哪里|存储|数据仓/.test(t))return "原始记录住在你自己医院的暖黄色数据仓。本地工坊把它们做成统计积木，地图上出发的青色小方块就是积木。";if(/安全|掩码|secure|聚合|积木|中央/.test(t))return status?.secure_aggregation?"每家机构给统计积木加上成对保护，完整小镇的积木在中央机房汇合后，共同长成模型的新枝叶。":"当前是温馨的中央 DP 单节点体验，中央机房会为共同模型加入差分隐私保护。";if(/epsilon|ε|预算|隐私|保护/.test(t))return `中央机房会照看全镇的保护预算，现在的成长进度是 ε ${status?.global_eps??0} / ${status?.epsilon_budget??"—"}。想看说明书，可以去找图书馆员书禾。`;if(/币|奖励|家具|装饰|礼包|徽章/.test(t))return `在“角色”里认领你的机构。每个研究项目首次确认贡献后会收到一次 ${CONTRIBUTION_GIFT} 枚装饰币、纪念徽章和感谢信；礼包不随数据量或轮次增加。`;if(/树|成长|模型/.test(t))return `每次成功聚合，全镇都会庆祝，中央广场的知识树也会多长出新叶。现在它已经见证了 ${(status?.metrics||[]).length} 次共同成长。`;return "今天也可以轻松散步、装扮医院、逛家具店，或者去中央广场看看知识树。"}
+$("chatForm").onsubmit=e=>{e.preventDefault();const q=$("chatInput").value.trim();if(!q)return;addBubble("me",q);$("chatInput").value="";setTimeout(()=>addBubble("agent",answer(q)),180)};document.querySelectorAll("[data-q]").forEach(b=>b.onclick=()=>{addBubble("me",b.dataset.q);setTimeout(()=>addBubble("agent",answer(b.dataset.q)),180)});
+
+function renderOutfits(){$("outfitChoices").innerHTML=OUTFITS.map(o=>`<button class="choice${save.outfit===o.id?" on":""}" data-outfit="${o.id}"><i style="display:inline-block;width:12px;height:12px;background:${o.color};border:2px solid #5b4939;margin-right:5px"></i>${o.name}</button>`).join("")}
+function openProfile(){$("playerName").value=save.playerName;const nodes=status?.nodes||[];$("myNode").innerHTML='<option value="">漫游访客</option>'+nodes.map(n=>`<option value="${esc(n.node_id)}">${esc(n.name||n.node_id)}</option>`).join("");$("myNode").value=save.myNode;renderOutfits();openModal("profileModal")}
+$("outfitChoices").onclick=e=>{const b=e.target.closest("[data-outfit]");if(!b)return;save.outfit=b.dataset.outfit;renderOutfits()};
+$("saveProfile").onclick=()=>{save.playerName=$("playerName").value.trim()||"小镇访客";save.myNode=$("myNode").value;storeSave();closeModal($("saveProfile"));showToast(save.myNode?"角色与机构已经认领好啦":"角色装扮已经保存")};
+
+function openCustomize(b){customBuilding=b;customDraft={...buildingStyle(b)};$("customTitle").textContent=`给 ${b.name} 换上最喜欢的样子。`;$("customSign").value=customDraft.sign||b.name;renderCustomChoices();closeModal($("roomCustomize"));openModal("customModal")}
+function renderCustomChoices(){$("roofChoices").innerHTML=ROOFS.map(r=>`<button class="swatch${customDraft.roof===r.id?" on":""}" data-roof="${r.id}" style="background:${r.color}" title="${r.name}"></button>`).join("");$("yardChoices").innerHTML=YARDS.map(v=>`<button class="choice${customDraft.yard===v.id?" on":""}" data-yard="${v.id}">${v.icon} ${v.name}</button>`).join("");$("themeChoices").innerHTML=THEMES.map(v=>`<button class="choice${customDraft.theme===v.id?" on":""}" data-theme="${v.id}">${v.icon} ${v.name}</button>`).join("")}
+$("roofChoices").onclick=e=>{const b=e.target.closest("[data-roof]");if(b){customDraft.roof=b.dataset.roof;renderCustomChoices()}};$("yardChoices").onclick=e=>{const b=e.target.closest("[data-yard]");if(b){customDraft.yard=b.dataset.yard;renderCustomChoices()}};$("themeChoices").onclick=e=>{const b=e.target.closest("[data-theme]");if(b){customDraft.theme=b.dataset.theme;renderCustomChoices()}};
+$("saveCustom").onclick=()=>{if(!customBuilding)return;customDraft.sign=$("customSign").value.trim().slice(0,18);save.buildingStyles[buildingKey(customBuilding)]={...customDraft};storeSave();closeModal($("saveCustom"));showToast("机构换上新装啦！")};
+
+function openCollection(){const badges=save.badges||[],letters=save.letters||[];$("badgeList").innerHTML=badges.length?badges.map(b=>`<span class="badge">${esc(b.icon||"🌟")} ${esc(b.name)}</span>`).join(""):'<p class="fine">第一份贡献礼包正在路上。认领机构后，完成该研究项目的首次确认贡献即可收到。</p>';$("letterList").innerHTML=letters.length?letters.slice().reverse().map(l=>`<div class="letter"><b>${esc(l.title)}</b><br>${esc(l.body)}<br><small>${esc(l.date)}</small></div>`).join(""):'<p class="fine">邮差小云还没有投递新信件。</p>';openModal("collectionModal")}
+function projectKey(){return `${location.origin}|${status?.dataset||"town"}|${status?.modality||"modality"}|${save.myNode}`}
+function grantContributionGift(){const key=projectKey();if(!save.myNode||save.rewardedProjects[key])return false;save.rewardedProjects[key]=true;save.coins+=CONTRIBUTION_GIFT;const name=(status?.nodes||[]).find(n=>n.node_id===save.myNode)?.name||save.myNode;save.badges.push({icon:"🌟",name:"联邦伙伴 · 安心贡献"});save.letters.push({title:"来自联邦小镇的感谢信",body:`亲爱的 ${save.playerName}：谢谢 ${name} 完成这个研究项目的首次确认贡献。请收下 ${CONTRIBUTION_GIFT} 枚装饰币和联邦伙伴徽章，继续按照自己的节奏建设喜欢的小镇。`,date:new Date().toLocaleDateString("zh-CN")});storeSave();showToast(`贡献礼包已送达：+${CONTRIBUTION_GIFT} 装饰币与纪念徽章`);return true}
+$("startTown").onclick=()=>{save.welcome=true;storeSave();closeModal($("startTown"))};if(!save.welcome)openModal("welcomeModal");storeSave();
+
+function headers(){return readKey?{"X-Fed-Key":readKey}:{}}
+async function api(path){return fetch(path,{headers:headers()})}
+async function poll(){try{const [sr,ar]=await Promise.all([api("/status"),api("/audit")]);if(sr.status===401||ar.status===401){openModal("authModal");return}if(!sr.ok||!ar.ok)throw Error("coordinator unavailable");const oldNodes=status?.nodes||[];status=await sr.json();audit=await ar.json();ingest(oldNodes);renderDashboard()}catch(_){$("modeLabel").textContent="协调器暂时离线";$("modeLabel").className="warn"}}
+function ingest(){const s=status||{};$("nodeCount").textContent=`${s.nodes?.length||0}/${s.cohort||0}`;$("roundCount").textContent=(s.metrics||[]).length;$("datasetLabel").textContent=s.dataset||"—";$("epsLabel").textContent=`${s.global_eps||0} / ${s.epsilon_budget||0}`;$("epsBar").style.width=(s.epsilon_budget?clamp(s.global_eps/s.epsilon_budget*100,0,100):0)+"%";$("chainLabel").textContent=audit.verified?`安心守护 ✓ ${audit.count} 条纪要`:`正在连接守护记录`;$("chainLabel").className=audit.verified?"live":"warn";$("modeLabel").textContent=s.secure_aggregation?"安全聚合小镇 · 温暖在线":s.solo_shared?"中央 DP 小镇 · 共享体验":"中央 DP 小镇 · 私人体验";$("modeLabel").className=s.secure_aggregation?"live":"warn";
+  const entries=audit.entries||[];if(!seen.size)entries.forEach(e=>seen.add(e.seq));else entries.filter(e=>!seen.has(e.seq)).forEach(e=>{seen.add(e.seq);if(e.event==="submit"){const b=plotBuildings().find(q=>q.node?.node_id===e.node);if(b)for(let i=0;i<3;i++)packets.push({sx:b.x+b.w/2,sy:b.y+b.h/2,t:-i*.12});if(save.myNode&&e.node===save.myNode)grantContributionGift()}else if(e.event==="aggregate"){spawnCelebration()}});
+}
+$("authForm").onsubmit=async e=>{e.preventDefault();readKey=$("authKey").value;sessionStorage.setItem("gba-df-read-key",readKey);const r=await api("/status");if(r.ok){closeModal($("authModal"));$("authKey").value="";poll()}else{$("authError").textContent="通行证无效，请检查只读/操作员密码。"}};
+async function download(path,name){const r=await api(path);if(r.status===401){openModal("authModal");return}if(!r.ok){showToast("下载失败");return}const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url)}
+$("openLibraryFromDash").onclick=()=>{closeModal($("openLibraryFromDash"));openModal("libraryModal")};$("libraryAudit").onclick=()=>download("/audit/bundle","gba-df-audit.json");$("downloadModel").onclick=()=>download("/model","gba-df-model.json");$("downloadAudit").onclick=()=>download("/audit/bundle","gba-df-audit.json");
+poll();setInterval(poll,1500);
+</script>
+</body>
+</html>
