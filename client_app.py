@@ -284,6 +284,11 @@ def _selftest():
         assert not api.save_pose_npz(out, "TD", "bad.mp4", [[[0, 0, 0, 1]]])["ok"]
         print("save_pose_npz:", {"ok": True, "frames": saved["frames"],
                                   "scan": scanned["labels"]})
+    game_index = Path(HERE, "static", "game", "index.html")
+    game_shell = game_index.read_text(encoding="utf-8")
+    assert "GBA-DF · 联邦小镇" in game_shell and "game-root" in game_shell
+    assert Path(HERE, "static", "client.html").is_file()
+    print("game_shell:", {"ok": True, "client_mode": True})
     print("test_connect(bad):", api.test_connect("http://localhost:1")["ok"])
     print("selftest OK")
 

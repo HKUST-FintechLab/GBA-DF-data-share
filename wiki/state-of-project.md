@@ -40,7 +40,7 @@ These percentages are planning estimates, not formal maturity certifications.
 
 ## Verified baseline
 
-Verified on 2026-07-30:
+Verified on 2026-08-12:
 
 - `uv run python verify_security.py` — the complete core and coordinator
   HTTP/invitation/pinning/logging, shared-solo, CDP-adapter, round-integrity, and backup/restore
@@ -48,6 +48,8 @@ Verified on 2026-07-30:
 - `uv run python modalities.py` — eyegaze, action, experimental action_cdp, and neuro extraction
   checks passed.
 - `uv run python client_app.py --selftest` — desktop API smoke test passed.
+- `npm run build` in `game/` — Phaser/TypeScript production build passed; the coordinator default
+  route and client-mode guided shell were rendered in a real browser without console errors.
 - Live `action_cdp` rehearsal: three nodes completed a full secure-aggregation round over the
   104-feature schema and produced a downloadable DP JSON forest; this synthetic dry run verifies the
   integration path, not screening utility.
@@ -68,16 +70,17 @@ Verified on 2026-07-30:
 
 ## Recently completed
 
-- **2026-08-12 — Federated pixel-town presentation layer:** the coordinator root is now a playable,
-  browser-local pixel town with an explorable river/road map, cosmetic institution construction,
-  furniture placement, institution interiors that visualize local storage → fixed feature/leaf-count
-  processing → masked-count transmission, a central machine-room dashboard backed by the existing
-  authenticated `/status` and `/audit` endpoints, and an offline rule-based guide NPC. Real enrolled
-  nodes appear as town institutions. A player can explicitly bind their character to a node and earn
-  browser-local decoration coins for new signed `submit` events; these coins never change participant
-  weight, the model, ε accounting, or evidence. The former full-canvas operator console remains at
-  `/console`. This is demo/engagement UX outside the September pilot critical path and does not change
-  any privacy, security, scientific, or clinical claim.
+- **2026-08-12 — Shared Phaser federated town:** the previous single-page prototype has been replaced
+  on the default routes by a Phaser 3 + TypeScript + Vite game shared by the coordinator and desktop
+  client. It has an original pixel-art overworld, a Tiled JSON collision/interaction/NPC layer,
+  character movement, scripted NPCs, local cosmetic construction and saves, and separate clinic,
+  library, workshop, market, community, and central-machine-room scenes. Coordinator mode reads the
+  existing protected `/status` summary and retains the dense console at `/console`; client mode embeds
+  the existing multilingual four-step node workflow as an institution-creation center and continues
+  to run the shared `node_core.py` path. Successful client runs award only local cosmetic coins. The
+  old `static/town.html` remains a design reference, not a served default. This engagement layer stays
+  outside the September pilot critical path and changes no privacy, security, scientific, or clinical
+  claim.
 
 - **2026-08-01 — Contribution-impact and transparent coordinator console:** the coordinator now
   reports binary held-out diagnostics with ASD explicitly treated as the positive class: AUC,

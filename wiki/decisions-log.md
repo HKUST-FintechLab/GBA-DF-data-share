@@ -1,8 +1,26 @@
 # Decisions Log
 
-Last updated: 2026-08-01
+Last updated: 2026-08-12
 
 Newest decisions appear first.
+
+## 2026-08-12 — Replace the single-page town with one shared Phaser game shell
+
+- Use Phaser 3 + TypeScript + Vite for scenes, camera, input, physics, actors, and build output; use a
+  Tiled JSON object map for collision, interaction, construction-plot, and NPC placement layers.
+- Serve the built game as the coordinator's default `/` experience and retain the dense technical
+  console at `/console`.
+- Make the desktop client open the same build in `client` mode. Embed the existing multilingual node
+  wizard as the institution-creation center instead of duplicating data preparation or training code;
+  both CLI and GUI continue through `node_core.py`.
+- Keep coordinator mode read-only: its HUD and central machine room consume the existing `/status`
+  endpoint, with the read key kept only in tab-scoped storage. Do not put federation state into the
+  public game shell or assets.
+- Keep coins, placed buildings, room visits, NPC scripts, and appearance local and cosmetic. A client
+  training completion may grant a local reward, but no game state changes contribution weight,
+  epsilon accounting, invitations, audit evidence, or model release.
+- Retain `static/town.html` as a design reference during migration, but do not keep extending it as a
+  second production UI. This work remains outside the September research-pilot critical path.
 
 ## 2026-08-01 — Add unlabeled learning as a staged post-pilot research track
 

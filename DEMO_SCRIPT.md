@@ -20,9 +20,11 @@ rm -rf data nodes            # optional: clean slate for a fresh recording
 uv run python run_demo.py --prepare --nodes 3 --rounds 5
 ```
 
-Open **http://localhost:8055** for the playable federated pixel town, or
-**http://localhost:8055/console** for the information-dense operator view, and start the screen
-recorder. The nodes finish in seconds; both views stay live for the whole recording.
+Open **http://localhost:8055** for the Phaser federated town. Walk to the central building and press
+**E** at its entrance to show the machine room, then use **http://localhost:8055/console** for the
+information-dense metric and audit proof. The nodes finish in seconds; both views stay live for the
+whole recording. The desktop client opens the same town and adds **创建我的机构 / Create my
+institution**, which launches the four-step partner workflow inside the game.
 
 ### Narration → what's on screen → which claim it proves
 

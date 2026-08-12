@@ -1,6 +1,6 @@
 # Compressed Delivery Timeline
 
-Last updated: 2026-08-04
+Last updated: 2026-08-12
 
 > **Read [`human-critical-path.md`](human-critical-path.md) alongside this page.** Since 2026-07-26
 > the engineering path has run ahead of schedule, and the binding constraint on the pilot date is now
@@ -42,6 +42,11 @@ to Hong Kong. The required admission pack and no-go rules are now specified in
 [`legal-and-policy.md`](legal-and-policy.md); route selection and signatures remain owner work.
 
 ## Progress
+
+- **Shared game shell complete on 2026-08-12 (outside the pilot critical path):** the coordinator and
+  desktop client now use one built Phaser/Tiled front end; coordinator state remains behind the same
+  read-access boundary, and the client embeds rather than forks its existing `node_core.py` workflow.
+  This does not close the owner-required signed-installer or real-OS E2E gates below.
 
 - **Completed early on 2026-07-26:** explicit public/contributor/read endpoint classes; protection for
   status, audit packages, models, and hosted inference; separate contributor and read/operator

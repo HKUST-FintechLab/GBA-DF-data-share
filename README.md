@@ -200,18 +200,28 @@ uv run python run_demo.py --modality neuro --prepare           # EEG-like time-s
 
 ### Federated pixel town
 
-The coordinator root now opens an optional game-like presentation layer at
-`http://localhost:8055`. Walk with **WASD / arrow keys**, press **E** near a building or NPC, build
-cosmetic institution spaces on empty plots, and enter the central machine room to inspect the real
-authenticated `/status` and `/audit` state. Registered federation nodes appear as town institutions;
-new signed submission events can award browser-local decoration coins after the player explicitly
-binds their character to a node.
+The coordinator root and desktop partner client now open the same Phaser 3 pixel-town game. Walk
+with **WASD / arrow keys**, press **E** near a building, plot, or NPC, construct cosmetic institution
+buildings, and enter the clinic, privacy library, learning workshop, market, community house, or
+central machine room. A Tiled JSON object map supplies the collision, interaction, build-plot, and
+NPC layers. In coordinator mode the HUD and central machine room read the existing authenticated
+`/status` state; the information-dense operator console remains at
+`http://localhost:8055/console`.
 
-The town is a visualization and engagement layer only. Its coins, buildings, furniture, character
-binding, and chat history are browser-local and never alter training data, participant weights,
-privacy accounting, invitations, audit evidence, or model release. The NPC is currently an offline
-rule-based guide and sends no conversation to an external model. The information-dense operator
-console remains available at `http://localhost:8055/console`.
+In desktop-client mode, **Create my institution** opens the existing multilingual four-step flow
+inside the game: choose a modality, select or locally prepare recordings, import/test the coordinator
+connection, then run the shared `node_core.py` training path. A completed client run updates the local
+round counter and grants cosmetic town coins. Coins, buildings, visited rooms, and NPC dialogue are
+local presentation state; they never alter training data, participant weights, privacy accounting,
+invitations, audit evidence, or model release. NPCs are currently offline scripted guides.
+
+The engine source lives in `game/`; reproducible browser assets are built into `static/game/`:
+
+```bash
+cd game
+npm install
+npm run build
+```
 
 Re-prepare / change dataset or modality:
 
@@ -512,16 +522,18 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `dp.py` | DP random forest: data-independent splits, leaf counts, shared-forest + curator noise |
 | `secure_agg.py` | pairwise X25519 masking — coordinator recovers only the summed counts |
 | `bench.py` | multi-seed IID/non-IID benchmark + the ε-utility figure (`assets/epsilon_utility.png`) |
-| `coordinator.py` | FastAPI server: register / verify-signature / secure-sum / evaluate / audit / dashboard (publishes modality in `/schema`) |
+| `coordinator.py` | FastAPI server: register / verify-signature / secure-sum / evaluate / audit; `/` opens the shared game and `/console` the operator dashboard |
 | `invitations.py` | signed institution invitations + the signed issuance/revocation registry |
 | `admin_invite.py` | host-side CLI to issue, list, and revoke institution invitations |
 | `client_config.py` | the partner connection-config format (v1 connection only, v2 with invitation) |
 | `verify_audit_bundle.py` | offline verifier for exported audit packages: bundle/chain/node signatures + model hash |
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
-| `client_app.py` | **desktop node client** (pywebview): pick modality → folder picker → node info → connect, live progress |
-| `static/client.html` | the client's English / 简体中文 / 繁體中文 4-step desktop wizard |
-| `static/town.html` | playable pixel-town coordinator UI: open map, building placement, local-data processing room, authenticated central dashboard, cosmetic rewards, and offline guide NPC |
+| `client_app.py` | **desktop node client** (pywebview): opens the shared game and exposes the existing local node bridge |
+| `game/` | Phaser 3 + TypeScript + Vite source: scenes, actors, Tiled object map, local saves, coordinator status service, and client guide shell |
+| `static/game/` | committed production build used by both the coordinator and desktop client |
+| `static/client.html` | English / 简体中文 / 繁體中文 four-step node wizard, embedded as the game's institution-creation center |
+| `static/town.html` | previous single-page pixel-town prototype retained as a design reference; it is no longer the default route |
 | `predict.py` | **data-user / central-node client** — download the global model (`GET /model`) and score local recordings offline, or via `POST /predict` |
 | `run_demo.py` | one-command recordable demo (`--modality`, `--noniid`) |
 | `stage_demo_nodes.py` | safely prepare distinct synthetic folders for a multi-desktop rehearsal; manifest-based refresh preserves local additions |
