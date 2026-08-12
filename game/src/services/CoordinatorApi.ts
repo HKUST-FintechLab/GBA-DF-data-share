@@ -62,7 +62,7 @@ export class CoordinatorApi {
     this.setText("#round-count", rounds);
     this.setConnectionHint(status.pending_rounds?.length
       ? `有 ${status.pending_rounds.length} 个轮次正在等待伙伴集合完成`
-      : "方向键 / WASD 移动 · 靠近建筑或 NPC 按 E 互动");
+      : "点击地面移动 · 方向键 / WASD 移动 · 靠近建筑或 NPC 按 E 互动");
   }
 
   private requestKey(): void {

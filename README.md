@@ -200,8 +200,9 @@ uv run python run_demo.py --modality neuro --prepare           # EEG-like time-s
 
 ### Federated pixel town
 
-The coordinator root and desktop partner client now open the same Phaser 3 pixel-town game. Walk
-with **WASD / arrow keys**, press **E** near a building, plot, or NPC, construct cosmetic institution
+The coordinator root and desktop partner client now open the same Phaser 3 pixel-town game. Click or
+tap the ground to pathfind there, or walk with **WASD / arrow keys**; press **E** near a building,
+plot, or NPC, construct cosmetic institution
 buildings, and enter the clinic, privacy library, learning workshop, market, community house, or
 central machine room. A Tiled JSON object map supplies the collision, interaction, build-plot, and
 NPC layers. In coordinator mode the HUD and central machine room read the existing authenticated

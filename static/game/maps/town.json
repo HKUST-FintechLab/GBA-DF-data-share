@@ -18,7 +18,8 @@
         {"id": 8, "name": "workshop", "x": 1150, "y": 520, "width": 235, "height": 155},
         {"id": 9, "name": "market", "x": 1115, "y": 760, "width": 275, "height": 162},
         {"id": 10, "name": "south-forest", "x": 0, "y": 985, "width": 1536, "height": 39},
-        {"id": 11, "name": "east-forest", "x": 1455, "y": 0, "width": 81, "height": 1024}
+        {"id": 11, "name": "east-forest", "x": 1455, "y": 0, "width": 81, "height": 1024},
+        {"id": 12, "name": "south-pond", "x": 610, "y": 790, "width": 280, "height": 165}
       ],
       "opacity": 1,
       "type": "objectgroup",
@@ -65,7 +66,7 @@
     }
   ],
   "nextlayerid": 4,
-  "nextobjectid": 43,
+  "nextobjectid": 44,
   "orientation": "orthogonal",
   "renderorder": "right-down",
   "tiledversion": "1.11.2",

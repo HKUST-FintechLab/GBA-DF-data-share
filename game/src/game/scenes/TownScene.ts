@@ -4,6 +4,7 @@ import { Npc } from "../entities/Npc";
 import { PlacedBuilding } from "../entities/PlacedBuilding";
 import { Player, type MovementKeys } from "../entities/Player";
 import { SaveSystem, type BuildingKind } from "../systems/SaveSystem";
+import { NavigationController } from "../systems/NavigationController";
 import { OverlayUi } from "../ui/OverlayUi";
 
 interface SceneData {
@@ -40,6 +41,8 @@ export class TownScene extends Phaser.Scene {
   private spawn: Phaser.Math.Vector2 = new Phaser.Math.Vector2(765, 760);
   private ui!: OverlayUi;
   private save!: SaveSystem;
+  private navigation?: NavigationController;
+  private collisionBounds: Phaser.Geom.Rectangle[] = [];
 
   public constructor(private readonly runtimeMode: RuntimeMode) {
     super("TownScene");
@@ -61,6 +64,13 @@ export class TownScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.readTiledObjects();
     this.restoreBuildings();
+    this.navigation = new NavigationController(this, this.player, {
+      bounds: new Phaser.Geom.Rectangle(0, 0, WORLD_WIDTH, WORLD_HEIGHT),
+      obstacles: this.collisionBounds,
+      gridSize: 28,
+      agentPadding: 18,
+      canNavigate: () => !this.ui.isModalOpen(),
+    });
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     this.cameras.main.startFollow(this.player, true, 0.08, 0.08);
@@ -86,7 +96,7 @@ export class TownScene extends Phaser.Scene {
         "向导小禾",
         this.runtimeMode === "client"
           ? "先逛逛小镇吧。准备好时，右上角的“创建我的机构”会带你完成连接、数据选择和训练。"
-          : "中央机房展示全镇的协作进度。沿着小路探索建筑，靠近门口按 E 就能进入。",
+          : "中央机房展示全镇的协作进度。点击地面或使用键盘移动，靠近门口按 E 就能进入。",
       );
     });
   }
@@ -98,7 +108,7 @@ export class TownScene extends Phaser.Scene {
       left: { isDown: this.cursors.left.isDown || this.wasd.left.isDown },
       right: { isDown: this.cursors.right.isDown || this.wasd.right.isDown },
     };
-    this.player.move(keys, !this.ui.isModalOpen());
+    this.navigation?.update(keys, !this.ui.isModalOpen());
     this.player.setDepth(this.player.y);
 
     const npc = this.nearestNpc();
@@ -111,7 +121,7 @@ export class TownScene extends Phaser.Scene {
       this.ui.setHint(`E · ${verb}`);
       if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.activate(interaction);
     } else {
-      this.ui.setHint("方向键 / WASD 移动 · 靠近建筑或 NPC 按 E 互动");
+      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · 靠近建筑或 NPC 按 E 互动");
     }
   }
 
@@ -123,6 +133,7 @@ export class TownScene extends Phaser.Scene {
       const y = object.y ?? 0;
       const width = object.width ?? 1;
       const height = object.height ?? 1;
+      this.collisionBounds.push(new Phaser.Geom.Rectangle(x, y, width, height));
       const barrier = this.add.rectangle(x + width / 2, y + height / 2, width, height, 0, 0);
       this.physics.add.existing(barrier, true);
       this.physics.add.collider(this.player, barrier);
@@ -157,7 +168,31 @@ export class TownScene extends Phaser.Scene {
   }
 
   private placeBuilding(plot: TownInteraction, kind: BuildingKind): void {
-    new PlacedBuilding(this, plot.x + plot.width / 2, plot.y + plot.height / 2 + 4, kind);
+    const width = Math.min(214, plot.width * 1.08);
+    const centerX = plot.x + plot.width / 2;
+    const centerY = plot.y + plot.height / 2 + 12;
+    new PlacedBuilding(this, centerX, centerY, kind, width);
+    const footprint = new Phaser.Geom.Rectangle(
+      plot.x + plot.width * 0.14,
+      plot.y + plot.height * 0.38,
+      plot.width * 0.72,
+      plot.height * 0.48,
+    );
+    if (Phaser.Geom.Rectangle.Contains(footprint, this.player.x, this.player.y)) {
+      this.player.setPosition(centerX, plot.y + plot.height + 30);
+    }
+    this.collisionBounds.push(footprint);
+    this.navigation?.addObstacle(footprint);
+    const barrier = this.add.rectangle(
+      footprint.centerX,
+      footprint.centerY,
+      footprint.width,
+      footprint.height,
+      0,
+      0,
+    );
+    this.physics.add.existing(barrier, true);
+    this.physics.add.collider(this.player, barrier);
   }
 
   private activate(interaction: TownInteraction): void {
@@ -202,7 +237,7 @@ export class TownScene extends Phaser.Scene {
   private nearestNpc(): Npc | undefined {
     return this.npcs
       .map((npc) => ({ npc, distance: Phaser.Math.Distance.Between(this.player.x, this.player.y, npc.x, npc.y) }))
-      .filter(({ distance }) => distance < 68)
+      .filter(({ distance }) => distance < 78)
       .sort((a, b) => a.distance - b.distance)[0]?.npc;
   }
 

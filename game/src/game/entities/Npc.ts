@@ -8,9 +8,9 @@ export class Npc extends Phaser.GameObjects.Container {
     super(scene, x, y);
     this.npcName = name;
     this.line = line;
-    const shadow = scene.add.ellipse(0, 14, 24, 9, 0x163b2d, 0.28);
-    const sprite = scene.add.sprite(0, 0, texture).setOrigin(0.5, 0.75);
-    const label = scene.add.text(0, -29, name, {
+    const shadow = scene.add.ellipse(0, 19, 34, 11, 0x163b2d, 0.28);
+    const sprite = scene.add.sprite(0, 0, texture).setOrigin(0.5, 0.75).setScale(1.45);
+    const label = scene.add.text(0, -39, name, {
       fontFamily: "monospace",
       fontSize: "10px",
       color: "#fff9d5",

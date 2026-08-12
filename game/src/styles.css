@@ -28,7 +28,7 @@ canvas { display: block; image-rendering: pixelated; }
   box-shadow: 0 5px 0 #0d211a99, inset 0 0 0 2px #f1d38a33;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; padding: 8px 13px; font-weight: 800; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 8px 13px; font-weight: 800; pointer-events: auto; }
 .brand-mark, .loading-emblem {
   display: grid;
   place-items: center;
@@ -39,7 +39,7 @@ canvas { display: block; image-rendering: pixelated; }
   border: 2px solid #fff1b8;
   border-radius: 5px;
 }
-.hud-stats { display: flex; gap: 16px; padding: 10px 14px; font-size: 13px; }
+.hud-stats { display: flex; gap: 16px; padding: 10px 14px; font-size: 13px; pointer-events: auto; }
 .hud-stats strong { color: #f8cf65; }
 .hud-actions { display: flex; gap: 8px; margin-left: auto; pointer-events: auto; }
 .hud-button { padding: 9px 11px; color: #fff1bf; text-decoration: none; cursor: pointer; font-size: 11px; }

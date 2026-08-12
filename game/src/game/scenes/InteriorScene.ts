@@ -2,6 +2,7 @@ import Phaser from "phaser";
 import { Player, type MovementKeys } from "../entities/Player";
 import { OverlayUi } from "../ui/OverlayUi";
 import type { FederationStatus } from "../../services/CoordinatorApi";
+import { NavigationController } from "../systems/NavigationController";
 
 interface InteriorData {
   room?: string;
@@ -37,6 +38,7 @@ export class InteriorScene extends Phaser.Scene {
   private ui!: OverlayUi;
   private hotspots: Hotspot[] = [];
   private dashboardText?: Phaser.GameObjects.Text;
+  private navigation!: NavigationController;
 
   public constructor() {
     super("InteriorScene");
@@ -54,6 +56,12 @@ export class InteriorScene extends Phaser.Scene {
     this.drawRoom();
     this.player = new Player(this, 480, 535);
     this.physics.world.setBounds(70, 80, 820, 500);
+    this.navigation = new NavigationController(this, this.player, {
+      bounds: new Phaser.Geom.Rectangle(70, 80, 820, 500),
+      gridSize: 26,
+      agentPadding: 12,
+      canNavigate: () => !this.ui.isModalOpen(),
+    });
     this.cameras.main.setBounds(0, 0, 960, 640).centerOn(480, 320).setZoom(Math.min(this.scale.width / 960, this.scale.height / 640));
 
     this.cursors = this.input.keyboard!.createCursorKeys();
@@ -82,7 +90,7 @@ export class InteriorScene extends Phaser.Scene {
       left: { isDown: this.cursors.left.isDown || this.wasd.left.isDown },
       right: { isDown: this.cursors.right.isDown || this.wasd.right.isDown },
     };
-    this.player.move(keys, !this.ui.isModalOpen());
+    this.navigation.update(keys, !this.ui.isModalOpen());
     this.player.setDepth(this.player.y);
 
     if (this.player.y > 550 && Math.abs(this.player.x - 480) < 70) {
@@ -98,7 +106,7 @@ export class InteriorScene extends Phaser.Scene {
       this.ui.setHint(`E · 查看${hotspot.label}`);
       if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.ui.showDialogue(hotspot.label, hotspot.copy);
     } else {
-      this.ui.setHint("方向键 / WASD 移动 · E 互动 · Esc 返回小镇");
+      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · E 互动 · Esc 返回小镇");
     }
   }
 
