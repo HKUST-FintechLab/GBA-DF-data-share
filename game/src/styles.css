@@ -1,0 +1,71 @@
+:root {
+  font-family: "Courier New", ui-monospace, monospace;
+  color: #fff7d6;
+  background: #11251d;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+html, body, #app, #game-root { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #11251d; }
+button { font: inherit; }
+canvas { display: block; image-rendering: pixelated; }
+
+.game-hud {
+  position: fixed;
+  inset: 18px 20px auto;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.brand, .hud-stats, .primary-action, .game-hint, .dialogue-panel, .guide-card {
+  border: 3px solid #513e2d;
+  border-radius: 10px;
+  background: #183d31ee;
+  box-shadow: 0 5px 0 #0d211a99, inset 0 0 0 2px #f1d38a33;
+}
+
+.brand { display: flex; align-items: center; gap: 10px; padding: 8px 13px; font-weight: 800; }
+.brand-mark, .loading-emblem {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  aspect-ratio: 1;
+  color: #183d31;
+  background: #f2c45e;
+  border: 2px solid #fff1b8;
+  border-radius: 5px;
+}
+.hud-stats { display: flex; gap: 16px; padding: 10px 14px; font-size: 13px; }
+.hud-stats strong { color: #f8cf65; }
+.primary-action { margin-left: auto; padding: 11px 16px; color: #183d31; background: #f2c45e; cursor: pointer; pointer-events: auto; font-weight: 800; }
+
+.game-hint { position: fixed; z-index: 8; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 8px 14px; font-size: 12px; }
+.dialogue-panel { position: fixed; z-index: 12; left: 50%; bottom: 65px; transform: translateX(-50%); display: grid; grid-template-columns: auto 1fr auto; gap: 14px; width: min(680px, calc(100% - 34px)); padding: 16px; }
+.dialogue-panel[hidden], .guide-shell[hidden] { display: none; }
+.portrait { display: grid; place-items: center; width: 56px; height: 56px; border-radius: 6px; background: #f2c45e; color: #183d31; font-weight: 900; }
+.dialogue-panel p { margin: 6px 0 0; line-height: 1.5; }
+.dialogue-panel button, .guide-card button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 22px; }
+
+.guide-shell { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 24px; background: #08130fbb; }
+.guide-card { width: min(1050px, 100%); height: min(720px, 100%); overflow: hidden; background: #f8e8b9; color: #213e32; }
+.guide-card > header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; color: #fff7d6; background: #183d31; }
+.guide-card h2 { margin: 2px 0 0; font-size: 18px; }
+.eyebrow { color: #f2c45e; font-size: 10px; letter-spacing: .14em; }
+#guide-content { height: calc(100% - 70px); }
+
+.loading-screen { position: fixed; z-index: 30; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: #142d24; transition: opacity .45s ease, visibility .45s ease; }
+.loading-screen strong { font-size: 18px; }
+.loading-screen span { color: #b9cfb9; font-size: 12px; }
+.loading-emblem { width: 72px; margin-bottom: 10px; font-size: 25px; box-shadow: 0 6px 0 #6c512e; }
+.loading-screen.is-hidden { opacity: 0; visibility: hidden; }
+
+@media (max-width: 720px) {
+  .game-hud { inset: 10px; flex-wrap: wrap; gap: 8px; }
+  .brand { padding: 6px 9px; }
+  .hud-stats { order: 3; width: 100%; justify-content: center; padding: 7px 10px; }
+  .primary-action { padding: 8px 10px; }
+}

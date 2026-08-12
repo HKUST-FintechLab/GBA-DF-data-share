@@ -8,6 +8,8 @@ data/
 nodes/
 build/
 dist/
+game/node_modules/
+game/.vite/
 
 # runtime
 *.log

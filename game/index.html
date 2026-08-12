@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#142d24" />
+    <title>GBA-DF · 联邦小镇</title>
+  </head>
+  <body>
+    <main id="app">
+      <div id="game-root" aria-label="联邦小镇游戏画面"></div>
+      <header class="game-hud">
+        <div class="brand"><span class="brand-mark">GF</span><span>联邦小镇</span></div>
+        <div class="hud-stats" aria-label="小镇状态">
+          <span>小镇币 <strong id="coin-count">0</strong></span>
+          <span>伙伴 <strong id="partner-count">0</strong></span>
+          <span>轮次 <strong id="round-count">0</strong></span>
+        </div>
+        <button id="primary-action" class="primary-action" type="button" hidden>创建我的机构</button>
+      </header>
+      <div class="game-hint" id="game-hint">方向键 / WASD 移动 · 靠近建筑按 E 互动</div>
+      <section class="dialogue-panel" id="dialogue-panel" aria-live="polite" hidden>
+        <div class="portrait" aria-hidden="true">AI</div>
+        <div>
+          <strong id="dialogue-speaker">向导小禾</strong>
+          <p id="dialogue-text"></p>
+        </div>
+        <button id="dialogue-close" type="button" aria-label="关闭对话">×</button>
+      </section>
+      <section class="guide-shell" id="guide-shell" aria-label="机构创建中心" hidden>
+        <div class="guide-card">
+          <header>
+            <div><span class="eyebrow">CLIENT WORKSHOP</span><h2>机构创建中心</h2></div>
+            <button id="guide-close" type="button" aria-label="关闭机构创建中心">×</button>
+          </header>
+          <div id="guide-content"></div>
+        </div>
+      </section>
+      <div class="loading-screen" id="loading-screen">
+        <div class="loading-emblem">GF</div>
+        <strong>正在铺设联邦小镇…</strong>
+        <span>河流、道路与隐私工坊正在就位</span>
+      </div>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
