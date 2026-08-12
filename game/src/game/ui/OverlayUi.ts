@@ -16,6 +16,7 @@ export class OverlayUi {
   private readonly activityTitle = document.querySelector<HTMLElement>("#activity-title");
   private readonly activityCopy = document.querySelector<HTMLElement>("#activity-copy");
   private readonly activityActions = document.querySelector<HTMLElement>("#activity-actions");
+  private readonly guide = document.querySelector<HTMLElement>("#guide-shell");
 
   public constructor() {
     document.querySelector("#dialogue-close")?.addEventListener("click", () => this.hideDialogue());
@@ -72,7 +73,9 @@ export class OverlayUi {
   }
 
   public isModalOpen(): boolean {
-    return Boolean((this.activity && !this.activity.hidden) || (this.dialogue && !this.dialogue.hidden));
+    // Dialogue cards are notifications: the player can keep exploring while
+    // reading them. Only full-screen activities and the client guide lock input.
+    return Boolean((this.activity && !this.activity.hidden) || (this.guide && !this.guide.hidden));
   }
 
   public showBuildPicker(plotLabel: string, onSelect: (kind: BuildingKind, price: number) => void): void {
