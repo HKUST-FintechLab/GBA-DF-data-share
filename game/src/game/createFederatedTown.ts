@@ -3,9 +3,10 @@ import type { RuntimeMode } from "../runtime/mode";
 import { BootScene } from "./scenes/BootScene";
 import { TownScene } from "./scenes/TownScene";
 import { InteriorScene } from "./scenes/InteriorScene";
+import { CoordinatorApi } from "../services/CoordinatorApi";
 
 export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): Phaser.Game {
-  return new Phaser.Game({
+  const game = new Phaser.Game({
     // Canvas keeps the desktop-client build broadly compatible with WebKit/webview
     // hosts while preserving crisp pixel-art rendering.
     type: Phaser.CANVAS,
@@ -25,4 +26,6 @@ export function createFederatedTown(parent: string, runtimeMode: RuntimeMode): P
     },
     scene: [new BootScene(runtimeMode), new TownScene(runtimeMode), new InteriorScene()],
   });
+  if (runtimeMode === "coordinator") new CoordinatorApi(game).start();
+  return game;
 }

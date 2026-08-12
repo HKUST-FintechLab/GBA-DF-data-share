@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { Player, type MovementKeys } from "../entities/Player";
 import { OverlayUi } from "../ui/OverlayUi";
+import type { FederationStatus } from "../../services/CoordinatorApi";
 
 interface InteriorData {
   room?: string;
@@ -35,6 +36,7 @@ export class InteriorScene extends Phaser.Scene {
   private interactKey!: Phaser.Input.Keyboard.Key;
   private ui!: OverlayUi;
   private hotspots: Hotspot[] = [];
+  private dashboardText?: Phaser.GameObjects.Text;
 
   public constructor() {
     super("InteriorScene");
@@ -64,6 +66,13 @@ export class InteriorScene extends Phaser.Scene {
     this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
     this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => this.leave());
     this.ui.showDialogue(this.label, ROOM_COPY[this.room]?.subtitle ?? "欢迎来到机构的数据工坊。");
+    if (this.room === "data-center") {
+      this.renderFederationStatus(this.registry.get("federationStatus") as FederationStatus | undefined);
+      this.game.events.on("federation-status", this.renderFederationStatus, this);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        this.game.events.off("federation-status", this.renderFederationStatus, this);
+      });
+    }
   }
 
   public update(): void {
@@ -130,6 +139,28 @@ export class InteriorScene extends Phaser.Scene {
     this.add.text(480, 445, "本地箱子  →  隐私加工  →  安全聚合  →  共同模型", {
       fontFamily: "monospace", fontSize: "14px", color: "#29483b", backgroundColor: "#f5e8b9", padding: { x: 12, y: 8 },
     }).setOrigin(0.5).setDepth(5);
+  }
+
+  private renderFederationStatus(status?: FederationStatus): void {
+    this.dashboardText?.destroy();
+    const isolatedNodes = status?.solo_sessions?.reduce((sum, room) => sum + room.nodes.length, 0) ?? 0;
+    const isolatedRounds = status?.solo_sessions?.reduce((sum, room) => sum + room.rounds, 0) ?? 0;
+    const partners = status?.nodes?.length || isolatedNodes;
+    const rounds = status?.metrics?.length || isolatedRounds;
+    const budget = status?.epsilon_budget ?? 0;
+    const spent = status?.global_eps ?? 0;
+    const privacy = status ? (status.secure_aggregation ? "安全聚合" : "中央差分隐私演示") : "等待协调器状态";
+    const copy = status
+      ? `伙伴 ${partners}   ·   完成轮次 ${rounds}   ·   ε ${spent}/${budget}   ·   审计事件 ${status.audit_len ?? 0}   ·   ${privacy}`
+      : "正在连接协调器…若启用了查看钥匙，请在小镇右上角输入。";
+    this.dashboardText = this.add.text(480, 157, copy, {
+      fontFamily: "monospace",
+      fontSize: "12px",
+      color: "#fff3bc",
+      backgroundColor: "#173d34e8",
+      padding: { x: 12, y: 8 },
+      align: "center",
+    }).setOrigin(0.5).setDepth(12);
   }
 
   private drawLibrary(accent: number): void {

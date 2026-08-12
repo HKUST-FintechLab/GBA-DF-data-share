@@ -21,7 +21,7 @@ canvas { display: block; image-rendering: pixelated; }
   pointer-events: none;
 }
 
-.brand, .hud-stats, .primary-action, .game-hint, .dialogue-panel, .guide-card, .activity-card {
+.brand, .hud-stats, .hud-button, .primary-action, .game-hint, .dialogue-panel, .guide-card, .activity-card {
   border: 3px solid #513e2d;
   border-radius: 10px;
   background: #183d31ee;
@@ -41,7 +41,12 @@ canvas { display: block; image-rendering: pixelated; }
 }
 .hud-stats { display: flex; gap: 16px; padding: 10px 14px; font-size: 13px; }
 .hud-stats strong { color: #f8cf65; }
+.hud-actions { display: flex; gap: 8px; margin-left: auto; pointer-events: auto; }
+.hud-button { padding: 9px 11px; color: #fff1bf; text-decoration: none; cursor: pointer; font-size: 11px; }
+.hud-button:hover { color: #183d31; background: #f2c45e; }
 .primary-action { margin-left: auto; padding: 11px 16px; color: #183d31; background: #f2c45e; cursor: pointer; pointer-events: auto; font-weight: 800; }
+html[data-mode="client"] #legacy-console, html[data-mode="client"] #operator-key { display: none; }
+html[data-mode="client"] .hud-actions { display: none; }
 
 .game-hint { position: fixed; z-index: 8; left: 50%; bottom: 18px; transform: translateX(-50%); padding: 8px 14px; font-size: 12px; }
 .dialogue-panel { position: fixed; z-index: 12; left: 50%; bottom: 65px; transform: translateX(-50%); display: grid; grid-template-columns: auto 1fr auto; gap: 14px; width: min(680px, calc(100% - 34px)); padding: 16px; }

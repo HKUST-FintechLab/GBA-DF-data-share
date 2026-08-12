@@ -47,7 +47,8 @@ import time
 
 import numpy as np
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 import client_config as cfg
 import dp
@@ -472,10 +473,13 @@ def room_of(request: Request) -> str:
 
 
 app = FastAPI(title="GBA-DF Federated Coordinator (secure aggregation)")
+app.mount("/game", StaticFiles(directory=os.path.join(HERE, "static", "game"), html=True),
+          name="federated-town")
 
 # Public endpoints intentionally carry no institution/model/audit information. Any route not
 # explicitly classified below defaults to read/operator access so newly added endpoints fail closed.
 _PUBLIC_PATHS = ("/", "/console", "/health", "/ready", "/pubkey")
+_PUBLIC_PREFIXES = ("/game",)
 _CONTRIBUTE_PATHS = ("/schema", "/participants", "/register", "/submit", "/round")
 _READ_PATHS = ("/status", "/audit", "/model", "/predict")
 _RATE_LOCK = threading.Lock()
@@ -488,7 +492,7 @@ def _matches_path(path: str, prefixes: tuple[str, ...]) -> bool:
 
 
 def _required_access(path: str) -> tuple[str, str]:
-    if path in _PUBLIC_PATHS:
+    if path in _PUBLIC_PATHS or _matches_path(path, _PUBLIC_PREFIXES):
         return "public", ""
     if _matches_path(path, _READ_PATHS):
         return "read", FED_READ_PASSWORD
@@ -564,7 +568,8 @@ async def _security_boundary(request: Request, call_next):
 
 @app.get("/")
 async def dashboard():
-    return FileResponse(os.path.join(HERE, "static", "town.html"))
+    """Open the shared Phaser town; the older prototype remains a tracked design artifact."""
+    return RedirectResponse(url="/game/?mode=coordinator", status_code=307)
 
 
 @app.get("/console")
