@@ -198,15 +198,17 @@ export class TownScene extends Phaser.Scene {
   }
 
   private placeBuilding(plot: TownInteraction, kind: BuildingKind): void {
-    const width = Math.min(214, plot.width * 1.08);
+    // Generated atlas frames include breathing room around their silhouettes, so
+    // size them a little wider than the stone plot to match the painted town homes.
+    const width = Phaser.Math.Clamp(plot.width * 1.26, 210, 270);
     const centerX = plot.x + plot.width / 2;
     const centerY = plot.y + plot.height / 2 + 12;
     new PlacedBuilding(this, centerX, centerY, kind, width);
     const footprint = new Phaser.Geom.Rectangle(
-      plot.x + plot.width * 0.14,
-      plot.y + plot.height * 0.38,
-      plot.width * 0.72,
-      plot.height * 0.48,
+      plot.x + plot.width * 0.08,
+      plot.y + plot.height * 0.34,
+      plot.width * 0.84,
+      plot.height * 0.52,
     );
     if (Phaser.Geom.Rectangle.Contains(footprint, this.player.x, this.player.y)) {
       this.player.setPosition(centerX, plot.y + plot.height + 30);
