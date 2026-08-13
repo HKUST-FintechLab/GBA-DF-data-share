@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { Player, type MovementKeys } from "../entities/Player";
-import { OverlayUi } from "../ui/OverlayUi";
+import { OverlayUi, type ActivityDetail } from "../ui/OverlayUi";
 import type { FederationStatus } from "../../services/CoordinatorApi";
 import { NavigationController } from "../systems/NavigationController";
 import { WorldActionButton } from "../ui/WorldActionButton";
@@ -17,7 +17,53 @@ interface Hotspot {
   y: number;
   label: string;
   copy: string;
+  detail?: ActivityDetail;
 }
+
+const DATA_BOX_DETAIL: ActivityDetail = {
+  eyebrow: "PRIVACY MODULE 01 · LOCAL ONLY",
+  title: "本地数据箱：先把原始记录留在机构里",
+  summary: "它负责把机构自己的录制文件转换成联邦训练可用、但仍留在本机的数值材料。整个准备过程发生在机构节点内。",
+  steps: [
+    { marker: "01", title: "读取本地记录", copy: "读取眼动 CSV、动作视频或姿态文件、EEG/fMRI 时序等机构文件。" },
+    { marker: "02", title: "提取模态特征", copy: "在本机完成视频转姿态、时序统计和对应模态的特征工程。" },
+    { marker: "03", title: "公共规则变换", copy: "使用固定的 public_scales 公共尺度归一化，不从参与者数据反推缩放参数。" },
+    { marker: "04", title: "形成叶计数", copy: "进入数据无关的森林结构，每条记录在每棵树中只落入一个叶子并形成整数计数。" },
+  ],
+  resultLabel: "这一站产生什么？",
+  result: "原始录制与逐条特征继续保存在机构节点；箱子只为下一站准备本地整数叶计数，此时尚未上传。",
+  protections: ["原始记录留在本地", "本地特征提取", "固定公共归一化", "数据无关森林"],
+};
+
+const PRIVACY_MACHINE_DETAIL: ActivityDetail = {
+  eyebrow: "PRIVACY MODULE 02 · MASKING",
+  title: "隐私加工机：把本地计数变成可安全汇总的消息",
+  summary: "它不会把逐条样本交给协调器，而是把整数叶计数绑定到本轮精确参与名单，再叠加节点之间可相互抵消的成对掩码。",
+  steps: [
+    { marker: "01", title: "绑定精确队伍", copy: "根据本轮全部节点的 node_id 与 X25519 公钥生成 cohort fingerprint，防止不同名单的消息被混合。" },
+    { marker: "02", title: "限制单条贡献", copy: "每条记录在每棵树中只贡献一个叶子，因此该树叶计数向量的 L1 敏感度为 1。" },
+    { marker: "03", title: "叠加成对掩码", copy: "节点两两协商掩码；同一对节点分别加上和减去同一个值，单个上传保持被遮蔽。" },
+    { marker: "04", title: "签名封装", copy: "节点用本地 Ed25519 密钥签署受约束的 JSON 消息，并附上本轮名单指纹。" },
+  ],
+  resultLabel: "准备上传的内容",
+  result: "带成对掩码的整数叶计数、节点签名和必要协议元数据；不包含原始录制或逐条特征行。",
+  protections: ["精确队伍指纹", "X25519 成对掩码", "Ed25519 节点签名", "受约束 JSON"],
+};
+
+const FEDERATION_TOWER_DETAIL: ActivityDetail = {
+  eyebrow: "PRIVACY MODULE 03 · FEDERATION",
+  title: "联邦发送塔：只汇总全镇需要的共同结果",
+  summary: "发送塔负责把已遮蔽的计数送入对应联邦轮次。协调器等待精确队伍到齐后恢复池化总和，再执行差分隐私与审计流程。",
+  steps: [
+    { marker: "01", title: "确认协调器与邀请", copy: "节点先核对邀请中的协调器密钥指纹，并以受邀机构身份加入对应轮次。" },
+    { marker: "02", title: "收集完整队伍", copy: "只有 cohort fingerprint 完全一致且精确参与队伍到齐，掩码才会在池化总和中抵消。" },
+    { marker: "03", title: "汇总后加入噪声", copy: "协调器只对恢复出的池化叶计数加入 Laplace 噪声，并通过持久化账本按轮扣除 epsilon。" },
+    { marker: "04", title: "生成模型与审计", copy: "共同结果形成可下载的无 pickle JSON 模型，同时写入协调器签名、哈希链式审计记录。" },
+  ],
+  resultLabel: "网络里实际流动什么？",
+  result: "节点发出带掩码的计数和协议元数据；完成后全镇获得共享模型、轮次指标与可验证审计记录。",
+  protections: ["协调器指纹固定", "完整队伍汇总", "中央差分隐私", "epsilon 全局账本", "签名审计链"],
+};
 
 const ROOM_COPY: Record<string, { title: string; subtitle: string; accent: number }> = {
   "data-center": { title: "中央机房", subtitle: "全镇共同模型与协作看板", accent: 0x46ddd2 },
@@ -78,7 +124,10 @@ export class InteriorScene extends Phaser.Scene {
       right: Phaser.Input.Keyboard.KeyCodes.D,
     }) as typeof this.wasd;
     this.interactKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.E);
-    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => this.leave());
+    this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.ESC).on("down", () => {
+      if (this.ui.isModalOpen()) this.ui.hideActivity();
+      else this.leave();
+    });
     this.ui.showDialogue(this.label, ROOM_COPY[this.room]?.subtitle ?? "欢迎来到机构的数据工坊。");
     if (this.room === "data-center") {
       this.renderFederationStatus(this.registry.get("federationStatus") as FederationStatus | undefined);
@@ -120,7 +169,8 @@ export class InteriorScene extends Phaser.Scene {
     if (hotspot) {
       const activate = () => {
         this.navigation.cancel();
-        this.ui.showDialogue(hotspot.label, hotspot.copy);
+        if (hotspot.detail) this.ui.showDetail(hotspot.detail);
+        else this.ui.showDialogue(hotspot.label, hotspot.copy);
       };
       this.showWorldAction(`hotspot:${hotspot.label}`, hotspot.x, hotspot.y - 62, `查看${hotspot.label}`, activate);
       this.ui.setHint(`点击设施按钮，或按 E 查看${hotspot.label}`);
@@ -161,9 +211,9 @@ export class InteriorScene extends Phaser.Scene {
     this.drawStation(480, 290, accent, "隐私加工机", "✦");
     this.drawStation(770, 290, 0x486f91, "联邦发送塔", "⌁");
     this.hotspots = [
-      { x: 190, y: 380, label: "本地数据箱", copy: "原始记录和逐条特征保存在这家机构的节点里，在推荐训练路径中不会上传到协调器。" },
-      { x: 480, y: 380, label: "隐私加工机", copy: "机器先在本地提取特征并形成整数叶计数，再为安全聚合加上成对掩码。" },
-      { x: 770, y: 380, label: "联邦发送塔", copy: "发送塔交付的是带掩码的计数和协议元数据。协调器汇总后加入差分隐私噪声，生成全镇共享模型。" },
+      { x: 190, y: 380, label: "本地数据箱", copy: "原始记录和逐条特征保存在这家机构的节点里，在推荐训练路径中不会上传到协调器。", detail: DATA_BOX_DETAIL },
+      { x: 480, y: 380, label: "隐私加工机", copy: "机器先在本地提取特征并形成整数叶计数，再为安全聚合加上成对掩码。", detail: PRIVACY_MACHINE_DETAIL },
+      { x: 770, y: 380, label: "联邦发送塔", copy: "发送塔交付的是带掩码的计数和协议元数据。协调器汇总后加入差分隐私噪声，生成全镇共享模型。", detail: FEDERATION_TOWER_DETAIL },
     ];
     this.add.text(480, 445, "本地箱子  →  隐私加工  →  安全聚合  →  共同模型", {
       fontFamily: "monospace", fontSize: "14px", color: "#29483b", backgroundColor: "#f5e8b9", padding: { x: 12, y: 8 },

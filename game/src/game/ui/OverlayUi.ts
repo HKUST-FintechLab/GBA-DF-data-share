@@ -6,6 +6,22 @@ export interface ActivityAction {
   value: string;
 }
 
+export interface DetailStep {
+  marker: string;
+  title: string;
+  copy: string;
+}
+
+export interface ActivityDetail {
+  eyebrow: string;
+  title: string;
+  summary: string;
+  steps: DetailStep[];
+  resultLabel: string;
+  result: string;
+  protections: string[];
+}
+
 export class OverlayUi {
   private readonly hint = document.querySelector<HTMLElement>("#game-hint");
   private readonly dialogue = document.querySelector<HTMLElement>("#dialogue-panel");
@@ -46,6 +62,7 @@ export class OverlayUi {
     onSelect: (value: string) => void,
   ): void {
     if (!this.activity || !this.activityEyebrow || !this.activityTitle || !this.activityCopy || !this.activityActions) return;
+    this.activity.classList.remove("is-detail");
     this.activityEyebrow.textContent = eyebrow;
     this.activityTitle.textContent = title;
     this.activityCopy.textContent = copy;
@@ -68,8 +85,56 @@ export class OverlayUi {
     this.activity.hidden = false;
   }
 
+  public showDetail(detail: ActivityDetail): void {
+    if (!this.activity || !this.activityEyebrow || !this.activityTitle || !this.activityCopy || !this.activityActions) return;
+    this.hideDialogue();
+    this.activity.classList.add("is-detail");
+    this.activityEyebrow.textContent = detail.eyebrow;
+    this.activityTitle.textContent = detail.title;
+    this.activityCopy.textContent = detail.summary;
+    this.activityActions.replaceChildren();
+
+    const flow = document.createElement("ol");
+    flow.className = "privacy-flow";
+    for (const step of detail.steps) {
+      const item = document.createElement("li");
+      item.className = "privacy-flow-step";
+      const marker = document.createElement("span");
+      marker.className = "privacy-flow-marker";
+      marker.textContent = step.marker;
+      const title = document.createElement("strong");
+      title.textContent = step.title;
+      const copy = document.createElement("p");
+      copy.textContent = step.copy;
+      item.append(marker, title, copy);
+      flow.append(item);
+    }
+
+    const result = document.createElement("section");
+    result.className = "privacy-result";
+    const resultLabel = document.createElement("strong");
+    resultLabel.textContent = detail.resultLabel;
+    const resultCopy = document.createElement("p");
+    resultCopy.textContent = detail.result;
+    result.append(resultLabel, resultCopy);
+
+    const protections = document.createElement("div");
+    protections.className = "privacy-tags";
+    protections.setAttribute("aria-label", "保护机制");
+    for (const protection of detail.protections) {
+      const tag = document.createElement("span");
+      tag.textContent = protection;
+      protections.append(tag);
+    }
+    this.activityActions.append(flow, result, protections);
+    this.activity.hidden = false;
+  }
+
   public hideActivity(): void {
-    if (this.activity) this.activity.hidden = true;
+    if (this.activity) {
+      this.activity.hidden = true;
+      this.activity.classList.remove("is-detail");
+    }
   }
 
   public isModalOpen(): boolean {

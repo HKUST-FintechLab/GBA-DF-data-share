@@ -205,7 +205,9 @@ tap the ground to pathfind there, or walk with **WASD / arrow keys**. Approachin
 NPC, indoor facility, or exit reveals a touch-friendly action button; **E** remains the keyboard
 shortcut. Players can construct cosmetic institution buildings and enter them later, as well as
 visit the clinic, privacy library, learning workshop, market, community house, or central machine
-room. A Tiled JSON object map supplies the collision, interaction, build-plot, and NPC layers. In
+room. The three data-workshop stations open touch-friendly privacy explainers with four-step flow
+diagrams covering local preparation, pairwise masking, federation, differential privacy, and audit
+outputs. A Tiled JSON object map supplies the collision, interaction, build-plot, and NPC layers. In
 coordinator mode the HUD and central machine room read the existing authenticated
 `/status` state; the information-dense operator console remains at
 `http://localhost:8055/console`.

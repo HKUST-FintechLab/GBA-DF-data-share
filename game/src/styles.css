@@ -86,6 +86,75 @@ html[data-game-scene="interior"] .dialogue-panel p { margin-top: 4px; font-size:
 .activity-actions button:hover { transform: translateY(-1px); background: #367d63; }
 .activity-actions small { display: block; margin-top: 4px; color: #f3d988; font-size: 9px; font-weight: 400; }
 
+.activity-shell.is-detail { background: #07150fd9; }
+.activity-shell.is-detail .activity-card {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  background: #fff2c9;
+}
+.activity-shell.is-detail .activity-card > p { min-height: 0; max-width: 820px; color: #486154; }
+.activity-shell.is-detail .activity-actions { display: block; }
+.privacy-flow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  margin: 22px 0 18px;
+  padding: 0;
+  list-style: none;
+}
+.privacy-flow-step {
+  position: relative;
+  min-height: 176px;
+  padding: 16px;
+  border: 3px solid #674d35;
+  border-radius: 8px;
+  background: #f6df9e;
+  box-shadow: inset 0 0 0 2px #fff5cf, 0 5px 0 #d0aa65;
+}
+.privacy-flow-step:not(:last-child)::after {
+  position: absolute;
+  top: 50%;
+  right: -22px;
+  z-index: 2;
+  content: "→";
+  color: #2e725b;
+  font-size: 24px;
+  font-weight: 900;
+  transform: translateY(-50%);
+}
+.privacy-flow-marker {
+  display: inline-grid;
+  place-items: center;
+  width: 38px;
+  height: 30px;
+  margin-bottom: 11px;
+  border-radius: 5px;
+  color: #fff7d6;
+  background: #2d6b55;
+  box-shadow: 0 3px 0 #173b30;
+  font-size: 11px;
+  font-weight: 900;
+}
+.privacy-flow-step strong { display: block; color: #173b30; font-size: 14px; }
+.privacy-flow-step p { min-height: 0; margin: 8px 0 0; color: #4e5f53; font-size: 11px; line-height: 1.55; }
+.privacy-result {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 16px;
+  border: 3px solid #2d6b55;
+  border-radius: 8px;
+  color: #eaffda;
+  background: #173b30;
+  box-shadow: 0 4px 0 #0f291f;
+}
+.privacy-result strong { color: #f3cf6a; }
+.privacy-result p { margin: 0; font-size: 12px; line-height: 1.55; }
+.privacy-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.privacy-tags span { padding: 6px 9px; border: 2px solid #5c7f68; border-radius: 999px; color: #2d5a48; background: #e4efc3; font-size: 10px; font-weight: 800; }
+
 .loading-screen { position: fixed; z-index: 30; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: #142d24; transition: opacity .45s ease, visibility .45s ease; }
 .loading-screen strong { font-size: 18px; }
 .loading-screen span { color: #b9cfb9; font-size: 12px; }
@@ -97,6 +166,8 @@ html[data-game-scene="interior"] .dialogue-panel p { margin-top: 4px; font-size:
     inset: 108px 12px auto;
     width: auto;
   }
+  .privacy-flow { grid-template-columns: 1fr 1fr; }
+  .privacy-flow-step:nth-child(2)::after { display: none; }
 }
 
 @media (max-width: 720px) {
@@ -104,4 +175,17 @@ html[data-game-scene="interior"] .dialogue-panel p { margin-top: 4px; font-size:
   .brand { padding: 6px 9px; }
   .hud-stats { order: 3; width: 100%; justify-content: center; padding: 7px 10px; }
   .primary-action { padding: 8px 10px; }
+  .activity-shell { padding: 10px; }
+  .activity-shell.is-detail .activity-card { max-height: calc(100vh - 20px); padding: 18px; }
+  .privacy-flow { grid-template-columns: 1fr; gap: 18px; }
+  .privacy-flow-step { min-height: 0; }
+  .privacy-flow-step:not(:last-child)::after {
+    top: auto;
+    right: 50%;
+    bottom: -20px;
+    content: "↓";
+    transform: translateX(50%);
+  }
+  .privacy-flow-step:nth-child(2)::after { display: block; }
+  .privacy-result { grid-template-columns: 1fr; gap: 6px; }
 }
