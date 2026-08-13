@@ -50,6 +50,10 @@ export class NavigationController {
     this.obstacles.push(this.inflate(source, this.options.agentPadding ?? 16));
   }
 
+  public cancel(): void {
+    this.clearDestination();
+  }
+
   public update(keys: MovementKeys, enabled: boolean): void {
     const keyboardActive = keys.up.isDown || keys.down.isDown || keys.left.isDown || keys.right.isDown;
     if (keyboardActive) {

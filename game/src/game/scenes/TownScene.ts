@@ -6,6 +6,7 @@ import { Player, type MovementKeys } from "../entities/Player";
 import { SaveSystem, type BuildingKind } from "../systems/SaveSystem";
 import { NavigationController } from "../systems/NavigationController";
 import { OverlayUi } from "../ui/OverlayUi";
+import { WorldActionButton } from "../ui/WorldActionButton";
 
 interface SceneData {
   x?: number;
@@ -31,6 +32,13 @@ interface TiledProperty {
 const WORLD_WIDTH = 1536;
 const WORLD_HEIGHT = 1024;
 
+const BUILDING_LABELS: Record<BuildingKind, string> = {
+  clinic: "暖心诊所",
+  research: "研究小屋",
+  community: "伙伴会馆",
+  garden: "数据花园",
+};
+
 export class TownScene extends Phaser.Scene {
   private player!: Player;
   private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -43,6 +51,8 @@ export class TownScene extends Phaser.Scene {
   private save!: SaveSystem;
   private navigation?: NavigationController;
   private collisionBounds: Phaser.Geom.Rectangle[] = [];
+  private worldAction?: WorldActionButton;
+  private worldActionKey = "";
 
   public constructor(private readonly runtimeMode: RuntimeMode) {
     super("TownScene");
@@ -96,7 +106,7 @@ export class TownScene extends Phaser.Scene {
         "向导小禾",
         this.runtimeMode === "client"
           ? "先逛逛小镇吧。准备好时，右上角的“创建我的机构”会带你完成连接、数据选择和训练。"
-          : "中央机房展示全镇的协作进度。点击地面或使用键盘移动，靠近门口按 E 就能进入。",
+          : "中央机房展示全镇的协作进度。点击地面或使用键盘移动，靠近门口点击浮出的按钮就能进入。",
       );
     });
   }
@@ -113,15 +123,35 @@ export class TownScene extends Phaser.Scene {
 
     const npc = this.nearestNpc();
     const interaction = this.nearestInteraction();
-    if (npc) {
-      this.ui.setHint(`E · 和 ${npc.npcName} 对话`);
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.ui.showDialogue(npc.npcName, npc.line);
+    if (this.ui.isModalOpen()) {
+      this.hideWorldAction();
+    } else if (npc) {
+      const activate = () => {
+        this.navigation?.cancel();
+        this.ui.showDialogue(npc.npcName, npc.line);
+      };
+      this.showWorldAction(`npc:${npc.npcName}`, npc.x, npc.y - 54, `和 ${npc.npcName} 对话`, activate);
+      this.ui.setHint(`点击人物旁按钮，或按 E 和 ${npc.npcName} 对话`);
+      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) activate();
     } else if (interaction) {
-      const verb = interaction.type === "plot" ? "在这里建造" : `进入${interaction.label}`;
-      this.ui.setHint(`E · ${verb}`);
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.activate(interaction);
+      const builtKind = interaction.type === "plot" ? this.save.snapshot().buildings[interaction.id] : undefined;
+      const verb = builtKind ? `进入${BUILDING_LABELS[builtKind]}` : interaction.type === "plot" ? "建造机构" : `进入${interaction.label}`;
+      const activate = () => {
+        this.navigation?.cancel();
+        this.activate(interaction);
+      };
+      this.showWorldAction(
+        `interaction:${interaction.id}:${builtKind ?? "empty"}`,
+        interaction.x + interaction.width / 2,
+        interaction.y + 8,
+        verb,
+        activate,
+      );
+      this.ui.setHint(`点击建筑按钮，或按 E · ${verb}`);
+      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) activate();
     } else {
-      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · 靠近建筑或 NPC 按 E 互动");
+      this.hideWorldAction();
+      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · 靠近目标会出现互动按钮");
     }
   }
 
@@ -199,21 +229,26 @@ export class TownScene extends Phaser.Scene {
     if (interaction.type === "plot") {
       const existing = this.save.snapshot().buildings[interaction.id];
       if (existing) {
-        this.ui.showDialogue("建造师芽芽", `${interaction.label}已经有一间精心布置的机构。它只保存在你的本地小镇存档中。`);
+        this.enterRoom(existing, BUILDING_LABELS[existing]);
         return;
       }
       this.ui.showBuildPicker(interaction.label, (kind, price) => this.build(interaction, kind, price));
       return;
     }
     if (interaction.target) {
-      this.save.visit(interaction.target);
-      this.scene.start("InteriorScene", {
-        room: interaction.target,
-        label: interaction.label,
-        returnX: this.player.x,
-        returnY: this.player.y + 22,
-      });
+      this.enterRoom(interaction.target, interaction.label);
     }
+  }
+
+  private enterRoom(room: string, label: string): void {
+    this.save.visit(room);
+    this.hideWorldAction();
+    this.scene.start("InteriorScene", {
+      room,
+      label,
+      returnX: this.player.x,
+      returnY: this.player.y + 22,
+    });
   }
 
   private build(plot: TownInteraction, kind: BuildingKind, price: number): void {
@@ -251,6 +286,19 @@ export class TownScene extends Phaser.Scene {
       const mote = this.add.circle(700 + index * 25, 570 + (index % 2) * 12, 3, 0x7bf5ec, 0.8).setDepth(12);
       this.tweens.add({ targets: mote, y: mote.y - 22, alpha: 0.15, duration: 1200 + index * 120, yoyo: true, repeat: -1 });
     }
+  }
+
+  private showWorldAction(key: string, x: number, y: number, label: string, onActivate: () => void): void {
+    if (this.worldActionKey === key && this.worldAction?.active) return;
+    this.hideWorldAction();
+    this.worldActionKey = key;
+    this.worldAction = new WorldActionButton(this, x, y, label, onActivate);
+  }
+
+  private hideWorldAction(): void {
+    this.worldAction?.destroy();
+    this.worldAction = undefined;
+    this.worldActionKey = "";
   }
 
   private property(properties: TiledProperty[] | undefined, name: string): string | undefined {

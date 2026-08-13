@@ -3,6 +3,7 @@ import { Player, type MovementKeys } from "../entities/Player";
 import { OverlayUi } from "../ui/OverlayUi";
 import type { FederationStatus } from "../../services/CoordinatorApi";
 import { NavigationController } from "../systems/NavigationController";
+import { WorldActionButton } from "../ui/WorldActionButton";
 
 interface InteriorData {
   room?: string;
@@ -22,6 +23,8 @@ const ROOM_COPY: Record<string, { title: string; subtitle: string; accent: numbe
   "data-center": { title: "中央机房", subtitle: "全镇共同模型与协作看板", accent: 0x46ddd2 },
   clinic: { title: "安心诊所", subtitle: "机构的本地数据工坊", accent: 0xd7645d },
   community: { title: "伙伴之家", subtitle: "参与者交流与奖励空间", accent: 0xbd7dc0 },
+  research: { title: "研究小屋", subtitle: "机构的本地研究与协作空间", accent: 0x4e9bbb },
+  garden: { title: "数据花园", subtitle: "培育本地数据与共同模型的温室", accent: 0x58a66d },
   library: { title: "隐私图书馆", subtitle: "用小游戏认识每一道保护", accent: 0x60a5c5 },
   workshop: { title: "学习工坊", subtitle: "共同模型的成长实验室", accent: 0x62a86e },
   market: { title: "装扮市集", subtitle: "用小镇币布置机构和角色", accent: 0xe89c43 },
@@ -39,6 +42,8 @@ export class InteriorScene extends Phaser.Scene {
   private hotspots: Hotspot[] = [];
   private dashboardText?: Phaser.GameObjects.Text;
   private navigation!: NavigationController;
+  private worldAction?: WorldActionButton;
+  private worldActionKey = "";
 
   public constructor() {
     super("InteriorScene");
@@ -93,9 +98,18 @@ export class InteriorScene extends Phaser.Scene {
     this.navigation.update(keys, !this.ui.isModalOpen());
     this.player.setDepth(this.player.y);
 
+    if (this.ui.isModalOpen()) {
+      this.hideWorldAction();
+      return;
+    }
     if (this.player.y > 550 && Math.abs(this.player.x - 480) < 70) {
-      this.ui.setHint("E · 返回小镇");
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.leave();
+      const activate = () => {
+        this.navigation.cancel();
+        this.leave();
+      };
+      this.showWorldAction("exit", 480, 525, "返回小镇", activate);
+      this.ui.setHint("点击出口按钮，或按 E 返回小镇");
+      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) activate();
       return;
     }
     const hotspot = this.hotspots
@@ -103,10 +117,16 @@ export class InteriorScene extends Phaser.Scene {
       .filter(({ distance }) => distance < 82)
       .sort((a, b) => a.distance - b.distance)[0]?.item;
     if (hotspot) {
-      this.ui.setHint(`E · 查看${hotspot.label}`);
-      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) this.ui.showDialogue(hotspot.label, hotspot.copy);
+      const activate = () => {
+        this.navigation.cancel();
+        this.ui.showDialogue(hotspot.label, hotspot.copy);
+      };
+      this.showWorldAction(`hotspot:${hotspot.label}`, hotspot.x, hotspot.y - 62, `查看${hotspot.label}`, activate);
+      this.ui.setHint(`点击设施按钮，或按 E 查看${hotspot.label}`);
+      if (Phaser.Input.Keyboard.JustDown(this.interactKey)) activate();
     } else {
-      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · E 互动 · Esc 返回小镇");
+      this.hideWorldAction();
+      this.ui.setHint("点击地面移动 · 方向键 / WASD 移动 · 靠近设施会出现互动按钮");
     }
   }
 
@@ -209,6 +229,20 @@ export class InteriorScene extends Phaser.Scene {
 
   private leave(): void {
     this.ui.hideDialogue();
+    this.hideWorldAction();
     this.scene.start("TownScene", { x: this.returnPosition.x, y: this.returnPosition.y });
+  }
+
+  private showWorldAction(key: string, x: number, y: number, label: string, onActivate: () => void): void {
+    if (this.worldActionKey === key && this.worldAction?.active) return;
+    this.hideWorldAction();
+    this.worldActionKey = key;
+    this.worldAction = new WorldActionButton(this, x, y, label, onActivate);
+  }
+
+  private hideWorldAction(): void {
+    this.worldAction?.destroy();
+    this.worldAction = undefined;
+    this.worldActionKey = "";
   }
 }

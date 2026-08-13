@@ -56,7 +56,7 @@
       "objects": [
         {"id": 40, "name": "小禾", "type": "guide", "x": 630, "y": 700, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "欢迎来到联邦小镇！每家机构在自己的屋子里照料数据，小镇一起收获更好的模型。"}]},
         {"id": 41, "name": "阿盾", "type": "privacy", "x": 1010, "y": 615, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "我负责巡视隐私工坊。走进中央机房，就能看见一次训练怎样从本地箱子走到共同模型。"}]},
-        {"id": 42, "name": "芽芽", "type": "builder", "x": 735, "y": 265, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "靠近带石角的空地按 E，就能挑选喜欢的机构建筑。小镇会记住你的布置。"}]}
+        {"id": 42, "name": "芽芽", "type": "builder", "x": 735, "y": 265, "width": 32, "height": 40, "properties": [{"name": "line", "type": "string", "value": "靠近带石角的空地，就能点击浮出的按钮挑选喜欢的机构建筑，也可以按 E。小镇会记住你的布置。"}]}
       ],
       "opacity": 1,
       "type": "objectgroup",
