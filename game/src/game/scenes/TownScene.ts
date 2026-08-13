@@ -63,6 +63,7 @@ export class TownScene extends Phaser.Scene {
   }
 
   public create(): void {
+    document.documentElement.dataset.gameScene = "town";
     this.ui = this.registry.get("overlayUi") as OverlayUi;
     this.save = this.registry.get("saveSystem") as SaveSystem;
     this.ui.hideActivity();

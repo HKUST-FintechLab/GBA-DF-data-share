@@ -56,6 +56,7 @@ export class InteriorScene extends Phaser.Scene {
   }
 
   public create(): void {
+    document.documentElement.dataset.gameScene = "interior";
     this.ui = this.registry.get("overlayUi") as OverlayUi;
     this.ui.hideDialogue();
     this.drawRoom();

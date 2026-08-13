@@ -55,6 +55,18 @@ html[data-mode="client"] .hud-actions { display: none; }
 .dialogue-panel p { margin: 6px 0 0; line-height: 1.5; }
 .dialogue-panel button, .guide-card button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 22px; }
 
+/* Interior doors sit at bottom-center, so keep room notifications off that path. */
+html[data-game-scene="interior"] .dialogue-panel {
+  right: 20px;
+  left: auto;
+  bottom: 72px;
+  width: min(470px, calc(100% - 40px));
+  padding: 12px;
+  transform: none;
+}
+html[data-game-scene="interior"] .dialogue-panel .portrait { width: 48px; height: 48px; }
+html[data-game-scene="interior"] .dialogue-panel p { margin-top: 4px; font-size: 12px; }
+
 .guide-shell { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 24px; background: #08130fbb; }
 .guide-card { width: min(1050px, 100%); height: min(720px, 100%); overflow: hidden; background: #f8e8b9; color: #213e32; }
 .guide-card > header { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; color: #fff7d6; background: #183d31; }
@@ -79,6 +91,13 @@ html[data-mode="client"] .hud-actions { display: none; }
 .loading-screen span { color: #b9cfb9; font-size: 12px; }
 .loading-emblem { width: 72px; margin-bottom: 10px; font-size: 25px; box-shadow: 0 6px 0 #6c512e; }
 .loading-screen.is-hidden { opacity: 0; visibility: hidden; }
+
+@media (max-width: 900px) {
+  html[data-game-scene="interior"] .dialogue-panel {
+    inset: 108px 12px auto;
+    width: auto;
+  }
+}
 
 @media (max-width: 720px) {
   .game-hud { inset: 10px; flex-wrap: wrap; gap: 8px; }
