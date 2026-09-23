@@ -48,6 +48,7 @@ export class ClientGuide {
 
   public open(): void {
     if (!this.shell || !this.content) return;
+    this.shell.hidden = false;
     if (!this.iframe) {
       this.iframe = document.createElement("iframe");
       this.iframe.title = "GBA-DF 机构创建向导";
@@ -55,7 +56,6 @@ export class ClientGuide {
       this.iframe.addEventListener("load", () => this.signalBridgeReady());
       this.content.append(this.iframe);
     }
-    this.shell.hidden = false;
   }
 
   public close(): void {
