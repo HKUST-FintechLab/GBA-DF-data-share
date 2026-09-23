@@ -7,7 +7,8 @@ LOCALLY and uploads only masked count vectors — but with live, screen-recordab
 data never leaves this machine.
 
   uv sync --extra client
-  uv run python client_app.py                 # opens the desktop window
+  uv run python client_app.py                 # opens the town desktop window
+  uv run python client_app.py --ui classic    # opens the classic sharing window
   uv run python client_app.py --selftest      # headless API smoke test (no GUI)
 """
 import argparse
@@ -298,15 +299,22 @@ def main():
     ap.add_argument("--selftest", action="store_true", help="run headless API checks, no GUI")
     ap.add_argument("--coord", default="http://localhost:8055", help="prefill coordinator URL")
     ap.add_argument("--node-id", default="node_1", help="prefill node id")
+    ap.add_argument("--ui", choices=("town", "classic"), default="town",
+                    help="desktop interface: town game (default) or classic sharing wizard")
     args = ap.parse_args()
     if args.selftest:
         _selftest(); return
 
     import webview
     api = Api(default_coord=args.coord, default_node=args.node_id)
-    game_url = Path(HERE, "static", "game", "index.html").resolve().as_uri() + "?mode=client"
+    if args.ui == "classic":
+        window_title = "GBA-DF Federated Node"
+        window_url = Path(HERE, "static", "client.html").resolve().as_uri() + "?theme=classic"
+    else:
+        window_title = "GBA-DF Federated Town"
+        window_url = Path(HERE, "static", "game", "index.html").resolve().as_uri() + "?mode=client"
     webview.create_window(
-        "GBA-DF Federated Town", url=game_url,
+        window_title, url=window_url,
         js_api=api, width=1180, height=780, min_size=(920, 640))
     webview.start()
 

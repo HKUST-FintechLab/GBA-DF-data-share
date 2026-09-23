@@ -11,7 +11,11 @@ try {
     document.documentElement.dataset.theme = savedTheme;
   }
 } catch (_error) {}
-if (new URLSearchParams(location.search).get("embedded") === "1") {
+const pageParams = new URLSearchParams(location.search);
+if (pageParams.get("theme") === "classic") {
+  document.documentElement.dataset.theme = "classic";
+}
+if (pageParams.get("embedded") === "1") {
   document.documentElement.dataset.embedded = "true";
 }
 </script>

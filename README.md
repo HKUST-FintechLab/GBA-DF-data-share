@@ -246,7 +246,8 @@ as `node.py` (both call `node_core.py`) — raw data never leaves the machine.
 
 ```bash
 uv sync --extra client                    # adds pywebview (WebKit/macOS, WebView2/Windows, GTK/Linux)
-uv run python client_app.py               # opens the window
+uv run python client_app.py               # opens the town game (default)
+uv run python client_app.py --ui classic  # opens the traditional sharing page directly
 uv run python client_app.py --selftest    # headless API smoke test (no GUI)
 ```
 
@@ -533,7 +534,7 @@ locally, and matched hosted predictions. That verifies artifact portability, not
 | `verify_audit_bundle.py` | offline verifier for exported audit packages: bundle/chain/node signatures + model hash |
 | `node_core.py` | **shared node loop** used by both the CLI and the desktop client (extract locally, mask, submit, poll) |
 | `node.py` | CLI node: `--data` baked features **or** `--folder`+`--modality` raw-folder ingestion |
-| `client_app.py` | **desktop node client** (pywebview): opens the shared game and exposes the existing local node bridge |
+| `client_app.py` | **desktop node client** (pywebview): opens the shared game by default or the traditional sharing page with `--ui classic`; both use the same local node bridge |
 | `game/` | Phaser 3 + TypeScript + Vite source: scenes, actors, Tiled object map, local saves, coordinator status service, and client guide shell |
 | `static/game/` | committed production build used by both the coordinator and desktop client |
 | `static/client.html` | English / 简体中文 / 繁體中文 four-step node wizard, embedded as the game's institution-creation center |
